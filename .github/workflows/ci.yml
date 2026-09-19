@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Checks (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.12.x"
+
+      - name: Install Python dependencies
+        run: uv sync --extra opencv-python-headless --dev
+
+      - name: Python lint
+        run: uv run ruff check .
+
+      - name: Python type check
+        run: uv run mypy apps/api/src packages/proctoring_core/src packages/proctoring_ai/src scripts
+
+      - name: Python unit tests
+        run: uv run pytest -m "not integration and not performance and not contract"
+
+      - name: Python contract tests
+        run: uv run pytest -m contract
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+
+      - name: Install frontend dependencies
+        run: npm install --prefix apps/web --no-audit --no-fund
+
+      - name: Frontend lint
+        run: npm run lint --prefix apps/web
+
+      - name: Frontend type check
+        run: npm run typecheck --prefix apps/web
+
+      - name: Frontend tests
+        run: npm run test --prefix apps/web

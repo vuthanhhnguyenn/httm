@@ -1,0 +1,22 @@
+schema_version: "1.0"
+
+# No binary model is bundled in the repository. Add a reviewed entry before loading a model.
+models: []
+
+model_template:
+  name: ""
+  source: ""
+  version: ""
+  license: ""
+  sha256: ""
+  class_map: {}
+  metric_baseline: {}
+
+release_policy:
+  allowed_ultralytics_licenses:
+    - AGPL-3.0-only
+    - Enterprise
+  require_sha256: true
+  require_class_map: true
+  require_metric_baseline: true
+

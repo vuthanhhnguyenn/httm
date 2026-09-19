@@ -1,0 +1,17 @@
+.git/
+.github/
+Dockerfile*
+.dockerignore
+.venv/
+__pycache__/
+*.py[cod]
+node_modules/
+apps/web/dist/
+coverage/
+.env*
+storage/
+evidence/
+models/
+tests/video_samples/
+*.sqlite3
+*.db

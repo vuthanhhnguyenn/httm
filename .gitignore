@@ -1,0 +1,64 @@
+# Python and tooling
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node and frontend build output
+node_modules/
+dist/
+build/
+apps/web/dist/
+apps/web/coverage/
+*.egg-info/
+*.tsbuildinfo
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.token
+*.secret
+secrets/
+
+# Runtime data and generated reports
+storage/*
+!storage/sessions/
+storage/sessions/*
+!storage/sessions/.gitkeep
+artifacts/*
+evidence/
+**/evidence/
+reports/*
+*.sqlite
+*.sqlite3
+*.db
+*.log
+
+# Large or downloaded model files; keep the manifest and metadata tracked
+models/**/*.pt
+models/**/*.pth
+models/**/*.onnx
+models/**/*.engine
+models/**/*.tflite
+models/**/*.task
+models/**/*.safetensors
+models/**/*.bin
+models/**/*.zip
+models/pretrained/*
+!models/pretrained/.gitkeep
+models/custom/*
+!models/custom/.gitkeep
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

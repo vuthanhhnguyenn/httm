@@ -1,0 +1,6 @@
+exam_policy:
+  allow_book: false
+  allow_scratch_paper: true
+  allow_phone: false
+  allowed_document_zones: []
+

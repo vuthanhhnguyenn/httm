@@ -1,0 +1,55 @@
+camera:
+  source: webcam
+  device_index: 0
+  width: 1280
+  height: 720
+  target_fps: 20
+  frame_queue_size: 2
+
+detection:
+  object_confidence_threshold: 0.60
+  person_confidence_threshold: 0.60
+  model_manifest: ./models/manifest.yaml
+
+behavior:
+  head_turn:
+    yaw_degrees: 25.0
+    minimum_duration_seconds: 1.5
+  look_down:
+    pitch_degrees: 20.0
+    minimum_duration_seconds: 2.0
+  abnormal_head_movement:
+    window_seconds: 30
+    minimum_turn_count: 4
+  phone:
+    minimum_confidence: 0.70
+    minimum_duration_seconds: 1.0
+  document:
+    minimum_confidence: 0.70
+    minimum_duration_seconds: 1.0
+  person_missing:
+    minimum_duration_seconds: 3.0
+  multiple_person:
+    minimum_duration_seconds: 2.0
+  leaving_seat:
+    minimum_duration_seconds: 2.0
+  camera_blocked:
+    minimum_duration_seconds: 2.0
+  face_not_visible:
+    minimum_duration_seconds: 2.0
+  hand_activity:
+    minimum_duration_seconds: 2.0
+    minimum_count: 2
+
+risk:
+  maximum_score: 100
+  update_interval_ms: 250
+
+evidence:
+  evidence_frame_enabled: true
+  evidence_clip_enabled: false
+  retention_days: 30
+
+runtime:
+  timezone: UTC
+  max_active_sessions: 1

@@ -1,0 +1,99 @@
+[project]
+name = "smart-exam-proctoring"
+version = "0.1.0"
+description = "Smart Exam Proctoring System backend and computer-vision packages"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = { text = "Proprietary - see docs/licensing.md" }
+authors = [{ name = "Smart Exam Proctoring maintainers" }]
+dependencies = [
+  "pyyaml>=6.0,<7.0",
+]
+
+[dependency-groups]
+api = [
+  "fastapi>=0.115,<1.0",
+  "uvicorn[standard]>=0.30,<1.0",
+  "pydantic>=2.9,<3.0",
+  "pydantic-settings>=2.6,<3.0",
+  "orjson>=3.10,<4.0",
+]
+ai = [
+  "numpy>=2.0,<3.0",
+  "torch>=2.6,<3.0",
+  "ultralytics>=8.3,<9.0",
+  "mediapipe>=0.10,<1.0",
+]
+persistence = [
+  "sqlalchemy[asyncio]>=2.0,<3.0",
+  "alembic>=1.14,<2.0",
+  "aiosqlite>=0.20,<1.0",
+]
+test = [
+  "pytest>=8.3,<9.0",
+  "pytest-asyncio>=0.24,<1.0",
+  "httpx>=0.27,<1.0",
+  "coverage[toml]>=7.6,<8.0",
+]
+dev = [
+  { include-group = "api" },
+  { include-group = "ai" },
+  { include-group = "persistence" },
+  { include-group = "test" },
+  "mypy>=1.13,<2.0",
+  "ruff>=0.8,<1.0",
+]
+
+[project.optional-dependencies]
+# Install exactly one OpenCV extra per environment.
+opencv-python = ["opencv-python>=4.10,<5.0"]
+opencv-python-headless = ["opencv-python-headless>=4.10,<5.0"]
+
+[tool.uv]
+package = false
+default-groups = ["dev"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["apps", "packages", "scripts", "tests"]
+extend-exclude = [".venv", "storage", "models"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+ignore = ["E501", "B008"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unused_configs = true
+exclude = "(^|/)(\\.venv|storage|models)(/|$)"
+mypy_path = ["apps/api/src", "packages/proctoring_core/src"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["apps/api/tests", "packages/*/tests", "tests"]
+addopts = "-ra --strict-config --strict-markers"
+asyncio_mode = "auto"
+markers = [
+  "contract: API and WebSocket contract tests",
+  "integration: cross-component integration tests",
+  "performance: performance and benchmark tests",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["apps", "packages"]
+parallel = true
+
+[tool.coverage.report]
+exclude_lines = [
+  "pragma: no cover",
+  "if TYPE_CHECKING:",
+  "raise NotImplementedError",
+]
+fail_under = 80
