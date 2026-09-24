@@ -1,44 +1,35 @@
 [project]
 name = "smart-exam-proctoring"
 version = "0.1.0"
-description = "Smart Exam Proctoring System backend and computer-vision packages"
+description = "Smart Exam Proctoring local desktop application"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 license = { text = "Proprietary - see docs/licensing.md" }
 authors = [{ name = "Smart Exam Proctoring maintainers" }]
 dependencies = [
   "pyyaml>=6.0,<7.0",
+  "pydantic>=2.9,<3.0",
 ]
 
 [dependency-groups]
-api = [
-  "fastapi>=0.115,<1.0",
-  "uvicorn[standard]>=0.30,<1.0",
-  "pydantic>=2.9,<3.0",
-  "pydantic-settings>=2.6,<3.0",
-  "orjson>=3.10,<4.0",
-]
 ai = [
   "numpy>=2.0,<3.0",
   "torch>=2.6,<3.0",
   "ultralytics>=8.3,<9.0",
   "mediapipe>=0.10,<1.0",
 ]
-persistence = [
-  "sqlalchemy[asyncio]>=2.0,<3.0",
-  "alembic>=1.14,<2.0",
-  "aiosqlite>=0.20,<1.0",
+desktop = [
+  { include-group = "ai" },
+  "PySide6>=6.8,<7.0",
 ]
 test = [
   "pytest>=8.3,<9.0",
   "pytest-asyncio>=0.24,<1.0",
-  "httpx>=0.27,<1.0",
   "coverage[toml]>=7.6,<8.0",
 ]
 dev = [
-  { include-group = "api" },
   { include-group = "ai" },
-  { include-group = "persistence" },
+  { include-group = "desktop" },
   { include-group = "test" },
   "mypy>=1.13,<2.0",
   "ruff>=0.8,<1.0",
@@ -72,15 +63,15 @@ python_version = "3.12"
 strict = true
 warn_unused_configs = true
 exclude = "(^|/)(\\.venv|storage|models)(/|$)"
-mypy_path = ["apps/api/src", "packages/proctoring_core/src"]
+mypy_path = ["apps/desktop/src", "packages/proctoring_core/src", "packages/proctoring_ai/src"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"
-testpaths = ["apps/api/tests", "packages/*/tests", "tests"]
+testpaths = ["apps/desktop/tests", "packages/*/tests", "tests"]
 addopts = "-ra --strict-config --strict-markers"
 asyncio_mode = "auto"
 markers = [
-  "contract: API and WebSocket contract tests",
+  "contract: application contract tests",
   "integration: cross-component integration tests",
   "performance: performance and benchmark tests",
 ]

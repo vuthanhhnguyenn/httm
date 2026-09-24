@@ -6,7 +6,7 @@
 
 ## Content Quality
 
-- [x] No implementation details (languages, frameworks, APIs)
+- [x] No implementation details (languages or frameworks)
 - [x] Focused on user value and business needs
 - [x] Written for non-technical stakeholders
 - [x] All mandatory sections completed
@@ -34,3 +34,5 @@
 - Validation iteration 1 passed all checklist items.
 - README technology choices and code structure were intentionally deferred to the planning phase.
 - Phase 1 is the first delivery scope; Phase 2 remains specified as the planned expansion.
+- Validation iteration 2 passed after adding measurable 20–30 FPS preview and realtime-processing
+  requirements; displayed FPS is explicitly measured rather than copied from configuration.

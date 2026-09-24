@@ -1,0 +1,11 @@
+schema_version: "1.0"
+fixture_policy: "synthetic-or-locally-provided-only"
+windows:
+  normal: { expected_events: [], tolerance_seconds: 1 }
+  head_turn: { expected_events: [HEAD_TURN_LEFT, HEAD_TURN_RIGHT], tolerance_seconds: 1 }
+  phone_usage: { expected_events: [PHONE_DETECTED], tolerance_seconds: 1 }
+  look_down: { expected_events: [LOOK_DOWN], tolerance_seconds: 1 }
+  second_person: { expected_events: [MULTIPLE_PERSON_DETECTED], tolerance_seconds: 1 }
+  leave_seat: { expected_events: [LEAVING_SEAT], tolerance_seconds: 1 }
+  camera_blocked: { expected_events: [CAMERA_BLOCKED], tolerance_seconds: 1 }
+  mixed_behavior: { expected_events: [HEAD_TURN_RIGHT, PHONE_DETECTED, LOOK_DOWN], tolerance_seconds: 2 }

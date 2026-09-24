@@ -1,7 +1,7 @@
 """Shared domain enums and validated value objects.
 
-This module deliberately has no dependency on FastAPI, SQLAlchemy or an AI framework.  Adapters
-convert their output to these bounded values before handing it to business rules.
+The domain layer has no dependency on a runtime or AI framework. Adapters convert observations to
+these bounded values before handing them to business rules.
 """
 
 from __future__ import annotations
@@ -178,4 +178,3 @@ class UtcTimestamp:
 
     def __str__(self) -> str:
         return self.isoformat()
-

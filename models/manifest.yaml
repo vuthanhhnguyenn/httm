@@ -1,7 +1,54 @@
 schema_version: "1.0"
 
-# No binary model is bundled in the repository. Add a reviewed entry before loading a model.
-models: []
+# Model files live under this directory, stay out of Git, and are verified before loading.
+models:
+  - name: yolo11n
+    task: detect
+    source: pretrained/yolo11n.pt
+    download_url: https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n.pt
+    version: 8.3.0
+    license: AGPL-3.0-only
+    sha256: 0ebbc80d4a7680d14987a577cd21342b65ecfd94632bd9a8da63ae6417644ee1
+    class_map:
+      0: person
+      67: cell phone
+      73: book
+    metric_baseline:
+      dataset: COCO
+      project_evaluation: pending
+  - name: mediapipe-face-landmarker
+    task: face_landmarker
+    source: pretrained/face_landmarker.task
+    download_url: https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task
+    version: latest-sha256-pinned
+    license: Apache-2.0
+    sha256: 64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff
+    class_map: {}
+    metric_baseline:
+      dataset: MediaPipe model card
+      project_evaluation: pending
+  - name: mediapipe-pose-landmarker-lite
+    task: pose_landmarker
+    source: pretrained/pose_landmarker_lite.task
+    download_url: https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task
+    version: latest-sha256-pinned
+    license: Apache-2.0
+    sha256: 59929e1d1ee95287735ddd833b19cf4ac46d29bc7afddbbf6753c459690d574a
+    class_map: {}
+    metric_baseline:
+      dataset: MediaPipe model card
+      project_evaluation: pending
+  - name: mediapipe-hand-landmarker
+    task: hand_landmarker
+    source: pretrained/hand_landmarker.task
+    download_url: https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task
+    version: latest-sha256-pinned
+    license: Apache-2.0
+    sha256: fbc2a30080c3c557093b5ddfc334698132eb341044ccee322ccf8bcf3607cde1
+    class_map: {}
+    metric_baseline:
+      dataset: MediaPipe model card
+      project_evaluation: pending
 
 model_template:
   name: ""
@@ -19,4 +66,3 @@ release_policy:
   require_sha256: true
   require_class_map: true
   require_metric_baseline: true
-

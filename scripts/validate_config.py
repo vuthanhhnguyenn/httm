@@ -1,4 +1,4 @@
-"""Validate runtime and exam-policy YAML files before they are loaded by the API."""
+"""Validate local runtime and exam-policy YAML files before an app session starts."""
 
 from __future__ import annotations
 
@@ -38,4 +38,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

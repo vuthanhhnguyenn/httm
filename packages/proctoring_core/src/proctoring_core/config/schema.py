@@ -22,24 +22,35 @@ class CameraConfig(StrictModel):
     device_index: int = Field(default=0, ge=0)
     width: int = Field(default=1280, ge=1, le=7680)
     height: int = Field(default=720, ge=1, le=4320)
-    target_fps: float = Field(default=20, gt=0, le=120)
+    target_fps: float = Field(default=30, ge=20, le=30)
     frame_queue_size: int = Field(default=2, ge=1, le=64)
 
 
 class DetectionConfig(StrictModel):
-    object_confidence_threshold: float = Field(default=0.6, ge=0, le=1)
+    object_confidence_threshold: float = Field(default=0.25, ge=0, le=1)
     person_confidence_threshold: float = Field(default=0.6, ge=0, le=1)
+    image_size: int = Field(default=416, ge=160, le=1280)
     model_manifest: str = Field(default="./models/manifest.yaml", min_length=1)
+    device: str | None = Field(default=None, min_length=1)
+    pose_interval_ms: int = Field(default=250, ge=0, le=500)
+    hands_interval_ms: int = Field(default=200, ge=0, le=500)
 
 
 class HeadTurnConfig(StrictModel):
-    yaw_degrees: float = Field(default=25, ge=0, le=180)
-    minimum_duration_seconds: float = Field(default=1.5, ge=0)
+    yaw_degrees: float = Field(default=22, ge=0, le=180)
+    minimum_duration_seconds: float = Field(default=0.3, ge=0)
+    fast_yaw_degrees: float = Field(default=32, ge=0, le=180)
+    fast_duration_seconds: float = Field(default=0.2, ge=0.1, le=2)
+    require_calibration: bool = True
+    neutral_degrees: float = Field(default=12, ge=0, le=25)
+    neutral_duration_seconds: float = Field(default=0.3, ge=0, le=2)
 
 
 class LookDownConfig(StrictModel):
-    pitch_degrees: float = Field(default=20, ge=0, le=180)
-    minimum_duration_seconds: float = Field(default=2, ge=0)
+    pitch_degrees: float = Field(default=15, ge=0, le=180)
+    minimum_duration_seconds: float = Field(default=0.4, ge=0)
+    fast_pitch_degrees: float = Field(default=28, ge=0, le=180)
+    fast_duration_seconds: float = Field(default=0.2, ge=0.1, le=2)
 
 
 class AbnormalHeadMovementConfig(StrictModel):
@@ -48,8 +59,13 @@ class AbnormalHeadMovementConfig(StrictModel):
 
 
 class PhoneConfig(StrictModel):
-    minimum_confidence: float = Field(default=0.7, ge=0, le=1)
-    minimum_duration_seconds: float = Field(default=1, ge=0)
+    minimum_confidence: float = Field(default=0.55, ge=0, le=1)
+    minimum_duration_seconds: float = Field(default=0.6, ge=0)
+    release_confidence: float = Field(default=0.35, ge=0, le=1)
+    maximum_gap_ms: int = Field(default=600, ge=0, le=1000)
+    fast_confidence: float = Field(default=0.85, ge=0.55, le=1)
+    fast_duration_seconds: float = Field(default=0.2, ge=0.2, le=1)
+    fast_min_hits: int = Field(default=2, ge=2, le=5)
 
 
 class DocumentConfig(StrictModel):
@@ -84,6 +100,12 @@ class RiskConfig(StrictModel):
     maximum_score: Literal[100] = 100
     update_interval_ms: int = Field(default=250, ge=1)
     persist_epsilon: float = Field(default=1.0, ge=0)
+    decay_per_second: float = Field(default=1.5, ge=0, le=10)
+    recovery_half_life_seconds: float | None = Field(default=1.0, ge=0.1, le=30)
+    active_event_ttl_seconds: float = Field(default=2, gt=0, le=10)
+    correlation_window_seconds: float = Field(default=5, gt=0, le=30)
+    correlation_confirmation_seconds: float = Field(default=0.25, ge=0, le=2)
+    correlation_cap: float = Field(default=20, ge=0, le=40)
 
 
 class EvidenceConfig(StrictModel):
