@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncContextManager, AsyncIterator, Mapping, Sequence
+from collections.abc import AsyncIterator, Mapping, Sequence
+from contextlib import AbstractAsyncContextManager
 from datetime import datetime
 from typing import Any, Protocol
 from uuid import UUID
@@ -53,7 +54,7 @@ class EventRepository(Protocol):
 class EvidenceStore(Protocol):
     async def put(self, *, event_id: UUID, content: bytes, media_type: str) -> Mapping[str, Any]: ...
 
-    async def open(self, evidence_id: UUID) -> AsyncContextManager[Any]: ...
+    async def open(self, evidence_id: UUID) -> AbstractAsyncContextManager[Any]: ...
 
     async def delete(self, evidence_id: UUID) -> None: ...
 

@@ -13,6 +13,7 @@ import platform
 import sys
 from pathlib import Path
 from time import perf_counter
+from typing import Any
 from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,7 +21,7 @@ for source in (ROOT / "packages/proctoring_ai/src", ROOT / "packages/proctoring_
     sys.path.insert(0, str(source))
 
 
-async def profile(args):
+async def profile(args: argparse.Namespace) -> dict[str, Any]:
     import cv2
     import numpy as np
     from proctoring_ai.analyzer_factory import AnalyzerFactory
@@ -38,7 +39,9 @@ async def profile(args):
         pipeline = factory.build_pipeline({"detection": {"image_size": args.image_size, "device": args.device,
                                           "pose_interval_ms": 0 if args.every_frame else 250,
                                           "hands_interval_ms": 0 if args.every_frame else 200}})
-        samples, timings, statuses = [], {}, {}
+        samples: list[float] = []
+        timings: dict[str, list[float]] = {}
+        statuses: dict[str, dict[str, int]] = {}
         session = uuid4()
         for index in range(args.frames + 3):
             started = perf_counter()

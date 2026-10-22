@@ -22,6 +22,15 @@ class ObjectRuleEvaluator:
         phone_fast_confidence: float = 0.8,
         phone_fast_duration_ms: int = 250,
         phone_fast_min_hits: int = 3,
+        phone_max_sample_gap_ms: int = 1200,
+        document_max_sample_gap_ms: int = 1200,
+        phone_fast_max_sample_gap_ms: int = 350,
+        phone_classes: tuple[str, ...] = ("cell phone", "phone", "mobile"),
+        document_classes: tuple[str, ...] = ("book",),
+        phone_episode_gap_ms: int = 0,
+        document_episode_gap_ms: int = 0,
+        phone_geometry_max_height_ratio: float | None = None,
+        phone_geometry_max_area_ratio: float | None = None,
     ) -> None:
         if policy is not None and hasattr(policy, "content"):
             policy = policy.content()
@@ -31,27 +40,61 @@ class ObjectRuleEvaluator:
         self.document_confidence_threshold = document_confidence_threshold if document_confidence_threshold is not None else confidence_threshold
         self.phone_release_confidence = phone_release_confidence if phone_release_confidence is not None else self.phone_confidence_threshold
         self._conditions = {
-            EventType.PHONE_DETECTED: TemporalCondition(min_duration_ms=phone_min_duration_ms if phone_min_duration_ms is not None else min_duration_ms, max_gap_ms=max_gap_ms, max_sample_gap_ms=1200),
-            EventType.DOCUMENT_DETECTED: TemporalCondition(min_duration_ms=document_min_duration_ms if document_min_duration_ms is not None else min_duration_ms, max_sample_gap_ms=1200),
+            EventType.PHONE_DETECTED: TemporalCondition(min_duration_ms=phone_min_duration_ms if phone_min_duration_ms is not None else min_duration_ms, max_gap_ms=max_gap_ms, max_sample_gap_ms=phone_max_sample_gap_ms),
+            EventType.DOCUMENT_DETECTED: TemporalCondition(min_duration_ms=document_min_duration_ms if document_min_duration_ms is not None else min_duration_ms, max_sample_gap_ms=document_max_sample_gap_ms),
         }
         self._phone_track_ids: set[int] = set()
         self.phone_fast_confidence = max(phone_fast_confidence, self.phone_confidence_threshold)
-        self._phone_fast = TemporalCondition(min_duration_ms=phone_fast_duration_ms, max_sample_gap_ms=350)
+        self._phone_fast = TemporalCondition(min_duration_ms=phone_fast_duration_ms,
+                                             max_sample_gap_ms=phone_fast_max_sample_gap_ms)
+        self._classes = {
+            EventType.PHONE_DETECTED: {name.lower() for name in phone_classes},
+            EventType.DOCUMENT_DETECTED: {name.lower() for name in document_classes},
+        }
         self.phone_fast_min_hits = max(2, phone_fast_min_hits)
         self._fast_hits = 0
         self._fast_latched = False
         self._fast_track_id: int | None = None
+        # An episode, once active, survives detection dropouts and object-track switches
+        # shorter than this gap: one phone in hand is one event (0 keeps the old behaviour).
+        self._episode_gap_ms = {EventType.PHONE_DETECTED: max(0, phone_episode_gap_ms),
+                                EventType.DOCUMENT_DETECTED: max(0, document_episode_gap_ms)}
+        self._episodes: dict[EventType, dict[str, Any]] = {}
+        self._phone_geometry = (phone_geometry_max_height_ratio, phone_geometry_max_area_ratio)
 
-    def evaluate(self, *, session_id: Any, track_id: Any, objects: list[dict[str, Any]], monotonic_ms: int) -> list[dict[str, Any]]:
+    @staticmethod
+    def _bbox_too_large(item: dict[str, Any],
+                        max_height_ratio: float | None, max_area_ratio: float | None) -> bool:
+        box = item.get("bbox")
+        if not isinstance(box, dict) or max_height_ratio is None and max_area_ratio is None:
+            return False
+        try:
+            width = float(box["width"])
+            height = float(box["height"])
+        except (KeyError, TypeError, ValueError):
+            return False
+        return ((max_height_ratio is not None and height > max_height_ratio)
+                or (max_area_ratio is not None and width * height > max_area_ratio))
+
+    def _phone_geometry_admitted(self, item: dict[str, Any]) -> bool:
+        """Off by default: rejects boxes too large to be a hand-held phone."""
+        if all(limit is None for limit in self._phone_geometry):
+            return True
+        return not self._bbox_too_large(item, *self._phone_geometry)
+
+    def evaluate(self, *, session_id: Any, track_id: Any, objects: list[dict[str, Any]], monotonic_ms: int,
+                 frame_id: int | None = None) -> list[dict[str, Any]]:
         results: list[dict[str, Any]] = []
         for event_type, classes, allowed_key, threshold in (
-            (EventType.PHONE_DETECTED, {"cell phone", "phone", "mobile"}, "allow_phone", self.phone_confidence_threshold),
-            (EventType.DOCUMENT_DETECTED, {"book", "document", "paper"}, "allow_book", self.document_confidence_threshold),
+            (EventType.PHONE_DETECTED, self._classes[EventType.PHONE_DETECTED], "allow_phone", self.phone_confidence_threshold),
+            (EventType.DOCUMENT_DETECTED, self._classes[EventType.DOCUMENT_DETECTED], "allow_book", self.document_confidence_threshold),
         ):
             matches = []
             candidate_matches = []
             for item in objects:
                 if str(item.get("class", "")).lower() not in classes:
+                    continue
+                if event_type is EventType.PHONE_DETECTED and not self._phone_geometry_admitted(item):
                     continue
                 confirmed = item.get("track_confirmed") is not False
                 confidence = float(item.get("confidence", 0))
@@ -106,8 +149,56 @@ class ObjectRuleEvaluator:
                 if fast_state is ConditionState.ACTIVE and self._fast_hits >= self.phone_fast_min_hits:
                     self._fast_latched = True
                 active = active or (self._fast_latched and bool(matches) and not suppressed)
-            if not matches and not self._conditions[event_type].last_closed:
+            held, closing = False, False
+            episode = self._episodes.get(event_type)
+            gap = self._episode_gap_ms[event_type]
+            if active and gap > 0:
+                if episode is None:
+                    best = max(matches, key=lambda item: float(item.get("confidence", 0.0)))
+                    episode = {"trace": _trace(best, frame_id, monotonic_ms), "confidence": 0.0}
+                    self._episodes[event_type] = episode
+                episode["last_seen_ms"] = monotonic_ms
+            elif episode is not None:
+                if observations and not suppressed:
+                    episode["last_seen_ms"] = monotonic_ms
+                if not suppressed and monotonic_ms - int(episode["last_seen_ms"]) <= gap:
+                    active, held = True, True
+                else:
+                    del self._episodes[event_type]
+                    closing = True
+            last_closed = self._conditions[event_type].last_closed
+            if not matches and not last_closed and not held and not closing:
                 continue
-            if state is not ConditionState.INACTIVE or self._conditions[event_type].last_closed:
-                results.append({"session_id": session_id, "track_id": track_id, "event_type": event_type, "severity": Severity.MEDIUM if event_type is EventType.DOCUMENT_DETECTED else Severity.HIGH, "confidence": max((float(item.get("confidence", 0.0)) for item in matches), default=0.0), "active": active, "metrics": {"object_count": len(matches), "suppressed_by_policy": suppressed, "fast_confirmation": event_type is EventType.PHONE_DETECTED and self._fast_latched, **self._conditions[event_type].current_metrics()}, "reason_codes": [f"{event_type.value}_CONFIDENCE"]})
+            if state is not ConditionState.INACTIVE or last_closed or held or closing:
+                confidence = max((float(item.get("confidence", 0.0)) for item in matches), default=0.0)
+                if episode is not None:
+                    confidence = confidence or float(episode["confidence"])
+                    episode["confidence"] = confidence
+                result: dict[str, Any] = {
+                    "session_id": session_id, "track_id": track_id, "event_type": event_type,
+                    "severity": Severity.MEDIUM if event_type is EventType.DOCUMENT_DETECTED else Severity.HIGH,
+                    "confidence": confidence, "active": active, "state": state.value,
+                    "metrics": {"object_count": len(matches), "suppressed_by_policy": suppressed,
+                                "fast_confirmation": event_type is EventType.PHONE_DETECTED and self._fast_latched,
+                                "episode_hold": held, **self._conditions[event_type].current_metrics()},
+                    "reason_codes": [f"{event_type.value}_CONFIDENCE"],
+                }
+                if episode is not None:
+                    result["object_trace"] = dict(episode["trace"])
+                results.append(result)
         return results
+
+
+def _trace(item: dict[str, Any], frame_id: int | None, monotonic_ms: int) -> dict[str, Any]:
+    """Where the alert came from: the analysed frame and the detection that opened it."""
+
+    return {
+        "frame_id": frame_id,
+        "monotonic_ms": monotonic_ms,
+        "label": str(item.get("class", "")),
+        "confidence": float(item.get("confidence", 0.0)),
+        "bbox": dict(item["bbox"]) if isinstance(item.get("bbox"), dict) else None,
+        "object_track_id": item.get("object_track_id"),
+        "model_name": item.get("model_name"),
+        "model_version": item.get("model_version"),
+    }

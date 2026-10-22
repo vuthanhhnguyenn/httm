@@ -1,4 +1,4 @@
-from .head_pose import HeadPoseEstimator, HeadPoseCalibration
+from .head_pose import HeadPoseCalibration, HeadPoseEstimator
 from .landmarks import MediaPipeFaceLandmarker
 
 __all__ = ["HeadPoseCalibration", "HeadPoseEstimator", "MediaPipeFaceLandmarker"]

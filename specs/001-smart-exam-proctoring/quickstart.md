@@ -63,7 +63,7 @@ Các lệnh kiểm tra tự động của repository được cấu hình trong 
 Các tình huống dưới đây là tiêu chí kiểm thử tương lai, **chưa phải chức năng
 đã có**. Dùng video/ảnh có quyền sử dụng; không ghi hình người khác khi chưa
 được đồng ý. Nên bắt đầu bằng replay từ file để kết quả lặp lại được, sau đó
-mới thử webcam thật. `scripts/replay.py` hiện chỉ đọc fixture/manifest, chưa
+mới thử webcam thật. `scripts/evaluate.py` (spec 002) phát lại video có nhãn qua pipeline thật; công cụ cũ `scripts/replay.py` chỉ đọc fixture/manifest, chưa
 thực thi pipeline AI; P0 phải hoàn thiện runner đó trước khi coi replay là test.
 
 1. Chạy test hiện có tại gốc repo:

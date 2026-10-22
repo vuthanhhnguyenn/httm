@@ -19,6 +19,8 @@ EVENT_NAMES = {
     "FACE_NOT_VISIBLE": "Không thấy rõ khuôn mặt",
     "SUSPICIOUS_HAND_ACTIVITY": "Cử động tay cần rà soát",
     "POSSIBLE_TALKING": "Có dấu hiệu nói chuyện",
+    "GAZE_OFF_SCREEN": "Nhìn ra ngoài màn hình",
+    "GAZE_SIDEWAYS": "Liếc mắt sang bên kéo dài",
 }
 
 CORRELATION_NAMES = {
@@ -46,11 +48,17 @@ def event_description(item: dict[str, Any]) -> str:
     if isinstance(duration, (float, int)):
         text += f" Thời gian ghi nhận: {duration / 1000:.1f} giây."
     if item.get("type") == "DOCUMENT_DETECTED":
-        text += " Model hiện nhận diện sách; chưa nhận diện tin cậy mọi loại giấy/tài liệu."
+        text += " Model chỉ nhận diện sách; giấy rời và tài liệu khác không được phát hiện."
     if item.get("metrics", {}).get("fast_confirmation"):
         text += " Xác nhận nhanh qua nhiều khung hình có độ tin cậy cao."
+    if str(item.get("type", "")).startswith("GAZE_"):
+        text += (" Tín hiệu thử nghiệm: ước lượng hướng mắt qua webcam sau hiệu chỉnh, "
+                 "dễ sai khi ánh sáng kém, đeo kính hoặc mặt nghiêng.")
     if str(item.get("type", "")).startswith("HEAD_TURN"):
         text += " Góc đầu được so với tư thế nhìn thẳng đã hiệu chỉnh; không phải phép đo hướng mắt."
+    supporting = [event_name(str(code)) for code in item.get("supporting_signals") or []]
+    if supporting:
+        text += f" Tín hiệu kèm theo (không cộng điểm riêng): {', '.join(supporting)}."
     if any(str(code).startswith("CORRELATION_") for code in item.get("risk_reason_codes", [])):
         text += " Điểm tăng thêm vì nhiều tín hiệu xuất hiện gần nhau; cần giám thị đối chiếu ảnh và bối cảnh."
     return text + " Đây là tín hiệu hỗ trợ; giám thị cần kiểm tra trước khi kết luận."

@@ -11,7 +11,7 @@ from typing import Any
 from ..pipeline.single_flight import run_single_flight
 
 try:
-    from ultralytics import YOLO  # type: ignore[import-not-found]
+    from ultralytics import YOLO
 except ImportError:  # pragma: no cover - optional dependency
     YOLO = None
 
@@ -78,7 +78,7 @@ class YoloObjectDetector:
 
     def _warmup(self) -> None:
         self._load()
-        import numpy as np  # type: ignore[import-not-found]
+        import numpy as np
 
         blank = np.zeros((self.image_size, self.image_size, 3), dtype=np.uint8)
         options: dict[str, Any] = {
@@ -155,6 +155,7 @@ class YoloObjectDetector:
                             "width": normalized_w,
                             "height": normalized_h,
                         },
+                        "model_name": self.model_path.stem,
                         "model_version": self.model_version,
                         "model_sha256": self.model_sha256,
                     }

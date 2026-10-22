@@ -1,0 +1,9 @@
+{"action": "opened", "risk": 4.5, "severity": "LOW", "t": 7000, "type": "SUSPICIOUS_HAND_ACTIVITY"}
+{"action": "updated", "risk": 4.5, "severity": "LOW", "t": 7250, "type": "SUSPICIOUS_HAND_ACTIVITY"}
+{"action": "updated", "risk": 4.5, "severity": "LOW", "t": 7500, "type": "SUSPICIOUS_HAND_ACTIVITY"}
+{"action": "updated", "risk": 4.5, "severity": "LOW", "t": 7750, "type": "SUSPICIOUS_HAND_ACTIVITY"}
+{"action": "updated", "risk": 4.5, "severity": "LOW", "t": 8000, "type": "SUSPICIOUS_HAND_ACTIVITY"}
+{"action": "updated", "risk": 4.5, "severity": "LOW", "t": 8250, "type": "SUSPICIOUS_HAND_ACTIVITY"}
+{"action": "updated", "risk": 4.5, "severity": "LOW", "t": 8500, "type": "SUSPICIOUS_HAND_ACTIVITY"}
+{"action": "updated", "risk": 4.5, "severity": "LOW", "t": 8750, "type": "SUSPICIOUS_HAND_ACTIVITY"}
+{"action": "closed", "risk": 4.5, "severity": "LOW", "t": 9000, "type": "SUSPICIOUS_HAND_ACTIVITY"}

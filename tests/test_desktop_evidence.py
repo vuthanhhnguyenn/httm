@@ -4,6 +4,7 @@ import hashlib
 import json
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
+from typing import Any
 from uuid import uuid4
 
 import cv2
@@ -12,8 +13,11 @@ import pytest
 from proctoring_core.events.aggregator import EventAggregator
 from proctoring_core.events.models import ObservationBundle, ObservationHealth
 from proctoring_core.risk.engine import RiskEngine
-from proctoring_desktop.evidence import EvidenceRecorder
-from proctoring_desktop.runtime import DesktopRuntime, LatestPreview, _RuleSet
+from proctoring_runtime.evidence import EvidenceRecorder
+from proctoring_runtime.persistence import JsonlEventRepository, write_risk_summary
+from proctoring_runtime.session_engine import SessionRuleProcessor
+
+from tests.fixtures.rules import BundleRules as _RuleSet
 
 
 def sample(session_id, *, image=None, frame_id=1, timestamp=100):
@@ -28,7 +32,7 @@ def sample(session_id, *, image=None, frame_id=1, timestamp=100):
 @pytest.mark.asyncio
 async def test_evidence_records_exact_analyzed_frame_and_expires_only_indexed_jpeg(tmp_path):
     session_id, event_id = uuid4(), uuid4()
-    notifications = []
+    notifications: list[dict[str, Any]] = []
     recorder = EvidenceRecorder(tmp_path / "storage", session_id, enabled=True, retention_days=2,
                                 on_result=notifications.append)
     frame, bundle = sample(session_id)
@@ -43,6 +47,7 @@ async def test_evidence_records_exact_analyzed_frame_and_expires_only_indexed_jp
     encoded = path.read_bytes()
     assert hashlib.sha256(encoded).hexdigest() == result["sha256"]
     decoded = cv2.imdecode(np.frombuffer(encoded, dtype=np.uint8), cv2.IMREAD_COLOR)
+    assert decoded is not None
     assert decoded.shape == original.shape
     assert np.mean(np.abs(decoded.astype(float) - original.astype(float))) < 3
     assert np.mean(decoded) > 50  # The mutated black frame was not stored.
@@ -75,23 +80,25 @@ async def test_disabled_mismatch_and_full_queue_never_save_wrong_frame(tmp_path)
 
 @pytest.mark.asyncio
 async def test_runtime_event_and_background_evidence_share_id_and_frame(tmp_path):
-    runtime = DesktopRuntime(camera_index=0, repository_root=tmp_path, preview=LatestPreview())
-    runtime._event_path = tmp_path / "storage" / "sessions" / str(runtime.session_id) / "events.jsonl"
-    runtime._event_path.parent.mkdir(parents=True)
-    session = SimpleNamespace(id=runtime.session_id, current_risk_score=0,
+    session_id = uuid4()
+    repository = JsonlEventRepository(tmp_path / "storage" / "sessions" / str(session_id) / "events.jsonl")
+    repository.ensure_parent()
+    session = SimpleNamespace(id=session_id, current_risk_score=0,
                               update_risk=lambda score, level: None)
-    rules = _RuleSet(runtime.session_id, {"allow_phone": False},
+    rules = _RuleSet(session_id, {"allow_phone": False},
                      {"behavior": {"phone": {"minimum_duration_seconds": 0}}})
-    frame, bundle = sample(runtime.session_id)
+    frame, bundle = sample(session_id)
     bundle.objects = [{"class": "cell phone", "confidence": 0.9,
                        "track_confirmed": True, "object_track_id": 1}]
     bundle.analyzer_health = {"object_detector": ObservationHealth("ready")}
-    recorder = EvidenceRecorder(tmp_path / "storage", runtime.session_id, enabled=True,
-                                retention_days=3, on_result=runtime._on_evidence_result)
+    recorder = EvidenceRecorder(tmp_path / "storage", session_id, enabled=True,
+                                retention_days=3, on_result=repository.append)
+    processor = SessionRuleProcessor(session, rules.engine, aggregator=EventAggregator(),
+                                     risk_engine=RiskEngine(), repository=repository, recorder=recorder)
     recorder.start()
-    await runtime._process_rules(bundle, rules, EventAggregator(), RiskEngine(), session, frame, recorder)
+    await processor.process(bundle, frame)
     await recorder.close()
-    records = [json.loads(line) for line in runtime._event_path.read_text(encoding="utf-8").splitlines()]
+    records = repository.records()
     opened = next(item for item in records if item.get("action") == "opened")
     evidence = next(item for item in records if item.get("action") == "evidence")
     assert opened["id"] == evidence["event_id"]
@@ -130,20 +137,18 @@ def test_evidence_event_becomes_openable_in_vietnamese_ui(monkeypatch, tmp_path)
 
 
 def test_risk_summary_persists_live_and_session_history_separately(tmp_path):
-    runtime = DesktopRuntime(camera_index=0, repository_root=tmp_path, preview=LatestPreview())
-    runtime._event_path = tmp_path / "storage" / "sessions" / str(runtime.session_id) / "events.jsonl"
-    runtime._event_path.parent.mkdir(parents=True)
+    session_id = uuid4()
     now = datetime.now(UTC)
     engine = RiskEngine(decay_per_second=1.5)
     from proctoring_core.events.models import SuspiciousEvent
     from proctoring_core.types import EventType, Severity
 
-    event = SuspiciousEvent(session_id=runtime.session_id, event_type=EventType.PHONE_DETECTED,
+    event = SuspiciousEvent(session_id=session_id, event_type=EventType.PHONE_DETECTED,
                             severity=Severity.HIGH, confidence=1, started_at=now, reason_codes=["TEST"])
     engine.apply_event(event, occurred_at=now)
-    engine.decay(runtime.session_id, occurred_at=now + timedelta(seconds=20))
-    runtime._write_risk_summary(engine, runtime.session_id)
-    summary = json.loads((runtime._event_path.parent / "risk-summary.json").read_text(encoding="utf-8"))
+    engine.decay(session_id, occurred_at=now + timedelta(seconds=20))
+    target = write_risk_summary(tmp_path, engine, session_id)
+    summary = json.loads(target.read_text(encoding="utf-8"))
     assert summary["current_score"] == 0
     assert summary["cumulative_score"] == 28
     assert summary["peak_score"] == 28

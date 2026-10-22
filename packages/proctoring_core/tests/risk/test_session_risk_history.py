@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from proctoring_core.events.models import SuspiciousEvent
@@ -9,13 +9,14 @@ from proctoring_core.risk.engine import RiskEngine
 from proctoring_core.types import EventType, Severity
 
 
-def event(session, kind, *, track=None, confidence=1.0, at=None):
+def event(session: UUID, kind: EventType, *, track: UUID | None = None,
+          confidence: float = 1.0, at: datetime | None = None) -> SuspiciousEvent:
     return SuspiciousEvent(session_id=session, track_id=track, event_type=kind,
                            severity=Severity.MEDIUM, confidence=confidence,
                            started_at=at or datetime.now(UTC), reason_codes=["TEST"])
 
 
-def test_same_event_updates_do_not_inflate_repetition_or_history():
+def test_same_event_updates_do_not_inflate_repetition_or_history() -> None:
     session = uuid4()
     now = datetime.now(UTC)
     engine = RiskEngine(decay_per_second=0)
@@ -29,7 +30,7 @@ def test_same_event_updates_do_not_inflate_repetition_or_history():
     assert engine.history(session)["events_by_type"] == {"PHONE_DETECTED": 1}
 
 
-def test_session_scope_decay_and_non_decaying_history():
+def test_session_scope_decay_and_non_decaying_history() -> None:
     session, track = uuid4(), uuid4()
     now = datetime.now(UTC)
     engine = RiskEngine(decay_per_second=1.5)
@@ -43,7 +44,7 @@ def test_session_scope_decay_and_non_decaying_history():
     assert after.event_count == 1
 
 
-def test_separate_events_across_tracks_count_as_history_once_each():
+def test_separate_events_across_tracks_count_as_history_once_each() -> None:
     session = uuid4()
     now = datetime.now(UTC)
     engine = RiskEngine(decay_per_second=0)
@@ -60,7 +61,7 @@ def test_separate_events_across_tracks_count_as_history_once_each():
     assert closed.event_count == 2
 
 
-def test_configurable_decay_rate_changes_live_score_not_history():
+def test_configurable_decay_rate_changes_live_score_not_history() -> None:
     session = uuid4()
     now = datetime.now(UTC)
     engine = RiskEngine(decay_per_second=0.3)
@@ -70,7 +71,7 @@ def test_configurable_decay_rate_changes_live_score_not_history():
     assert after.cumulative_score == 28
 
 
-def test_repeated_active_event_holds_floor_without_recharging_history():
+def test_repeated_active_event_holds_floor_without_recharging_history() -> None:
     session = uuid4()
     now = datetime.now(UTC)
     engine = RiskEngine(decay_per_second=1.5)
@@ -82,7 +83,7 @@ def test_repeated_active_event_holds_floor_without_recharging_history():
     assert engine.history(session)["cumulative_score"] == 28
 
 
-def test_active_floor_expires_after_missing_updates_and_closed_event_can_decay():
+def test_active_floor_expires_after_missing_updates_and_closed_event_can_decay() -> None:
     session = uuid4()
     now = datetime.now(UTC)
     engine = RiskEngine(decay_per_second=1.5, active_event_ttl_seconds=2)
@@ -96,7 +97,7 @@ def test_active_floor_expires_after_missing_updates_and_closed_event_can_decay()
     assert engine.history(session)["cumulative_score"] == 28
 
 
-def test_out_of_order_timestamp_cannot_extend_next_decay_window():
+def test_out_of_order_timestamp_cannot_extend_next_decay_window() -> None:
     session = uuid4()
     now = datetime.now(UTC)
     engine = RiskEngine(decay_per_second=1)
@@ -107,7 +108,7 @@ def test_out_of_order_timestamp_cannot_extend_next_decay_window():
     assert later.score_after == 8
 
 
-def test_fast_recovery_halves_idle_score_and_preserves_session_history():
+def test_fast_recovery_halves_idle_score_and_preserves_session_history() -> None:
     session = uuid4()
     now = datetime.now(UTC)
     engine = RiskEngine(recovery_half_life_seconds=1)
@@ -123,7 +124,7 @@ def test_fast_recovery_halves_idle_score_and_preserves_session_history():
 
 
 @pytest.mark.parametrize("step_seconds", [0.05, 0.25, 1, 4])
-def test_fast_recovery_waits_for_ttl_and_is_independent_of_ai_fps(step_seconds):
+def test_fast_recovery_waits_for_ttl_and_is_independent_of_ai_fps(step_seconds: float) -> None:
     session = uuid4()
     now = datetime.now(UTC)
     engine = RiskEngine(recovery_half_life_seconds=1, active_event_ttl_seconds=2)
@@ -137,7 +138,7 @@ def test_fast_recovery_waits_for_ttl_and_is_independent_of_ai_fps(step_seconds):
     assert snapshot.score_after == pytest.approx(7)
 
 
-def test_fast_recovery_starts_at_close_not_before_and_keeps_other_active_floor():
+def test_fast_recovery_starts_at_close_not_before_and_keeps_other_active_floor() -> None:
     session = uuid4()
     now = datetime.now(UTC)
     engine = RiskEngine(recovery_half_life_seconds=1)
@@ -157,7 +158,7 @@ def test_fast_recovery_starts_at_close_not_before_and_keeps_other_active_floor()
     assert engine.history(session)["cumulative_score"] == 44
 
 
-def test_fast_recovery_ignores_duplicate_and_older_decay_timestamps():
+def test_fast_recovery_ignores_duplicate_and_older_decay_timestamps() -> None:
     session = uuid4()
     now = datetime.now(UTC)
     engine = RiskEngine(recovery_half_life_seconds=1)

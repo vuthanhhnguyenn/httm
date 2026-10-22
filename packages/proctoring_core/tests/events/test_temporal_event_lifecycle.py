@@ -3,7 +3,11 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
-from proctoring_core.behavior.temporal_buffer import ConditionState, TemporalCondition, TemporalSample
+from proctoring_core.behavior.temporal_buffer import (
+    ConditionState,
+    TemporalCondition,
+    TemporalSample,
+)
 from proctoring_core.events.aggregator import EventAggregator
 from proctoring_core.types import EventType, Severity
 

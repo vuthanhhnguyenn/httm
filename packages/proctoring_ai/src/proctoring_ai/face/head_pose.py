@@ -25,8 +25,16 @@ class HeadPoseCalibration:
 
 
 class HeadPoseEstimator:
-    def __init__(self, calibration: HeadPoseCalibration | None = None) -> None:
+    def __init__(self, calibration: HeadPoseCalibration | None = None, *, suggest_after_ms: int = 2000,
+                 suggest_stable_degrees: float = 5.0, max_baseline_degrees: float = 35.0) -> None:
         self.calibration = calibration or HeadPoseCalibration()
+        # Suggest (never silently apply) a baseline once the head has been steady this long.
+        self.suggest_after_ms = suggest_after_ms
+        self.suggest_stable_degrees = suggest_stable_degrees
+        # A baseline further than this from the camera axis is not "looking at the screen".
+        self.max_baseline_degrees = max_baseline_degrees
+        self.calibration_reason: str | None = None
+        self._steady: list[dict[str, float]] = []
         self._previous: dict[str, float] | None = None
         self._last_ms: int | None = None
         self._samples: list[dict[str, float]] = []
@@ -35,15 +43,44 @@ class HeadPoseEstimator:
         self._angle_window: deque[dict[str, float]] = deque(maxlen=3)
 
     def begin_calibration(self) -> None:
+        """Operator request: accept a pending suggestion at once, otherwise collect a new baseline."""
+
+        if self.calibration_status == "suggested" and self._steady:
+            self.calibrate(self._steady)
+            self._steady.clear()
+            return
         self._samples.clear()
         self._calibration_start = None
         self.calibration_status = "collecting"
         self._angle_window.clear()
 
     def calibrate(self, samples: list[dict[str, float]]) -> None:
-        self.calibration = HeadPoseCalibration.from_samples(samples)
+        candidate = HeadPoseCalibration.from_samples(samples)
+        if max(abs(candidate.yaw_offset), abs(candidate.pitch_offset)) > self.max_baseline_degrees:
+            # Refuse an uncertain neutral reference rather than silently shifting every angle.
+            self.calibration_status = "failed"
+            self.calibration_reason = "BASELINE_OFF_AXIS"
+            return
+        self.calibration = candidate
         self._previous = None
         self.calibration_status = "calibrated"
+        self.calibration_reason = None
+
+    def _track_suggestion(self, raw: dict[str, float], timestamp_ms: int) -> None:
+        if self.calibration_status not in {"uncalibrated", "suggested"}:
+            self._steady.clear()
+            return
+        if self._steady and timestamp_ms - self._steady[-1]["timestamp_ms"] > 600:
+            self._steady.clear()
+        self._steady.append({**raw, "timestamp_ms": timestamp_ms})
+        if any(max(s[a] for s in self._steady) - min(s[a] for s in self._steady) > self.suggest_stable_degrees
+               for a in ("yaw", "pitch")):
+            self._steady = [{**raw, "timestamp_ms": timestamp_ms}]
+        steady_for = timestamp_ms - self._steady[0]["timestamp_ms"]
+        centred = all(abs(median(s[a] for s in self._steady)) <= self.max_baseline_degrees
+                      for a in ("yaw", "pitch"))
+        self.calibration_status = ("suggested" if steady_for >= self.suggest_after_ms and len(self._steady) >= 8
+                                   and centred else "uncalibrated")
 
     def update(self, face: dict[str, Any], timestamp_ms: int) -> dict[str, Any]:
         """Smooth angles in time; calibrate only after an explicit operator request."""
@@ -55,6 +92,9 @@ class HeadPoseEstimator:
             self._last_ms = None
             self._samples.clear()
             self._angle_window.clear()
+            self._steady.clear()
+            if self.calibration_status == "suggested":
+                self.calibration_status = "uncalibrated"
             return {**face, "quality": 0.0, "pose_valid": False,
                     "calibration_status": self.calibration_status}
         if self.calibration_status == "collecting":
@@ -73,6 +113,7 @@ class HeadPoseEstimator:
                 self.calibration_status = "failed"
             else:
                 return {**face, "quality": 0.0, "calibration_status": "collecting"}
+        self._track_suggestion(raw, timestamp_ms)
         dt = timestamp_ms - self._last_ms if self._last_ms is not None else 0
         if dt <= 0 or dt > 600:
             self._angle_window.clear()

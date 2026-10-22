@@ -9,13 +9,14 @@ from proctoring_ai.pipeline.observation_pipeline import ObservationPipeline
 from proctoring_core.config.schema import DetectionConfig
 from proctoring_core.events.models import ObservationBundle, ObservationHealth
 from proctoring_core.types import EventType
-from proctoring_desktop.messages import EVENT_NAMES, event_description, health_reason, level_name
 from proctoring_desktop.overlay import OverlayState
-from proctoring_desktop.runtime import _RuleSet
+from proctoring_runtime.messages import EVENT_NAMES, event_description, health_reason, level_name
+
+from tests.fixtures.rules import BundleRules as _RuleSet
 
 
 @pytest.mark.asyncio
-async def test_scheduler_keeps_face_and_objects_fresh_without_replaying_hand_evidence():
+async def test_scheduler_keeps_face_and_objects_fresh_without_replaying_hand_evidence() -> None:
     detector = type("Detector", (), {"detect": AsyncMock(return_value=[])})()
     tracker = type("Tracker", (), {"update": AsyncMock(return_value=[])})()
     face = type("Face", (), {"analyze": AsyncMock(return_value={"status": "ready", "faces": [{"yaw": 35}]})})()
@@ -42,21 +43,28 @@ async def test_scheduler_keeps_face_and_objects_fresh_without_replaying_hand_evi
     assert hands.analyze.await_count == 4
 
 
-def test_scheduled_hand_skips_cannot_activate_a_rule():
+def test_scheduled_hand_skips_cannot_activate_a_rule() -> None:
     session = uuid4()
     rules = _RuleSet(session, {}, {"behavior": {"hand_activity": {"minimum_duration_seconds": 1}}})
+    face = {"bbox": {"x": 0.4, "y": 0.2, "width": 0.2, "height": 0.2}, "quality": 0.9, "face_width": 0.2,
+            "keypoints": {"ear_left": (0.4, 0.3), "ear_right": (0.6, 0.3), "chin": (0.5, 0.4),
+                          "mouth_center": (0.5, 0.35)}}
+    hand_at_ear = {"wrist": (0.62, 0.36), "index_tip": (0.6, 0.29), "confidence": 0.9}
     bundle = ObservationBundle(frame_id=0, session_id=session, captured_at_utc=datetime.now(UTC),
-                               captured_at_monotonic_ms=0, frame_size=(640, 480),
-                               hands=[{"activity": True}], analyzer_health={"hands": ObservationHealth("ready")})
+                               captured_at_monotonic_ms=0, frame_size=(640, 480), faces=[face],
+                               hands=[hand_at_ear], analyzer_health={"hands": ObservationHealth("ready")})
     assert not any(s["active"] for s in rules.evaluate(bundle))
-    bundle.captured_at_monotonic_ms = 1000
+    bundle.captured_at_monotonic_ms = 300
     bundle.hands = []
     bundle.analyzer_health["hands"] = ObservationHealth("skipped")
     assert not any(s["event_type"] is EventType.SUSPICIOUS_HAND_ACTIVITY for s in rules.evaluate(bundle))
-    bundle.captured_at_monotonic_ms = 1200
-    bundle.hands = [{"activity": True}]
+    bundle.hands = [hand_at_ear]
     bundle.analyzer_health["hands"] = ObservationHealth("ready")
-    assert any(s["active"] for s in rules.evaluate(bundle))
+    for timestamp in (600, 900):
+        bundle.captured_at_monotonic_ms = timestamp
+        assert not any(s["active"] for s in rules.evaluate(bundle) if s["event_type"] is EventType.SUSPICIOUS_HAND_ACTIVITY)
+    bundle.captured_at_monotonic_ms = 1200
+    assert any(s["active"] for s in rules.evaluate(bundle) if s["event_type"] is EventType.SUSPICIOUS_HAND_ACTIVITY)
 
 
 @pytest.mark.asyncio
@@ -81,23 +89,30 @@ async def test_measured_fps_counts_only_inference_and_expires(monkeypatch):
     assert pipeline.performance()["hands"]["fps"] == 0
 
 
-def test_scheduled_overlay_expires_from_original_observation_not_latest_frame():
+def test_scheduled_overlay_expires_from_original_observation_not_latest_frame() -> None:
     overlay = OverlayState()
-    original = {"captured_at_monotonic_ms": 1000, "hands": [{"bbox": {}}], "poses": [{"landmarks": []}]}
+    original: dict[str, object] = {"captured_at_monotonic_ms": 1000, "hands": [{"bbox": {}}],
+                                   "poses": [{"landmarks": []}]}
     overlay.update(original)
     for timestamp in (1200, 1300, 1400):
         overlay.update({"captured_at_monotonic_ms": timestamp, "analyzer_health": {"hands": "skipped", "pose": "skipped"}})
         result = overlay.snapshot(timestamp)
-        assert bool(result["hands"]) == (timestamp <= 1350)
-        assert bool(result["poses"]) == (timestamp <= 1350)
-    assert "held" not in original["hands"][0]
+        assert result is not None
+        hands, poses = result.get("hands"), result.get("poses")
+        assert bool(hands) == (timestamp <= 1350)
+        assert bool(poses) == (timestamp <= 1350)
+    original_hands = original.get("hands")
+    assert isinstance(original_hands, list)
+    assert "held" not in original_hands[0]
     overlay.update(original)
     overlay.update({"captured_at_monotonic_ms": 1100, "analyzer_health": {"hands": "no_detection", "pose": "error"}})
-    assert not overlay.snapshot(1100)["hands"]
-    assert not overlay.snapshot(1100)["poses"]
+    snapshot_after = overlay.snapshot(1100)
+    assert snapshot_after is not None
+    assert not snapshot_after.get("hands")
+    assert not snapshot_after.get("poses")
 
 
-def test_all_event_codes_have_vietnamese_labels_and_schedule_is_bounded():
+def test_all_event_codes_have_vietnamese_labels_and_schedule_is_bounded() -> None:
     assert set(EVENT_NAMES) == {item.value for item in EventType}
     assert level_name("NORMAL") == "Bình thường"
     assert "mã kiểm tra" in health_reason("ValueError:model SHA-256 does not match")
@@ -158,7 +173,9 @@ def test_fps_cards_fit_minimum_window_width(monkeypatch, tmp_path):
         app.processEvents()
         rail = window.findChild(QScrollArea, "railScroll")
         assert rail is not None
-        assert rail.widget().width() <= rail.viewport().width()
+        rail_widget = rail.widget()
+        assert rail_widget is not None
+        assert rail_widget.width() <= rail.viewport().width()
         assert window.health_fps_labels["object_detector"].text() == "12.7"
         assert window.health_fps_labels["object_detector"].width() >= 48
     finally:
@@ -170,7 +187,7 @@ def test_runtime_error_keeps_technical_details_out_of_user_message(tmp_path, mon
 
     runtime = DesktopRuntime(camera_index=0, repository_root=tmp_path, preview=LatestPreview())
     monkeypatch.setattr(runtime, "_run_async", AsyncMock(side_effect=ValueError("internal English failure")))
-    messages = []
+    messages: list[str] = []
     runtime.runtime_error.connect(messages.append)
     runtime.run()
     assert "Không thể tiếp tục giám sát" in messages[0]

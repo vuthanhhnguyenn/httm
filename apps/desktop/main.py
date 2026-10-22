@@ -9,13 +9,13 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 for source_root in (
     REPOSITORY_ROOT / "packages" / "proctoring_core" / "src",
     REPOSITORY_ROOT / "packages" / "proctoring_ai" / "src",
+    REPOSITORY_ROOT / "packages" / "proctoring_runtime" / "src",
     REPOSITORY_ROOT / "apps" / "desktop" / "src",
 ):
     sys.path.insert(0, str(source_root))
 
-from PySide6.QtWidgets import QApplication
-
-from proctoring_desktop.window import MainWindow
+from proctoring_desktop.window import MainWindow  # noqa: E402
+from PySide6.QtWidgets import QApplication  # noqa: E402
 
 
 def main() -> int:

@@ -9,7 +9,7 @@ from proctoring_core.behavior.objects import ObjectRuleEvaluator
 from proctoring_core.types import EventType
 
 
-def test_phone_fast_path_requires_repeated_strong_same_object_observations():
+def test_phone_fast_path_requires_repeated_strong_same_object_observations() -> None:
     tracker = ObjectEvidenceTracker()
     rules = ObjectRuleEvaluator(phone_confidence_threshold=0.55, phone_release_confidence=0.35, max_gap_ms=600)
     session = uuid4()
@@ -30,7 +30,7 @@ def test_phone_fast_path_requires_repeated_strong_same_object_observations():
     assert result[0]["active"] is False
 
 
-def test_desktop_phone_timing_starts_with_first_tracked_detection():
+def test_desktop_phone_timing_starts_with_first_tracked_detection() -> None:
     tracker = ObjectEvidenceTracker()
     rules = ObjectRuleEvaluator(
         phone_confidence_threshold=0.55,
@@ -53,7 +53,7 @@ def test_desktop_phone_timing_starts_with_first_tracked_detection():
     assert third[0]["active"] and third[0]["metrics"]["fast_confirmation"]
 
 
-def test_desktop_phone_normal_path_uses_sustained_same_track_evidence():
+def test_desktop_phone_normal_path_uses_sustained_same_track_evidence() -> None:
     tracker = ObjectEvidenceTracker()
     rules = ObjectRuleEvaluator(phone_confidence_threshold=0.55, phone_min_duration_ms=600,
                                 phone_fast_confidence=0.85, phone_fast_min_hits=2)
@@ -69,7 +69,7 @@ def test_desktop_phone_normal_path_uses_sustained_same_track_evidence():
     assert result[0]["active"] and not result[0]["metrics"]["fast_confirmation"]
 
 
-def test_phone_fast_path_cannot_mix_tracks_or_override_policy():
+def test_phone_fast_path_cannot_mix_tracks_or_override_policy() -> None:
     for policy in ({}, {"allow_phone": True}):
         rules = ObjectRuleEvaluator(policy)
         session = uuid4()
@@ -81,7 +81,7 @@ def test_phone_fast_path_cannot_mix_tracks_or_override_policy():
             assert not any(item["active"] for item in result)
 
 
-def test_phone_single_high_hit_and_large_sample_gap_do_not_fast_confirm():
+def test_phone_single_high_hit_and_large_sample_gap_do_not_fast_confirm() -> None:
     rules = ObjectRuleEvaluator()
     session = uuid4()
     phone = {"class": "cell phone", "confidence": 0.9, "track_confirmed": True, "object_track_id": 1}
@@ -90,7 +90,7 @@ def test_phone_single_high_hit_and_large_sample_gap_do_not_fast_confirm():
         assert not any(item["active"] for item in result)
 
 
-def test_head_rules_require_calibration_and_ignore_roll():
+def test_head_rules_require_calibration_and_ignore_roll() -> None:
     rules = HeadRuleEvaluator({"head_turn": {"require_calibration": True, "minimum_duration_seconds": 0.8}})
     session = uuid4()
     def sample(timestamp, **values):
@@ -104,7 +104,7 @@ def test_head_rules_require_calibration_and_ignore_roll():
     assert any(item["active"] and item["event_type"] is EventType.HEAD_TURN_RIGHT for item in result)
 
 
-def test_strong_head_turn_alerts_after_short_confirmation_without_single_frame_alarm():
+def test_strong_head_turn_alerts_after_short_confirmation_without_single_frame_alarm() -> None:
     rules = HeadRuleEvaluator({"head_turn": {"yaw_degrees": 22, "minimum_duration_seconds": 0.45,
                                                "fast_yaw_degrees": 42, "fast_duration_seconds": 0.25,
                                                "require_calibration": True}})
@@ -123,7 +123,7 @@ def test_strong_head_turn_alerts_after_short_confirmation_without_single_frame_a
                and item["metrics"]["fast_confirmation"] for item in result)
 
 
-def test_filtered_head_pose_reaches_fast_alert_on_sustained_turn():
+def test_filtered_head_pose_reaches_fast_alert_on_sustained_turn() -> None:
     estimator = HeadPoseEstimator()
     estimator.calibrate([{"yaw": 0, "pitch": 0, "roll": 0}])
     rules = HeadRuleEvaluator({"head_turn": {"yaw_degrees": 22, "minimum_duration_seconds": 0.45,
@@ -143,7 +143,7 @@ def test_filtered_head_pose_reaches_fast_alert_on_sustained_turn():
     assert any(item["active"] and item["event_type"] is EventType.HEAD_TURN_RIGHT for item in result)
 
 
-def test_face_loss_and_threshold_jitter_cannot_count_as_repeated_turns():
+def test_face_loss_and_threshold_jitter_cannot_count_as_repeated_turns() -> None:
     rules = HeadRuleEvaluator({"min_duration_ms": 100, "abnormal_head_movement": {"minimum_turn_count": 2}})
     session = uuid4()
     for timestamp, yaw, quality in ((0, 45, 0.8), (100, 45, 0.8), (200, 0, 0),
@@ -154,7 +154,7 @@ def test_face_loss_and_threshold_jitter_cannot_count_as_repeated_turns():
         assert not any(item["event_type"] is EventType.ABNORMAL_HEAD_MOVEMENT and item["active"] for item in result)
 
 
-def test_head_angle_filter_rejects_an_isolated_spike_but_accepts_sustained_turn():
+def test_head_angle_filter_rejects_an_isolated_spike_but_accepts_sustained_turn() -> None:
     estimator = HeadPoseEstimator()
     for timestamp in (0, 100, 200):
         estimator.update({"yaw": 0, "quality": 0.8}, timestamp)
@@ -165,7 +165,7 @@ def test_head_angle_filter_rejects_an_isolated_spike_but_accepts_sustained_turn(
     assert result["yaw"] > 35
 
 
-def test_allowed_phone_never_alerts_even_after_long_strong_detection():
+def test_allowed_phone_never_alerts_even_after_long_strong_detection() -> None:
     rules = ObjectRuleEvaluator({"allow_phone": True})
     for timestamp in range(0, 2100, 100):
         result = rules.evaluate(session_id=uuid4(), track_id=None, monotonic_ms=timestamp,
@@ -174,7 +174,7 @@ def test_allowed_phone_never_alerts_even_after_long_strong_detection():
         assert not any(item["active"] for item in result)
 
 
-def test_head_calibration_does_not_bridge_a_camera_stall():
+def test_head_calibration_does_not_bridge_a_camera_stall() -> None:
     estimator = HeadPoseEstimator()
     estimator.begin_calibration()
     for timestamp in range(0, 800, 100):
@@ -183,7 +183,7 @@ def test_head_calibration_does_not_bridge_a_camera_stall():
     assert result["calibration_status"] == "collecting"
 
 
-def test_default_detection_configuration_is_valid_and_calibration_is_required():
+def test_default_detection_configuration_is_valid_and_calibration_is_required() -> None:
     from pathlib import Path
 
     import yaml
@@ -200,7 +200,7 @@ def test_default_detection_configuration_is_valid_and_calibration_is_required():
     assert config.behavior.look_down == example.behavior.look_down
 
 
-def test_moderate_down_uses_normal_confirmation():
+def test_moderate_down_uses_normal_confirmation() -> None:
     from proctoring_core.config.schema import BehaviorConfig
 
     rules = HeadRuleEvaluator(BehaviorConfig().model_dump())
@@ -213,7 +213,7 @@ def test_moderate_down_uses_normal_confirmation():
         assert not down["metrics"]["fast_confirmation"]
 
 
-def test_default_head_rules_report_turn_and_deep_down_within_600ms_after_filtering():
+def test_default_head_rules_report_turn_and_deep_down_within_600ms_after_filtering() -> None:
     from proctoring_core.config.schema import BehaviorConfig
 
     for yaw, pitch, expected in ((40, 0, EventType.HEAD_TURN_RIGHT),
@@ -237,7 +237,7 @@ def test_default_head_rules_report_turn_and_deep_down_within_600ms_after_filteri
         assert active_at is not None and 400 < active_at <= 1000
 
 
-def test_down_confirmation_rejects_spikes_invalid_pose_and_upward_or_roll_only():
+def test_down_confirmation_rejects_spikes_invalid_pose_and_upward_or_roll_only() -> None:
     from proctoring_core.config.schema import BehaviorConfig
 
     for overrides in ({"pitch": -45}, {"pitch": 0, "roll": 45},
@@ -257,7 +257,7 @@ def test_down_confirmation_rejects_spikes_invalid_pose_and_upward_or_roll_only()
         assert not any(item["active"] for item in results)
 
 
-def test_deep_down_holds_one_event_and_requires_new_confirmation_after_stall():
+def test_deep_down_holds_one_event_and_requires_new_confirmation_after_stall() -> None:
     from proctoring_core.config.schema import BehaviorConfig
 
     rules = HeadRuleEvaluator(BehaviorConfig().model_dump())

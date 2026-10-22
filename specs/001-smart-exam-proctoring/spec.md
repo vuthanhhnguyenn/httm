@@ -2,6 +2,7 @@
 
 **Ngày cập nhật:** 2026-09-23
 **Trạng thái:** MVP desktop đang được hoàn thiện
+**Tiếp nối:** các đề xuất FR-12..FR-19 bên dưới được triển khai trong [spec 002 — Hoàn thiện Phase 1](../002-phase1-hardening/spec.md).
 **Nguồn yêu cầu:** README và các yêu cầu đã xác nhận: chạy cục bộ, webcam preview trực tiếp, hiển thị khung nhận diện và giữ giám thị là người quyết định cuối cùng.
 
 ## Mục tiêu

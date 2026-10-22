@@ -72,7 +72,7 @@ chung có thể cài lại PyTorch CPU. Cách chạy CPU cũ vẫn dùng `.\.ven
 
 Preview và AI cùng xử lý trực tiếp trên máy, không phải chờ truyền frame qua mạng. Tốc độ suy luận vẫn phụ thuộc CPU/GPU, kích thước vật thể, độ sáng, khoảng cách camera và model. Máy Quadro M1200 trước đó xử lý YOLO khoảng 5,5 FPS; vì vậy không thể cam kết AI đạt 15 FPS chỉ bằng thay đổi giao diện. Ứng dụng hiển thị preview FPS và AI FPS riêng để phân biệt rõ hai tốc độ.
 
-Model COCO nhận diện lớp `cell phone` và `book`; điện thoại nhỏ, bị che hoặc ở xa có thể không được phát hiện. Giấy/tài liệu không có một lớp tổng quát đáng tin trong model này. Hướng nhìn hiện là ước lượng hướng đầu; muốn đo mắt chính xác cần calibration và đánh giá riêng.
+Model COCO nhận diện lớp `cell phone` và `book`; điện thoại nhỏ, bị che hoặc ở xa có thể không được phát hiện. Giấy rời/tài liệu không được phát hiện (chỉ lớp `book`). Hướng mắt là ước lượng hình học từ mống mắt sau hiệu chỉnh, dễ sai khi ánh sáng kém, đeo kính hoặc mặt nghiêng; nói chuyện chỉ nhận biết nhịp mở/đóng miệng thô ở tốc độ AI hiện tại (≈ 8 lượt/giây), không nhận dạng lời nói.
 
 ## Cấu hình
 
@@ -87,13 +87,47 @@ Trong cấu hình mặc định, phải **Hiệu chỉnh hướng đầu** trư�
 - `configs/exam_policy.yaml`: cho phép/cấm điện thoại, sách và giấy nháp.
 - `models/manifest.yaml`: nguồn tải, license và SHA-256 của từng model.
 
+## Kiểu bài thi, hiệu chỉnh và rà soát
+
+- **Kiểu bài thi** chọn trước khi bắt đầu và cố định trong phiên. *Thi giấy*: cúi nhìn bài là bình thường,
+  không cảnh báo cúi đầu hay "nhìn ra ngoài màn hình". *Thi máy*: chỉ cúi đầu từ 2 giây trở lên mới cần
+  rà soát. Khác biệt nằm trong `exam_modes` của `configs/default.yaml`.
+- **Hiệu chỉnh hướng đầu**: khi đầu thí sinh đứng yên khoảng 2 giây, app *đề xuất* hiệu chỉnh; giám thị
+  bấm "Chấp nhận hiệu chỉnh đề xuất" nếu thí sinh đang nhìn thẳng. App không tự áp dụng mốc, và từ chối
+  mốc lệch quá 35°.
+- **Hiệu chỉnh hướng mắt** (sau hướng đầu): thí sinh nhìn lần lượt các chấm trên màn hình (thi máy: tâm và
+  4 góc) hoặc tâm màn hình rồi bài thi (thi giấy); tổng thời gian dưới 15 giây. Chưa hiệu chỉnh thì không có
+  cảnh báo hướng mắt.
+- **Tín hiệu thử nghiệm**: hướng mắt (`GAZE_OFF_SCREEN`, `GAZE_SIDEWAYS`) và nói chuyện (`POSSIBLE_TALKING`)
+  có nhãn "Thử nghiệm", mức thấp, trần điểm riêng, và cả nhóm tín hiệu hỗ trợ (mắt, miệng, tay) không thể
+  một mình đưa điểm lên mức "Cao" (`risk.supporting_group_cap`).
+- **Một sự việc, một sự kiện**: thí sinh rời đi chỉ tạo "Vắng người"; "Không thấy mặt", quay đầu… được ghi
+  là tín hiệu kèm theo, không cộng điểm riêng. Điện thoại cầm liên tục, dù bị che ngắn hoặc đổi track, chỉ
+  mở một sự kiện.
+- **Rà soát**: nhấp đúp một sự kiện để xem đúng khung ảnh đã phân tích kèm khung bao, độ tin cậy, mô hình,
+  kiểu bài thi và tín hiệu kèm theo; bấm *Hợp lệ*, *Báo nhầm* hoặc *Không kết luận*. Nhãn được ghi thêm vào
+  `events.jsonl` (không sửa dòng cũ, không đổi điểm đã ghi).
+- Camera bị treo (khung hình lặp lại) được báo trên giao diện như lỗi thiết bị; app tạm không đánh giá hành
+  vi thay vì coi ảnh cũ là bằng chứng.
+
+## Đánh giá bằng video có nhãn
+
+```powershell
+uv run --no-sync python scripts/evaluate.py --set E:\datasets\oep\oep_set.yaml --save-events
+```
+
+Công cụ phát lại video qua đúng chuỗi phân tích và luật của app (thời gian lấy theo video nên kết quả lặp
+lại được), rồi báo cáo theo từng loại sự kiện: đúng, bỏ sót, báo nhầm/phút, độ trễ, tỉ lệ một sự kiện cho
+mỗi hành vi. Xem `specs/002-phase1-hardening/quickstart.md` và `docs/evaluation-results.md`.
+
 ## Cấu trúc
 
 ```text
-apps/desktop/                 Giao diện và vòng đời ứng dụng desktop
-packages/proctoring_ai/       Camera, YOLO, MediaPipe và observation pipeline
-packages/proctoring_core/     Domain, behavior rules, event aggregation và risk
-configs/                      Cấu hình ứng dụng và chính sách phiên
+apps/desktop/                 Giao diện PySide6 (cửa sổ, widget, hộp thoại hiệu chỉnh/rà soát)
+packages/proctoring_ai/       Camera/video, YOLO, MediaPipe, đặc trưng mắt/miệng/tay, observation pipeline
+packages/proctoring_core/     Domain: quan sát có kiểu, luật hành vi, thứ bậc tín hiệu, hiệu chỉnh, risk, đánh giá
+packages/proctoring_runtime/  Điều phối phiên không phụ thuộc Qt, lưu JSONL/bằng chứng, phát lại video
+configs/                      Cấu hình ứng dụng, kiểu bài thi và chính sách phiên
 models/manifest.yaml          Nguồn và checksum của model
 storage/                      Metadata phiên trên máy cục bộ
 ```

@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[3]
 for path in (
     ROOT / "packages" / "proctoring_core" / "src",
     ROOT / "packages" / "proctoring_ai" / "src",
+    ROOT / "packages" / "proctoring_runtime" / "src",
     ROOT / "apps" / "desktop" / "src",
     ROOT,
 ):

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from math import cos, radians, sin
+from typing import Any
 from uuid import uuid4
 
 import numpy as np
@@ -35,7 +36,7 @@ def test_invalid_transform_does_not_mean_facing_forward(matrix):
     assert pose_from_matrix(matrix) is None
 
 
-def test_calibration_removes_camera_offset_and_does_not_learn_a_turn_automatically():
+def test_calibration_removes_camera_offset_and_does_not_learn_a_turn_automatically() -> None:
     estimator = HeadPoseEstimator()
     face = {"yaw": 10, "pitch": -12, "roll": 2, "quality": 0.8}
     assert estimator.update(face, 0)["yaw"] == pytest.approx(10)
@@ -53,7 +54,7 @@ def head_signals(evaluator, timestamp, **pose):
                               sample={"monotonic_ms": timestamp, **pose})
 
 
-def test_head_durations_are_independent_and_roll_never_means_turn():
+def test_head_durations_are_independent_and_roll_never_means_turn() -> None:
     evaluator = HeadRuleEvaluator({"head_turn": {"minimum_duration_seconds": 1.0},
                                    "look_down": {"minimum_duration_seconds": 2.0, "fast_pitch_degrees": 40}})
     assert head_signals(evaluator, 0, roll=60) == []
@@ -67,7 +68,7 @@ def test_head_durations_are_independent_and_roll_never_means_turn():
     assert any(s["event_type"] is EventType.LOOK_DOWN and s["active"] for s in result)
 
 
-def test_bad_face_or_long_gap_cannot_complete_head_candidate():
+def test_bad_face_or_long_gap_cannot_complete_head_candidate() -> None:
     evaluator = HeadRuleEvaluator({"min_duration_ms": 1000})
     head_signals(evaluator, 0, yaw=50)
     assert not any(s["active"] for s in head_signals(evaluator, 1000, yaw=50, quality=0))
@@ -75,7 +76,7 @@ def test_bad_face_or_long_gap_cannot_complete_head_candidate():
     assert not any(s["active"] for s in head_signals(evaluator, 4000, yaw=50))
 
 
-def test_abnormal_movement_requires_distinct_sustained_turns():
+def test_abnormal_movement_requires_distinct_sustained_turns() -> None:
     evaluator = HeadRuleEvaluator({"min_duration_ms": 200,
                                    "abnormal_head_movement": {"minimum_turn_count": 2}})
     head_signals(evaluator, 0, yaw=65)
@@ -91,12 +92,12 @@ def test_abnormal_movement_requires_distinct_sustained_turns():
                    for s in head_signals(evaluator, 1200, yaw=0))
 
 
-def phone(confidence=0.6, x=0.4):
+def phone(confidence: float = 0.6, x: float = 0.4) -> dict[str, Any]:
     return {"class": "cell phone", "confidence": confidence,
             "bbox": {"x": x, "y": 0.4, "width": 0.1, "height": 0.2}}
 
 
-def test_phone_low_confidence_continues_only_a_confirmed_track():
+def test_phone_low_confidence_continues_only_a_confirmed_track() -> None:
     tracker = ObjectEvidenceTracker()
     assert tracker.update([phone(0.4)], 0)[0]["track_confirmed"] is False
     assert tracker.update([phone(0.6)], 200)[0]["track_confirmed"] is False
@@ -107,7 +108,7 @@ def test_phone_low_confidence_continues_only_a_confirmed_track():
     assert tracker.update([phone(0.6)], 2000)[0]["track_confirmed"] is False
 
 
-def test_phone_confidence_must_be_revalidated():
+def test_phone_confidence_must_be_revalidated() -> None:
     tracker = ObjectEvidenceTracker()
     tracker.update([phone()], 0)
     tracker.update([phone()], 200)
@@ -116,13 +117,13 @@ def test_phone_confidence_must_be_revalidated():
     assert result[0]["track_confirmed"] is False
 
 
-def test_phone_candidate_survives_one_miss_but_never_activates_from_missing_boxes():
+def test_phone_candidate_survives_one_miss_but_never_activates_from_missing_boxes() -> None:
     tracker = ObjectEvidenceTracker()
     evaluator = ObjectRuleEvaluator(phone_confidence_threshold=0.55,
                                      phone_release_confidence=0.35, max_gap_ms=600)
     session_id = uuid4()
 
-    def step(timestamp, detections):
+    def step(timestamp: int, detections: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return evaluator.evaluate(session_id=session_id, track_id=None,
                                   objects=tracker.update(detections, timestamp), monotonic_ms=timestamp)
 
@@ -137,27 +138,36 @@ def test_phone_candidate_survives_one_miss_but_never_activates_from_missing_boxe
     assert step(2001, [])[0]["active"] is False
 
 
-def test_overlay_bridges_slow_inference_but_expires_and_does_not_mutate_observations():
+def test_overlay_bridges_slow_inference_but_expires_and_does_not_mutate_observations() -> None:
     overlay = OverlayState()
-    original = {"captured_at_monotonic_ms": 1000, "objects": [phone()], "faces": []}
+    original: dict[str, Any] = {"captured_at_monotonic_ms": 1000, "objects": [phone()], "faces": []}
     overlay.update(original)
-    assert overlay.snapshot(1515)["objects"]  # Previous 250 ms limit hid these boxes.
-    assert "observed_at_ms" not in original["objects"][0]
+    first_snapshot = overlay.snapshot(1515)
+    assert first_snapshot is not None and first_snapshot["objects"]  # Previous 250 ms limit hid these boxes.
+    objects = original.get("objects")
+    assert isinstance(objects, list)
+    assert "observed_at_ms" not in objects[0]
     overlay.update({"captured_at_monotonic_ms": 1200, "objects": [], "faces": []})
-    assert overlay.snapshot(1600)["objects"][0]["held"]
+    snapshot_held = overlay.snapshot(1600)
+    assert snapshot_held is not None
+    held_objects = snapshot_held.get("objects")
+    assert isinstance(held_objects, list)
+    assert held_objects[0]["held"]
     overlay.update({"captured_at_monotonic_ms": 1400, "objects": [], "faces": []})
-    assert overlay.snapshot(1600)["objects"] == []
+    assert (overlay.snapshot(1600) or {}).get("objects") == []
     assert overlay.snapshot(2201) is None
 
 
-def test_runtime_closes_head_signal_when_face_disappears():
+def test_runtime_closes_head_signal_when_face_disappears() -> None:
     from datetime import UTC, datetime
 
     from proctoring_core.events.models import ObservationBundle, ObservationHealth
-    from proctoring_desktop.runtime import _RuleSet
+
+    from tests.fixtures.rules import BundleRules as _RuleSet
 
     session = uuid4()
-    rules = _RuleSet(session, {}, {"behavior": {"head_turn": {"minimum_duration_seconds": 0}}})
+    rules = _RuleSet(session, {}, {"behavior": {"head_turn": {"minimum_duration_seconds": 0,
+                                                                 "require_calibration": False}}})
     bundle = ObservationBundle(frame_id=1, session_id=session, captured_at_utc=datetime.now(UTC),
                                captured_at_monotonic_ms=100, frame_size=(640, 480),
                                faces=[{"yaw": 45, "quality": 0.8}],
@@ -172,7 +182,8 @@ def test_runtime_closes_head_signal_when_face_disappears():
 
 def test_desktop_calibration_and_delayed_overlay_without_camera(monkeypatch, tmp_path):
     monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
-    from proctoring_desktop.window import MainWindow, _paint_overlay
+    from proctoring_desktop.widgets.painting import paint_overlay as _paint_overlay
+    from proctoring_desktop.window import MainWindow
     from PySide6.QtGui import QPixmap
     from PySide6.QtWidgets import QApplication
 

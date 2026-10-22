@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from types import MappingProxyType
-from typing import Any, Mapping
+from typing import Any
 from uuid import UUID, uuid4
 
 from ..types import (
@@ -86,7 +87,7 @@ class ExamSession:
         config_snapshot: Mapping[str, Any],
         created_by: str,
         session_id: UUID | None = None,
-    ) -> "ExamSession":
+    ) -> ExamSession:
         return cls(
             id=session_id or uuid4(),
             name=name,

@@ -5,9 +5,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
-
 from proctoring_ai.pipeline.observation_pipeline import ObservationPipeline
-
 from tests.fixtures.fake_detector import FakeDetector
 from tests.fixtures.fake_tracker import FakeTracker
 

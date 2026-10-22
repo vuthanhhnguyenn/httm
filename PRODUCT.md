@@ -25,6 +25,9 @@ Smart Exam Proctoring phân tích hình ảnh webcam theo thời gian, hiển th
 - Hành vi chỉ tạo sự kiện sau khi thỏa ngưỡng confidence và thời lượng đã cấu hình.
 - Sự kiện và risk hỗ trợ ưu tiên rà soát, không tự áp dụng hình phạt.
 - Không ghi video toàn phiên mặc định. Preview được giữ trong RAM; metadata sự kiện được lưu cục bộ.
+- Giám thị chọn kiểu bài thi (thi giấy / thi máy) trước phiên; hành vi bình thường khác nhau theo kiểu bài thi.
+- Hướng mắt và nói chuyện là tín hiệu thử nghiệm, mức thấp, có trần điểm, cần hiệu chỉnh; không suy ra gian lận từ một chỉ số.
+- Mỗi cảnh báo truy được về khung ảnh đã phân tích; giám thị gắn nhãn Hợp lệ / Báo nhầm / Không kết luận.
 
 ## Brand commitments
 

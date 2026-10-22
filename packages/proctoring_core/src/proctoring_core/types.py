@@ -6,11 +6,12 @@ these bounded values before handing them to business rules.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 from math import isfinite
-from typing import Any, Mapping
+from typing import Any
 
 
 class SessionStatus(StrEnum):
@@ -20,6 +21,13 @@ class SessionStatus(StrEnum):
     STOPPING = "STOPPING"
     STOPPED = "STOPPED"
     FAILED = "FAILED"
+
+
+class ExamMode(StrEnum):
+    """How the candidate answers; decides which behaviours are normal."""
+
+    PAPER = "paper"
+    COMPUTER = "computer"
 
 
 class SessionMode(StrEnum):
@@ -78,6 +86,8 @@ class EventType(StrEnum):
     FACE_NOT_VISIBLE = "FACE_NOT_VISIBLE"
     SUSPICIOUS_HAND_ACTIVITY = "SUSPICIOUS_HAND_ACTIVITY"
     POSSIBLE_TALKING = "POSSIBLE_TALKING"
+    GAZE_OFF_SCREEN = "GAZE_OFF_SCREEN"
+    GAZE_SIDEWAYS = "GAZE_SIDEWAYS"
 
 
 class EvidenceKind(StrEnum):
@@ -142,7 +152,7 @@ class BoundingBox:
             )
 
     @classmethod
-    def from_mapping(cls, value: Mapping[str, Any]) -> "BoundingBox":
+    def from_mapping(cls, value: Mapping[str, Any]) -> BoundingBox:
         return cls(
             x=float(value["x"]),
             y=float(value["y"]),
@@ -170,7 +180,7 @@ class UtcTimestamp:
         object.__setattr__(self, "value", ensure_utc(self.value))
 
     @classmethod
-    def now(cls) -> "UtcTimestamp":
+    def now(cls) -> UtcTimestamp:
         return cls(datetime.now(UTC))
 
     def isoformat(self) -> str:

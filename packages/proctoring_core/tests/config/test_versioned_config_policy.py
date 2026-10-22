@@ -6,7 +6,12 @@ import pytest
 
 pytest.importorskip("pydantic")
 
-from proctoring_core.config.models import ConfigVersionStatus, ExamPolicy, SystemConfigVersion, canonical_sha256
+from proctoring_core.config.models import (
+    ConfigVersionStatus,
+    ExamPolicy,
+    SystemConfigVersion,
+    canonical_sha256,
+)
 
 
 def test_config_hash_is_canonical_and_policy_constraints_are_enforced() -> None:

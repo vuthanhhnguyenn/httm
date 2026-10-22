@@ -4,7 +4,6 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
-
 from proctoring_core.events.aggregator import EventAggregator
 from proctoring_core.risk.engine import RiskEngine
 from proctoring_core.types import EventType, Severity

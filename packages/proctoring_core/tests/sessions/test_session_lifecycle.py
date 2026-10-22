@@ -3,7 +3,6 @@ from __future__ import annotations
 from uuid import uuid4
 
 import pytest
-
 from proctoring_core.sessions.models import ExamSession, SessionStateError
 from proctoring_core.types import SessionMode, SessionStatus
 

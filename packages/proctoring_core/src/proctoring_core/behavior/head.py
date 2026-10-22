@@ -13,16 +13,22 @@ class HeadRuleEvaluator:
         config = config or {}
         head_turn = config.get("head_turn", {}) if isinstance(config.get("head_turn", {}), dict) else {}
         look_down = config.get("look_down", {}) if isinstance(config.get("look_down", {}), dict) else {}
+        quality = config.get("quality", {}) if isinstance(config.get("quality", {}), dict) else {}
+        self.min_quality = float(quality.get("face_min_quality", 0.35))
+        self.max_sample_gap_ms = int(quality.get("max_sample_gap_ms", 600))
+        self.hysteresis_degrees = float(head_turn.get("hysteresis_degrees", 5.0))
         self.yaw_threshold = float(config.get("yaw_threshold", head_turn.get("yaw_degrees", 35.0)))
-        self.fast_yaw_threshold = max(self.yaw_threshold + 5.0,
+        self.fast_yaw_threshold = max(self.yaw_threshold + float(head_turn.get("fast_margin_degrees", 5.0)),
                                       float(head_turn.get("fast_yaw_degrees", 32.0)))
         self.pitch_threshold = float(config.get("pitch_threshold", look_down.get("pitch_degrees", 15.0)))
         self.min_duration_ms = int(config.get("min_duration_ms", float(head_turn.get("minimum_duration_seconds", 0.8)) * 1000))
         self.fast_duration_ms = round(float(head_turn.get("fast_duration_seconds", 0.25)) * 1000)
         self.down_duration_ms = int(config.get("min_duration_ms", float(look_down.get("minimum_duration_seconds", 0.4)) * 1000))
-        self.fast_pitch_threshold = max(self.pitch_threshold + 5.0,
+        self.fast_pitch_threshold = max(self.pitch_threshold + float(look_down.get("fast_margin_degrees", 5.0)),
                                         float(look_down.get("fast_pitch_degrees", 28.0)))
         self.fast_down_duration_ms = round(float(look_down.get("fast_duration_seconds", 0.2)) * 1000)
+        self.look_down_enabled = bool(look_down.get("enabled", True))
+        self.look_down_fast_enabled = bool(look_down.get("fast_enabled", True))
         movement = config.get("abnormal_head_movement", {})
         self.frequency_window_ms = int(config.get("frequency_window_ms", float(movement.get("window_seconds", 30)) * 1000))
         self.minimum_turn_count = int(movement.get("minimum_turn_count", 4))
@@ -42,7 +48,7 @@ class HeadRuleEvaluator:
         yaw, pitch = float(sample.get("yaw", 0.0)), float(sample.get("pitch", 0.0))
         quality = float(sample.get("quality", 1))
         valid = (bool(sample.get("pose_valid", True)) and isfinite(yaw) and isfinite(pitch)
-                 and isfinite(quality) and quality >= 0.35)
+                 and isfinite(quality) and quality >= self.min_quality)
         if self.require_calibration and sample.get("calibration_status") != "calibrated":
             valid = False
         quality = max(0.0, min(1.0, quality)) if isfinite(quality) else 0.0
@@ -53,7 +59,7 @@ class HeadRuleEvaluator:
         )
         results: list[dict[str, Any]] = []
         timestamp = int(sample.get("monotonic_ms", 0))
-        sample_gap = timestamp - self._last_sample_ms.get(key_prefix, timestamp) > 600
+        sample_gap = timestamp - self._last_sample_ms.get(key_prefix, timestamp) > self.max_sample_gap_ms
         if sample_gap:
             self._neutral_since.pop(key_prefix, None)
         self._last_sample_ms[key_prefix] = timestamp
@@ -70,20 +76,24 @@ class HeadRuleEvaluator:
         while turns and timestamp - turns[0] > self.frequency_window_ms:
             turns.popleft()
         for event_type, magnitude, threshold, metric_name, duration in checks:
+            if event_type is EventType.LOOK_DOWN and not self.look_down_enabled:
+                continue
             key = (key_prefix, event_type)
-            condition = self._conditions.setdefault(key, TemporalCondition(min_duration_ms=duration, window_ms=self.frequency_window_ms, max_sample_gap_ms=600))
+            condition = self._conditions.setdefault(key, TemporalCondition(min_duration_ms=duration, window_ms=self.frequency_window_ms,
+                                                                             max_sample_gap_ms=self.max_sample_gap_ms))
             previous = condition.state
             was_active = self._combined_active.get(key, False) and not sample_gap
-            boundary = max(0.0, threshold - 5.0) if was_active or previous is ConditionState.ACTIVE else threshold
+            boundary = max(0.0, threshold - self.hysteresis_degrees) if was_active or previous is ConditionState.ACTIVE else threshold
             state = condition.update(TemporalSample(timestamp, valid and magnitude >= boundary, quality, {metric_name: magnitude}))
             fast_state = ConditionState.INACTIVE
             fast_closed = False
-            if metric_name in {"yaw", "pitch"}:
+            if metric_name == "yaw" or (metric_name == "pitch" and self.look_down_fast_enabled):
                 fast_duration = self.fast_duration_ms if metric_name == "yaw" else self.fast_down_duration_ms
                 fast_threshold = self.fast_yaw_threshold if metric_name == "yaw" else self.fast_pitch_threshold
                 fast = self._fast_conditions.setdefault(
                     key, TemporalCondition(min_duration_ms=fast_duration,
-                                           window_ms=self.frequency_window_ms, max_sample_gap_ms=600),
+                                           window_ms=self.frequency_window_ms,
+                                           max_sample_gap_ms=self.max_sample_gap_ms),
                 )
                 fast_state = fast.update(TemporalSample(
                     timestamp, valid and magnitude >= fast_threshold, quality,

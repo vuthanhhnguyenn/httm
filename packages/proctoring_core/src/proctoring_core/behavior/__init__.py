@@ -1,20 +1,24 @@
-"""Deterministic temporal behavior rules used by the MVP."""
+"""Deterministic temporal behavior rules."""
 
+from .gaze import GazeRuleEvaluator
+from .hands import HandRuleEvaluator
 from .head import HeadRuleEvaluator
 from .objects import ObjectRuleEvaluator
 from .presence import PresenceRuleEvaluator
 from .safety import SafetyRuleEvaluator
-from .supporting import SupportingRuleEvaluator
+from .talking import TalkingRuleEvaluator
 from .temporal_buffer import ConditionState, TemporalBuffer, TemporalCondition, TemporalSample
 
 __all__ = [
     "ConditionState",
+    "GazeRuleEvaluator",
+    "HandRuleEvaluator",
     "HeadRuleEvaluator",
     "ObjectRuleEvaluator",
     "PresenceRuleEvaluator",
     "SafetyRuleEvaluator",
-    "SupportingRuleEvaluator",
-    "TemporalCondition",
+    "TalkingRuleEvaluator",
     "TemporalBuffer",
+    "TemporalCondition",
     "TemporalSample",
 ]
