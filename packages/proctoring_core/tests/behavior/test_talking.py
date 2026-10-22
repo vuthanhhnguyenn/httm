@@ -15,7 +15,7 @@ def face(mar: float, *, yaw: float = 0.0, quality: float = 0.9) -> FaceObs:
 
 
 def active_times(mars: list[float], **face_kwargs: float) -> list[int]:
-    rule = TalkingRuleEvaluator(TalkingConfig(), min_face_quality=0.35, max_sample_gap_ms=600)
+    rule = TalkingRuleEvaluator(TalkingConfig(enabled=True), min_face_quality=0.35, max_sample_gap_ms=600)
     session = uuid4()
     times = []
     for index, mar in enumerate(mars):

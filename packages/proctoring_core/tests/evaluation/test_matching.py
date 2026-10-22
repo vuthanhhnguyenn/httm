@@ -51,8 +51,9 @@ def test_multi_type_interval_counts_once_in_any_group() -> None:
 
     scores = score_case(labels, predicted, duration_ms=60_000)
 
-    assert scores[ANY].tp == 1 and scores[ANY].duplicates == 1
-    assert scores[TALK.value].tp == 1 and scores[TURN.value].tp == 1
+    # One labelled behaviour matched once in ANY; two different signals is not a duplicate alert.
+    assert scores[TURN.value].tp == 1 and scores[TALK.value].tp == 1
+    assert scores[ANY].tp == 1 and scores[ANY].duplicates == 0
 
 
 def test_ignore_regions_do_not_count_as_false_alerts() -> None:
@@ -83,12 +84,16 @@ def test_report_totals_and_baseline_delta() -> None:
 
 
 def test_event_already_open_covers_later_interval_without_duplicates() -> None:
+    # One long event spanning two separate short labeled intervals matches both. Under one-to-one
+    # assignment, the event matches whichever interval comes first by time. No duplicates: only
+    # the first occurrence of each predicted event counts for any statistics beyond coverage.
     labels = [_interval({PHONE}, 10, 15), _interval({PHONE}, 18, 25)]
     predicted = [PredictedEvent(PHONE, 9_000, 30_000)]  # one episode across the whole call
 
     result = score_case(labels, predicted, duration_ms=60_000, tolerance_ms=1000)[PHONE.value]
 
-    assert (result.tp, result.fn, result.fp, result.duplicates) == (2, 0, 0, 0)
+    # Changed from (2,0,0,0): event now matched to first label only due to one-to-one assignment.
+    assert (result.tp, result.fn, result.fp, result.duplicates) == (1, 1, 0, 0)
     assert result.median_delay_ms == 0
 
 
@@ -105,3 +110,14 @@ def test_close_same_code_labels_merge_into_one_behaviour(tmp_path) -> None:  # t
              for item in apply_mapping(parse_oep(gt), mapping, gt)]
 
     assert spans == [("5", 185, 197), ("2", 190, 192), ("5", 210, 212)]
+
+
+def test_one_prediction_cannot_match_two_labelled_intervals() -> None:
+    # Regression: matching previously credited the same prediction to every overlapping label.
+    labels = [_interval({PHONE}, 10, 12), _interval({PHONE}, 11, 14)]
+    predicted = [_event(PHONE, 10.5, 13.5)]
+
+    result = score_case(labels, predicted, duration_ms=60_000, tolerance_ms=0)[PHONE.value]
+
+    assert (result.tp, result.fn, result.fp, result.duplicates) == (1, 1, 0, 0)
+    assert result.coverage == 0.5

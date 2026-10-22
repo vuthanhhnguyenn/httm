@@ -52,6 +52,7 @@ class AnalyzerFactory:
             "pose": ("unavailable", "POSE_MODEL_NOT_CONFIGURED"),
             "hands": ("unavailable", "HAND_MODEL_NOT_CONFIGURED"),
         }
+        self._models: dict[str, dict[str, str]] = {}
 
     @staticmethod
     def _sha256(path: Path) -> str:
@@ -128,6 +129,11 @@ class AnalyzerFactory:
                 allowed_classes=[str(name) for name in class_map.values()],
             )
             await self.detector.initialize()
+            self._models["object_detector"] = {
+                "name": str(entry.get("name", "yolo")),
+                "version": str(entry.get("version", "unknown")),
+                "sha256": str(entry["sha256"]),
+            }
             self._status["object_detector"] = ("ready", "")
         except Exception as exc:
             self.detector = None
@@ -135,7 +141,7 @@ class AnalyzerFactory:
 
     async def _initialize_landmarker(self, task: str, key: str, adapter_type: Any) -> None:
         try:
-            model_path, _ = await asyncio.to_thread(
+            model_path, entry = await asyncio.to_thread(
                 self._resolve_model,
                 task,
                 licenses={"Apache-2.0"},
@@ -147,6 +153,12 @@ class AnalyzerFactory:
             attribute = {"face": "face_analyzer", "pose": "pose_analyzer", "hands": "hand_analyzer"}[key]
             setattr(self, attribute, adapter)
             self._status[key] = (status, reason)
+            if status == "ready":
+                self._models[key] = {
+                    "name": str(entry.get("name", model_path.stem)),
+                    "version": str(entry.get("version", "unknown")),
+                    "sha256": str(entry["sha256"]),
+                }
         except Exception as exc:
             self._status[key] = ("unavailable", f"{type(exc).__name__}:{exc}")
 
@@ -163,24 +175,8 @@ class AnalyzerFactory:
         return details
 
     def model_versions(self) -> dict[str, dict[str, str]]:
-        """Return model name/version/sha256 for each initialized analyzer."""
-        result = {}
-        if self.detector is not None and hasattr(self.detector, "model_name"):
-            result["object_detector"] = {
-                "name": self.detector.model_name,
-                "version": self.detector.model_version,
-                "sha256": getattr(self.detector, "model_sha256", ""),
-            }
-        for key, analyzer in [("face", self.face_analyzer), ("pose", self.pose_analyzer),
-                              ("hands", self.hand_analyzer)]:
-            if analyzer is not None:
-                health = analyzer.health()
-                result[key] = {
-                    "name": health.get("model_name", ""),
-                    "version": health.get("model_version", ""),
-                    "sha256": health.get("model_sha256", ""),
-                }
-        return result
+        """Return model name/version/sha256 for each analyzer that initialized successfully."""
+        return {key: dict(value) for key, value in self._models.items()}
 
     def build_pipeline(self, config: dict[str, Any] | None = None) -> ObservationPipeline:
         settings = config or {}

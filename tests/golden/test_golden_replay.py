@@ -25,6 +25,10 @@ GOLDEN_DIR = Path(__file__).parent / "data"
 def _config() -> tuple[dict[str, Any], dict[str, Any]]:
     config = yaml.safe_load((ROOT / "configs" / "default.yaml").read_text(encoding="utf-8"))
     policy = yaml.safe_load((ROOT / "configs" / "exam_policy.yaml").read_text(encoding="utf-8"))
+    # These scenarios cover the experimental rule path too; production defaults keep them off.
+    behavior = config.setdefault("behavior", {})
+    behavior.setdefault("gaze", {})["enabled"] = True
+    behavior.setdefault("talking", {})["enabled"] = True
     return config, dict(policy.get("exam_policy", policy))
 
 

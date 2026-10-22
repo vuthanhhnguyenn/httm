@@ -179,11 +179,15 @@ async def _run_case(case: Case, config: dict[str, Any], policy: dict[str, Any], 
     return CaseResult(case.case_id, case.exam_mode, duration, result.frames_analyzed, result.ai_fps, scores)
 
 
-def _rescore(args: argparse.Namespace, cases: list[Case], mapping: LabelMapping | None) -> list[CaseResult]:
+def _rescore(args: argparse.Namespace, cases: list[Case], mapping: LabelMapping | None,
+             config: dict[str, Any]) -> list[CaseResult]:
     """Score saved event streams of an earlier run with the current labels and matching rules."""
 
     previous = json.loads((args.rescore / "report.json").read_text(encoding="utf-8"))
     info = {item["id"]: item for item in previous["cases"]}
+    # Mirror the live scoring path: use the mapping tolerance, never a fixed default.
+    tolerance = (mapping.tolerance_ms if mapping is not None
+                 else int(config.get("evaluation", {}).get("tolerance_ms", 2000)))
     results = []
     for case in cases:
         if case.case_id not in info:
@@ -194,7 +198,6 @@ def _rescore(args: argparse.Namespace, cases: list[Case], mapping: LabelMapping 
                                           duration)
         intervals = apply_mapping(load_labels(case.labels, case.label_format), mapping, case.labels,
                                   duration_ms=duration)
-        tolerance = mapping.tolerance_ms if mapping is not None else 2000
         results.append(CaseResult(case.case_id, str(meta["exam_mode"]), duration, int(meta["frames_analyzed"]),
                                   float(meta["ai_fps"]), score_case(intervals, predicted, duration_ms=duration,
                                                                     tolerance_ms=tolerance)))
@@ -220,7 +223,7 @@ async def _main(args: argparse.Namespace) -> int:
         print(f"Đang phát lại {case.case_id} ({case.video.name}, {case.exam_mode})", flush=True)
         results.append(await _run_case(case, config, policy, args, mapping, out_dir))
     if args.rescore:
-        results = _rescore(args, cases, mapping)
+        results = _rescore(args, cases, mapping, config)
     baseline = json.loads(args.baseline.read_text(encoding="utf-8")) if args.baseline else None
     report = EvaluationReport(
         set_name=set_name,

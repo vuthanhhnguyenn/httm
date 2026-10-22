@@ -49,7 +49,8 @@ def run(rule: GazeRuleEvaluator, profile: GazeProfile | None, faces: list[FaceOb
 
 
 def rule(**overrides: Any) -> GazeRuleEvaluator:
-    return GazeRuleEvaluator(GazeConfig(**overrides), head_turn_degrees=22, min_face_quality=0.35,
+    options: dict[str, Any] = {"enabled": True, **overrides}
+    return GazeRuleEvaluator(GazeConfig(**options), head_turn_degrees=22, min_face_quality=0.35,
                              max_sample_gap_ms=600)
 
 
