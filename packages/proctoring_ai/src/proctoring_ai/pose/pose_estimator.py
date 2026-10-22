@@ -10,13 +10,15 @@ from typing import Any
 from ..pipeline.single_flight import InferenceBusyError, run_single_flight
 
 try:
-    import mediapipe as mp  # type: ignore[import-not-found]
+    import mediapipe as mp
 except ImportError:  # pragma: no cover - optional dependency
     mp = None
 
 
 class MediaPipePoseEstimator:
-    def __init__(self, model_path: str | Path | None = None, *, enabled: bool = True, timeout_ms: int = 1200) -> None:
+    def __init__(self, model_path: str | Path | None = None, *, enabled: bool = True, timeout_ms: int = 1200,
+                 min_confidence: float = 0.45) -> None:
+        self.min_confidence = min_confidence
         self.model_path = Path(model_path) if model_path else None
         self.enabled = enabled
         self.timeout_ms = timeout_ms
@@ -57,9 +59,9 @@ class MediaPipePoseEstimator:
             base_options=mp.tasks.BaseOptions(model_asset_path=str(self.model_path)),
             running_mode=mp.tasks.vision.RunningMode.VIDEO,
             num_poses=1,
-            min_pose_detection_confidence=0.45,
-            min_pose_presence_confidence=0.45,
-            min_tracking_confidence=0.45,
+            min_pose_detection_confidence=self.min_confidence,
+            min_pose_presence_confidence=self.min_confidence,
+            min_tracking_confidence=self.min_confidence,
             output_segmentation_masks=False,
         )
         self._landmarker = mp.tasks.vision.PoseLandmarker.create_from_options(options)

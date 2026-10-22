@@ -9,9 +9,10 @@ from proctoring_ai.pipeline.observation_pipeline import ObservationPipeline
 from proctoring_core.config.schema import DetectionConfig
 from proctoring_core.events.models import ObservationBundle, ObservationHealth
 from proctoring_core.types import EventType
-from proctoring_desktop.messages import EVENT_NAMES, event_description, health_reason, level_name
 from proctoring_desktop.overlay import OverlayState
-from proctoring_desktop.runtime import _RuleSet
+from proctoring_runtime.messages import EVENT_NAMES, event_description, health_reason, level_name
+
+from tests.fixtures.rules import BundleRules as _RuleSet
 
 
 @pytest.mark.asyncio
@@ -45,18 +46,25 @@ async def test_scheduler_keeps_face_and_objects_fresh_without_replaying_hand_evi
 def test_scheduled_hand_skips_cannot_activate_a_rule():
     session = uuid4()
     rules = _RuleSet(session, {}, {"behavior": {"hand_activity": {"minimum_duration_seconds": 1}}})
+    face = {"bbox": {"x": 0.4, "y": 0.2, "width": 0.2, "height": 0.2}, "quality": 0.9, "face_width": 0.2,
+            "keypoints": {"ear_left": (0.4, 0.3), "ear_right": (0.6, 0.3), "chin": (0.5, 0.4),
+                          "mouth_center": (0.5, 0.35)}}
+    hand_at_ear = {"wrist": (0.62, 0.36), "index_tip": (0.6, 0.29), "confidence": 0.9}
     bundle = ObservationBundle(frame_id=0, session_id=session, captured_at_utc=datetime.now(UTC),
-                               captured_at_monotonic_ms=0, frame_size=(640, 480),
-                               hands=[{"activity": True}], analyzer_health={"hands": ObservationHealth("ready")})
+                               captured_at_monotonic_ms=0, frame_size=(640, 480), faces=[face],
+                               hands=[hand_at_ear], analyzer_health={"hands": ObservationHealth("ready")})
     assert not any(s["active"] for s in rules.evaluate(bundle))
-    bundle.captured_at_monotonic_ms = 1000
+    bundle.captured_at_monotonic_ms = 300
     bundle.hands = []
     bundle.analyzer_health["hands"] = ObservationHealth("skipped")
     assert not any(s["event_type"] is EventType.SUSPICIOUS_HAND_ACTIVITY for s in rules.evaluate(bundle))
-    bundle.captured_at_monotonic_ms = 1200
-    bundle.hands = [{"activity": True}]
+    bundle.hands = [hand_at_ear]
     bundle.analyzer_health["hands"] = ObservationHealth("ready")
-    assert any(s["active"] for s in rules.evaluate(bundle))
+    for timestamp in (600, 900):
+        bundle.captured_at_monotonic_ms = timestamp
+        assert not any(s["active"] for s in rules.evaluate(bundle) if s["event_type"] is EventType.SUSPICIOUS_HAND_ACTIVITY)
+    bundle.captured_at_monotonic_ms = 1200
+    assert any(s["active"] for s in rules.evaluate(bundle) if s["event_type"] is EventType.SUSPICIOUS_HAND_ACTIVITY)
 
 
 @pytest.mark.asyncio

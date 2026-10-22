@@ -154,10 +154,12 @@ def test_runtime_closes_head_signal_when_face_disappears():
     from datetime import UTC, datetime
 
     from proctoring_core.events.models import ObservationBundle, ObservationHealth
-    from proctoring_desktop.runtime import _RuleSet
+
+    from tests.fixtures.rules import BundleRules as _RuleSet
 
     session = uuid4()
-    rules = _RuleSet(session, {}, {"behavior": {"head_turn": {"minimum_duration_seconds": 0}}})
+    rules = _RuleSet(session, {}, {"behavior": {"head_turn": {"minimum_duration_seconds": 0,
+                                                                 "require_calibration": False}}})
     bundle = ObservationBundle(frame_id=1, session_id=session, captured_at_utc=datetime.now(UTC),
                                captured_at_monotonic_ms=100, frame_size=(640, 480),
                                faces=[{"yaw": 45, "quality": 0.8}],
@@ -172,7 +174,8 @@ def test_runtime_closes_head_signal_when_face_disappears():
 
 def test_desktop_calibration_and_delayed_overlay_without_camera(monkeypatch, tmp_path):
     monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
-    from proctoring_desktop.window import MainWindow, _paint_overlay
+    from proctoring_desktop.widgets.painting import paint_overlay as _paint_overlay
+    from proctoring_desktop.window import MainWindow
     from PySide6.QtGui import QPixmap
     from PySide6.QtWidgets import QApplication
 

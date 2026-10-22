@@ -1,0 +1,13 @@
+{"action": "opened", "risk": 3.2, "severity": "LOW", "t": 9500, "type": "POSSIBLE_TALKING"}
+{"action": "updated", "risk": 3.2, "severity": "LOW", "t": 9625, "type": "POSSIBLE_TALKING"}
+{"action": "updated", "risk": 3.2, "severity": "LOW", "t": 9750, "type": "POSSIBLE_TALKING"}
+{"action": "updated", "risk": 3.2, "severity": "LOW", "t": 9875, "type": "POSSIBLE_TALKING"}
+{"action": "updated", "risk": 3.2, "severity": "LOW", "t": 10000, "type": "POSSIBLE_TALKING"}
+{"action": "updated", "risk": 3.2, "severity": "LOW", "t": 10125, "type": "POSSIBLE_TALKING"}
+{"action": "updated", "risk": 3.2, "severity": "LOW", "t": 10250, "type": "POSSIBLE_TALKING"}
+{"action": "updated", "risk": 3.2, "severity": "LOW", "t": 10375, "type": "POSSIBLE_TALKING"}
+{"action": "updated", "risk": 3.2, "severity": "LOW", "t": 10500, "type": "POSSIBLE_TALKING"}
+{"action": "updated", "risk": 3.2, "severity": "LOW", "t": 10625, "type": "POSSIBLE_TALKING"}
+{"action": "updated", "risk": 3.2, "severity": "LOW", "t": 10750, "type": "POSSIBLE_TALKING"}
+{"action": "updated", "risk": 3.2, "severity": "LOW", "t": 10875, "type": "POSSIBLE_TALKING"}
+{"action": "closed", "risk": 3.2, "severity": "LOW", "t": 11000, "type": "POSSIBLE_TALKING"}

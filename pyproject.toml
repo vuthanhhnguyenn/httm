@@ -63,11 +63,33 @@ python_version = "3.12"
 strict = true
 warn_unused_configs = true
 exclude = "(^|/)(\\.venv|storage|models)(/|$)"
-mypy_path = ["apps/desktop/src", "packages/proctoring_core/src", "packages/proctoring_ai/src"]
+mypy_path = [
+  "apps/desktop/src",
+  "packages/proctoring_core/src",
+  "packages/proctoring_ai/src",
+  "packages/proctoring_runtime/src",
+]
+
+[[tool.mypy.overrides]]
+# Native/optional libraries without type information; adapters wrap them behind typed boundaries.
+module = ["cv2", "cv2.*", "mediapipe", "ultralytics", "torch"]
+ignore_missing_imports = true
+follow_imports = "skip"
+
+[[tool.mypy.overrides]]
+module = ["yaml"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 minversion = "8.0"
 testpaths = ["apps/desktop/tests", "packages/*/tests", "tests"]
+pythonpath = [
+  ".",
+  "apps/desktop/src",
+  "packages/proctoring_core/src",
+  "packages/proctoring_ai/src",
+  "packages/proctoring_runtime/src",
+]
 addopts = "-ra --strict-config --strict-markers"
 asyncio_mode = "auto"
 markers = [

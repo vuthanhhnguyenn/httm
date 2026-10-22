@@ -35,7 +35,10 @@ class AnalyzerFactory:
         *,
         detector_image_size: int = 416,
         detector_device: str | None = None,
+        analyzer_options: dict[str, dict[str, Any]] | None = None,
     ) -> None:
+        # Per-analyzer constructor options keyed by "face", "pose", "hands" (thresholds, timeouts).
+        self.analyzer_options = analyzer_options or {}
         self.manifest_path = Path(manifest_path).resolve()
         self.detector_image_size = detector_image_size
         self.detector_device = detector_device
@@ -136,7 +139,7 @@ class AnalyzerFactory:
                 task,
                 licenses={"Apache-2.0"},
             )
-            adapter = adapter_type(model_path)
+            adapter = adapter_type(model_path, **self.analyzer_options.get(key, {}))
             result = await adapter.initialize()
             status = str(result.get("status", "unavailable"))
             reason = str(result.get("reason") or "")
@@ -181,7 +184,7 @@ class AnalyzerFactory:
             pose_analyzer=self.pose_analyzer,
             hand_analyzer=self.hand_analyzer,
             image_quality=ImageQualityExtractor(),
-            timeout_ms=1200,
+            timeout_ms=int(detection.get("analyzer_timeout_ms", 1200)),
             pose_interval_ms=int(detection.get("pose_interval_ms", 250)),
             hands_interval_ms=int(detection.get("hands_interval_ms", 200)),
             person_confidence_threshold=float(detection.get("person_confidence_threshold", 0.6)),

@@ -38,7 +38,7 @@ def main() -> None:
     produced = 0
     times = []
 
-    def capture():
+    def capture() -> None:
         nonlocal produced
         produced += 1
         times.append(time.perf_counter())

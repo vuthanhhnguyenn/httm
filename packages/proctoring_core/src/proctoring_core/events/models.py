@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any, Mapping
+from typing import Any
 from uuid import UUID, uuid4
 
 from ..types import EventType, RiskScore, Severity, ensure_utc

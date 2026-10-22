@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
-
 from proctoring_core.types import BoundingBox, Confidence, RiskScore, UtcTimestamp
 
 

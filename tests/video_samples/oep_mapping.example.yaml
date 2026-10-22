@@ -1,0 +1,25 @@
+# Ánh xạ mã nhãn OEP (cột 3 của gt.txt) sang EventType — xác minh 2026-10-16 bằng cách xem khung ảnh
+# giữa các khoảng nhãn và đối chiếu năm hành vi trong bài báo (Atoum et al., IEEE TMM 2017).
+# Một khoảng nhãn được tính là phát hiện nếu BẤT KỲ loại nào trong `events` khớp; nhãn OEP thô
+# (mỗi khoảng là một hành vi tổng hợp) nên độ phủ theo từng loại chỉ là cận dưới.
+version: 1
+tolerance_ms: 2000
+# Gộp các khoảng cùng mã cách nhau ≤ 3 s: OEP hay chia một cuộc gọi thành nhiều mảnh.
+merge_gap_ms: 3000
+codes:
+  "1":
+    note: "Xem sách/ghi chú: cúi nhìn bàn hoặc đùi; ở phiên thật có người đưa sách"
+    events: [DOCUMENT_DETECTED, LOOK_DOWN, HEAD_TURN_LEFT, HEAD_TURN_RIGHT, GAZE_OFF_SCREEN, GAZE_SIDEWAYS,
+             FACE_NOT_VISIBLE, MULTIPLE_PERSON_DETECTED]
+  "2":
+    note: "Nói chuyện với người trong phòng (giám thị hoặc bạn)"
+    events: [POSSIBLE_TALKING, MULTIPLE_PERSON_DETECTED, HEAD_TURN_LEFT, HEAD_TURN_RIGHT, GAZE_SIDEWAYS]
+  "3":
+    note: "Tra Internet trên chính máy làm bài: webcam không quan sát được"
+    ignore: true
+  "5":
+    note: "Gọi điện thoại"
+    events: [PHONE_DETECTED, SUSPICIOUS_HAND_ACTIVITY, POSSIBLE_TALKING, HEAD_TURN_LEFT, HEAD_TURN_RIGHT]
+  "6":
+    note: "Hành vi khác: cúi sâu xuống dưới bàn"
+    events: [LOOK_DOWN, FACE_NOT_VISIBLE, GAZE_OFF_SCREEN, HEAD_TURN_LEFT, HEAD_TURN_RIGHT, DOCUMENT_DETECTED]

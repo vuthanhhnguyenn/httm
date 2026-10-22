@@ -1,0 +1,104 @@
+# Bộ đánh giá OEP (Atoum et al., IEEE TMM 2017). Chép ra E:/datasets/oep/oep_set.yaml rồi chỉnh.
+# Dữ liệu chỉ dùng đánh giá nội bộ, không đưa vào Git. Xem specs/002-phase1-hardening/quickstart.md.
+name: oep-webcam
+source: "OEP dataset, Atoum et al., IEEE TMM 2017 — chỉ dùng đánh giá nội bộ"
+root: E:/datasets/oep/extracted/OEP database
+mapping: oep_mapping.yaml
+exam_mode: computer
+cases:
+  - id: subject1
+    video: subject1/*1.avi
+    labels: subject1/gt.txt
+    label_format: oep
+  - id: subject2
+    video: subject2/*1.avi
+    labels: subject2/gt.txt
+    label_format: oep
+  - id: subject3
+    video: subject3/*1.avi
+    labels: subject3/gt.txt
+    label_format: oep
+  - id: subject4
+    video: subject4/*1.avi
+    labels: subject4/gt.txt
+    label_format: oep
+  - id: subject5
+    video: subject5/*1.avi
+    labels: subject5/gt.txt
+    label_format: oep
+  - id: subject6
+    video: subject6/*1.avi
+    labels: subject6/gt.txt
+    label_format: oep
+  - id: subject7
+    video: subject7/*1.avi
+    labels: subject7/gt.txt
+    label_format: oep
+  - id: subject8
+    video: subject8/*1.avi
+    labels: subject8/gt.txt
+    label_format: oep
+  - id: subject9
+    video: subject9/*1.avi
+    labels: subject9/gt.txt
+    label_format: oep
+  - id: subject10
+    video: subject10/*1.avi
+    labels: subject10/gt.txt
+    label_format: oep
+  - id: subject11
+    video: subject11/*1.avi
+    labels: subject11/gt.txt
+    label_format: oep
+  - id: subject12
+    video: subject12/*1.avi
+    labels: subject12/gt.txt
+    label_format: oep
+  - id: subject13
+    video: subject13/*1.avi
+    labels: subject13/gt.txt
+    label_format: oep
+  - id: subject14
+    video: subject14/*1.avi
+    labels: subject14/gt.txt
+    label_format: oep
+  - id: subject15
+    video: subject15/*1.avi
+    labels: subject15/gt.txt
+    label_format: oep
+  - id: subject16
+    video: subject16/*1.avi
+    labels: subject16/gt.txt
+    label_format: oep
+  - id: subject17
+    video: subject17/*1.avi
+    labels: subject17/gt.txt
+    label_format: oep
+  - id: subject18
+    video: subject18/*1.avi
+    labels: subject18/gt.txt
+    label_format: oep
+  - id: subject19
+    video: subject19/*1.avi
+    labels: subject19/gt.txt
+    label_format: oep
+  - id: subject20
+    video: subject20/*1.avi
+    labels: subject20/gt.txt
+    label_format: oep
+  - id: subject21
+    video: subject21/*1.avi
+    labels: subject21/gt.txt
+    label_format: oep
+  - id: subject22
+    video: subject22/*1.avi
+    labels: subject22/gt.txt
+    label_format: oep
+  - id: subject23
+    video: subject23/*1.avi
+    labels: subject23/gt.txt
+    label_format: oep
+  - id: subject24
+    video: subject24/*1.avi
+    labels: subject24/gt.txt
+    label_format: oep

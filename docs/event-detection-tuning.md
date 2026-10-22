@@ -87,3 +87,26 @@ Lưu ý kiểm tra cấu hình: `configs/default.yaml` và `configs/exam_policy.
 
 Hai nguồn mô tả đầu ra/model, không xác nhận các ngưỡng hành vi là chuẩn chống gian
 lận. Bộ luật ở đây là heuristic có regression test; quyết định cuối cùng cần giám thị.
+
+## Cập nhật theo spec 002 (2026-10-16)
+
+Các thay đổi dưới đây thay thế phần mô tả tương ứng ở trên khi có mâu thuẫn. Mọi giá trị nằm trong
+`configs/default.yaml` (schema: `proctoring_core.config.schema`) và cần chốt lại theo
+[kết quả đánh giá](evaluation-results.md).
+
+| Tín hiệu | Thay đổi | Khóa cấu hình |
+|---|---|---|
+| Điện thoại / sách | Một **episode** giữ qua mất phát hiện và đổi track ngắn hơn `episode_gap_ms` (1,5 s); sự kiện có `object_trace` (frame, bbox, confidence, model). Sách chỉ dùng lớp `book`. | `behavior.phone.episode_gap_ms`, `behavior.document.classes` |
+| Thứ bậc | `CAMERA_BLOCKED` ⊃ `PERSON_MISSING` ⊃ `LEAVING_SEAT` ⊃ mặt/đầu/mắt/miệng/tay. Tín hiệu gốc đang tích lũy đã giữ lại tín hiệu hệ quả; hệ quả bị giữ đến khi điều kiện của nó reset. | `behavior.hierarchy` |
+| Thời lượng | `multiple_person`, `leaving_seat`, `camera_blocked` dùng đúng khóa của mình (trước đây dùng nhầm khóa khác). | `behavior.*.minimum_duration_seconds` |
+| Rời chỗ | Vùng ngồi = trung vị bbox người 3 giây đầu (hoặc sau hiệu chỉnh); rời chỗ khi tâm/vai ra khỏi vùng + biên, hoặc bbox nhỏ hơn 35% vùng. Bỏ quy tắc `y > 0.9`. | `behavior.leaving_seat.*` |
+| Che camera | Ảnh ít thông tin (mờ, tối, phẳng, ít cạnh) **và** không thấy người. Khung hình lặp y hệt ≥ 16 lượt = camera treo: báo lỗi thiết bị, không đánh giá hành vi. | `behavior.camera_blocked.*` |
+| Cúi đầu | Thi giấy: tắt. Thi máy: từ 2 giây, tắt đường xác nhận nhanh. | `exam_modes.*.look_down` |
+| Hướng đầu | Tự **đề xuất** hiệu chỉnh khi đầu yên 2 giây; giám thị chấp nhận. Mốc lệch quá 35° bị từ chối. | — |
+| Hướng mắt *(thử nghiệm)* | Tỉ lệ mống mắt trong khe mắt + góc đầu, ánh xạ tuyến tính học từ hiệu chỉnh 5 điểm. "Nhìn ra ngoài màn hình" ≥ 1,5 s (chỉ thi máy); "liếc ngang" lệch ≥ 0,18 bề rộng mắt khi đầu thẳng ≥ 2 s. Bỏ qua khi mắt nhỏ/nhắm/đầu nghiêng > 35°. | `behavior.gaze.*` |
+| Nói chuyện *(thử nghiệm)* | Độ mở miệng (MAR) trong cửa sổ 2 s: ≥ 3 chu kỳ mở/đóng, biên độ ≥ 0,06, kéo dài ≥ 2,5 s. Ngáp/há miệng giữ yên bị loại. | `behavior.talking.*` |
+| Tay | Ghép tay theo handedness + vị trí cổ tay. Lý do: tay ở tai, tay trên miệng (loại chống cằm), tay cử động nhanh **trên cằm** (viết/gõ phím ở dưới không tính). | `behavior.hand_activity.*` |
+| Risk | Trần chung cho tín hiệu hỗ trợ (30 điểm), luôn dưới mức "Cao". | `risk.supporting_group_cap` |
+
+Giới hạn đã biết khi đánh giá trên OEP: camera đeo trên kính của người tham gia có thể bị YOLO nhận là
+điện thoại; thí sinh OEP cúi nhìn bàn nhiều làm mất mặt nên "Không thấy mặt" cần ngưỡng dài hơn.

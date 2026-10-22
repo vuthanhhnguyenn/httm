@@ -7,8 +7,9 @@ import time
 from datetime import UTC, datetime
 from typing import Any
 
+cv2: Any
 try:  # OpenCV is optional until the capture adapter is selected.
-    import cv2  # type: ignore[import-not-found]
+    import cv2
 except ImportError:  # pragma: no cover - exercised in environments without CV wheels
     cv2 = None
 

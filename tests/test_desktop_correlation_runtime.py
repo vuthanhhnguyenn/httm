@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from uuid import uuid4
@@ -11,7 +10,16 @@ from proctoring_core.events.correlation import CorrelationEngine
 from proctoring_core.events.models import ObservationBundle, ObservationHealth
 from proctoring_core.risk.engine import RiskEngine
 from proctoring_core.types import EventType
-from proctoring_desktop.runtime import DesktopRuntime, LatestPreview, _RuleSet
+from proctoring_runtime.persistence import JsonlEventRepository
+from proctoring_runtime.session_engine import SessionRuleProcessor
+
+from tests.fixtures.rules import BundleRules as _RuleSet
+
+FACE_GEOMETRY = {"face_width": 0.2, "keypoints": {"ear_left": (0.4, 0.3), "ear_right": (0.6, 0.3),
+                                                  "chin": (0.5, 0.4), "mouth_center": (0.5, 0.35)}}
+# A hand held at the right ear, inside the person box.
+HAND_AT_EAR = {"bbox": {"x": 0.58, "y": 0.27, "width": 0.06, "height": 0.1}, "wrist": (0.62, 0.36),
+               "index_tip": (0.6, 0.29), "handedness": "Right", "confidence": 0.9}
 
 
 def observation(session_id, track_id, at, timestamp, *, second_person=False):
@@ -26,9 +34,8 @@ def observation(session_id, track_id, at, timestamp, *, second_person=False):
         captured_at_monotonic_ms=timestamp, frame_size=(640, 480),
         people=people,
         faces=[{"yaw": 40, "pitch": 0, "quality": 0.9, "pose_valid": True,
-                "bbox": {"x": 0.4, "y": 0.2, "width": 0.2, "height": 0.2}}],
-        hands=[{"activity": True, "bbox": {"x": 0.4, "y": 0.45,
-                                             "width": 0.1, "height": 0.1}}],
+                "bbox": {"x": 0.4, "y": 0.2, "width": 0.2, "height": 0.2}, **FACE_GEOMETRY}],
+        hands=[HAND_AT_EAR],
         analyzer_health={"face": ObservationHealth("ready"),
                          "hands": ObservationHealth("ready")},
     )
@@ -57,19 +64,16 @@ def test_face_and_hand_receive_same_track_only_when_one_person_is_located():
 
 @pytest.mark.asyncio
 async def test_runtime_writes_one_traceable_correlation_after_confirmation(tmp_path):
-    runtime = DesktopRuntime(camera_index=0, repository_root=tmp_path, preview=LatestPreview())
-    session_id, track_id, at = runtime.session_id, uuid4(), datetime.now(UTC)
-    runtime._event_path = tmp_path / "storage" / "sessions" / str(session_id) / "events.jsonl"
-    runtime._event_path.parent.mkdir(parents=True)
+    session_id, track_id, at = uuid4(), uuid4(), datetime.now(UTC)
+    repository = JsonlEventRepository(tmp_path / "events.jsonl")
     session = SimpleNamespace(id=session_id, current_risk_score=0,
                               update_risk=lambda score, level: None)
-    rules, aggregator = fast_rules(session_id), EventAggregator()
-    risk, correlation = RiskEngine(decay_per_second=0), CorrelationEngine()
+    processor = SessionRuleProcessor(session, fast_rules(session_id).engine, aggregator=EventAggregator(),
+                                     risk_engine=RiskEngine(decay_per_second=0),
+                                     correlation=CorrelationEngine(), repository=repository)
     for timestamp in (1000, 1300, 1600):
-        await runtime._process_rules(observation(session_id, track_id, at, timestamp),
-                                     rules, aggregator, risk, session,
-                                     correlation_engine=correlation)
-    records = [json.loads(line) for line in runtime._event_path.read_text(encoding="utf-8").splitlines()]
+        await processor.process(observation(session_id, track_id, at, timestamp))
+    records = repository.records()
     opened = {item["id"] for item in records if item["action"] == "opened"}
     combined = [item for item in records if item["action"] == "correlation"]
     assert len(combined) == 1
@@ -78,4 +82,4 @@ async def test_runtime_writes_one_traceable_correlation_after_confirmation(tmp_p
     assert combined[0]["correlation_points"] == 4
     assert combined[0]["label_vi"] == "Quay đầu kèm hoạt động tay"
     assert "Giám thị" in combined[0]["message_vi"]
-    assert risk.history(session_id)["correlation_points"] == 4
+    assert processor.risk_engine.history(session_id)["correlation_points"] == 4

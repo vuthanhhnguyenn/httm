@@ -10,7 +10,7 @@ from typing import Any
 
 def _load_manifest(path: Path) -> dict[str, Any]:
     try:
-        import yaml  # type: ignore[import-not-found]
+        import yaml
     except ImportError as exc:
         raise SystemExit("PyYAML is required to validate models/manifest.yaml") from exc
     payload = yaml.safe_load(path.read_text(encoding="utf-8")) or {}

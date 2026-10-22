@@ -27,12 +27,19 @@ class RiskEngine:
         EventType.FACE_NOT_VISIBLE: 16.0,
         EventType.SUSPICIOUS_HAND_ACTIVITY: 5.0,
         EventType.POSSIBLE_TALKING: 4.0,
+        EventType.GAZE_OFF_SCREEN: 6.0,
+        EventType.GAZE_SIDEWAYS: 5.0,
     }
 
     def __init__(self, *, weights: dict[EventType, float] | None = None, decay_per_second: float = 1.5,
                  active_event_ttl_seconds: float = 2.0,
-                 recovery_half_life_seconds: float | None = None) -> None:
+                 recovery_half_life_seconds: float | None = None,
+                 supporting_group_cap: float = 100.0) -> None:
         self.weights = {**self.DEFAULT_WEIGHTS, **(weights or {})}
+        # Supporting signals (those carrying a ``risk_cap``) together never exceed this live total,
+        # so mouth/eye/hand cues alone cannot lift the score into the high band.
+        self.supporting_group_cap = max(0.0, supporting_group_cap)
+        self._supporting_ids: dict[UUID, set[UUID]] = defaultdict(set)
         self.decay_per_second = max(0.0, decay_per_second)
         self.active_event_ttl_seconds = max(0.1, active_event_ttl_seconds)
         # None preserves linear decay for callers that explicitly use the old policy.
@@ -102,7 +109,7 @@ class RiskEngine:
             boundary for _, seen_at, expires_at in active
             for boundary in (seen_at, expires_at) if start < boundary < end
         })
-        for left, right in zip(boundaries, boundaries[1:]):
+        for left, right in zip(boundaries, boundaries[1:], strict=False):
             elapsed = (right - left).total_seconds()
             live = [amount for amount, seen_at, expires_at in active
                     if seen_at <= left < expires_at]
@@ -143,7 +150,14 @@ class RiskEngine:
         duration_factor = 1.0 + min(1.0, (event.duration_ms or 0) / 10_000)
         repetition_factor = 1.0 + min(0.5, (self._counts[(session_id, event_type)] - 1) * 0.1)
         raw = self.weights.get(event_type, 0.0) * max(0.1, event.confidence) * duration_factor * repetition_factor
-        cap = float(event.metrics.get("risk_cap", 100.0)) if isinstance(event.metrics, dict) else 100.0
+        metrics = event.metrics if isinstance(event.metrics, dict) else {}
+        cap = float(metrics.get("risk_cap", 100.0))
+        if "risk_cap" in metrics:
+            supporting = self._supporting_ids[session_id]
+            supporting.add(event.id)
+            active = self._active_contributions[session_id]
+            others = sum(active[item][0] for item in supporting if item != event.id and item in active)
+            cap = min(cap, max(0.0, self.supporting_group_cap - others))
         contribution = min(raw, cap)
         previous_contribution = self._contributions.get(event.id, 0.0)
         delta = max(0.0, contribution - previous_contribution)

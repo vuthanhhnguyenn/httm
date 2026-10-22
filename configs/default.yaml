@@ -44,18 +44,32 @@ behavior:
     minimum_confidence: 0.70
     minimum_duration_seconds: 1.0
   person_missing:
-    minimum_duration_seconds: 3.0
+    minimum_duration_seconds: 5.0
   multiple_person:
     minimum_duration_seconds: 2.0
   leaving_seat:
     minimum_duration_seconds: 2.0
   camera_blocked:
     minimum_duration_seconds: 2.0
+  # Khi vẫn thấy người, mất mặt ngắn thường là cúi nhìn bàn (đo trên OEP 2026-10-16).
   face_not_visible:
-    minimum_duration_seconds: 1.0
+    minimum_duration_seconds: 3.0
   hand_activity:
-    minimum_duration_seconds: 2.0
-    minimum_count: 2
+    minimum_duration_seconds: 5.0
+
+# Ghi đè `behavior` theo kiểu bài thi; được chọn khi bắt đầu phiên và cố định trong phiên.
+exam_modes:
+  paper:
+    # Thi giấy: cúi nhìn bài là bình thường; không có "màn hình" để nhìn ra ngoài.
+    look_down:
+      enabled: false
+    gaze:
+      off_screen_enabled: false
+  computer:
+    # Thi máy: chỉ cúi đầu kéo dài mới cần rà soát; liếc bàn phím ngắn thì không.
+    look_down:
+      minimum_duration_seconds: 3.0
+      fast_enabled: false
 
 risk:
   maximum_score: 100

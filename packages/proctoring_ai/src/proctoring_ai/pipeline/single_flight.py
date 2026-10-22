@@ -4,16 +4,14 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
-from typing import Any, TypeVar
-
-T = TypeVar("T")
+from typing import Any
 
 
 class InferenceBusyError(RuntimeError):
     """Raised when the previous call for an analyzer is still running."""
 
 
-async def run_single_flight(lock: Any, callback: Callable[..., T], *args: Any) -> T:
+async def run_single_flight[T](lock: Any, callback: Callable[..., T], *args: Any) -> T:
     """Run at most one native call at a time, even if its waiter times out."""
 
     if not lock.acquire(blocking=False):

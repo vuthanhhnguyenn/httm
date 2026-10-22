@@ -3,27 +3,33 @@
 from __future__ import annotations
 
 import asyncio
-import math
 from pathlib import Path
 from threading import Lock
 from typing import Any
 
 from ..pipeline.single_flight import InferenceBusyError, run_single_flight
+from .matching import HandMatcher
 
 try:
-    import mediapipe as mp  # type: ignore[import-not-found]
+    import mediapipe as mp
 except ImportError:  # pragma: no cover - optional dependency
     mp = None
 
 
+WRIST, INDEX_TIP = 0, 8
+
+
 class MediaPipeHandEstimator:
-    def __init__(self, model_path: str | Path | None = None, *, enabled: bool = True, timeout_ms: int = 1200) -> None:
+    def __init__(self, model_path: str | Path | None = None, *, enabled: bool = True, timeout_ms: int = 1200,
+                 min_confidence: float = 0.4, movement_threshold: float = 0.025) -> None:
+        self.min_confidence = min_confidence
+        self.movement_threshold = movement_threshold
         self.model_path = Path(model_path) if model_path else None
         self.enabled = enabled
         self.timeout_ms = timeout_ms
         self._landmarker: Any = None
         self._last_timestamp_ms = -1
-        self._last_centers: list[tuple[float, float]] = []
+        self._matcher = HandMatcher()
         self._lock = Lock()
         self._inference_gate = Lock()
         self._reason: str | None = None
@@ -59,9 +65,9 @@ class MediaPipeHandEstimator:
             base_options=mp.tasks.BaseOptions(model_asset_path=str(self.model_path)),
             running_mode=mp.tasks.vision.RunningMode.VIDEO,
             num_hands=2,
-            min_hand_detection_confidence=0.4,
-            min_hand_presence_confidence=0.4,
-            min_tracking_confidence=0.4,
+            min_hand_detection_confidence=self.min_confidence,
+            min_hand_presence_confidence=self.min_confidence,
+            min_tracking_confidence=self.min_confidence,
         )
         self._landmarker = mp.tasks.vision.HandLandmarker.create_from_options(options)
 
@@ -94,7 +100,6 @@ class MediaPipeHandEstimator:
             return {"status": "error", "reason": type(exc).__name__, "hands": []}
 
         hands: list[dict[str, Any]] = []
-        centers: list[tuple[float, float]] = []
         handedness = getattr(result, "handedness", [])
         for index, raw_landmarks in enumerate(result.hand_landmarks):
             landmarks = [
@@ -109,31 +114,29 @@ class MediaPipeHandEstimator:
             xs = [point["x"] for point in landmarks]
             ys = [point["y"] for point in landmarks]
             bbox = {"x": min(xs), "y": min(ys), "width": max(xs) - min(xs), "height": max(ys) - min(ys)}
-            center = (bbox["x"] + bbox["width"] / 2, bbox["y"] + bbox["height"] / 2)
-            centers.append(center)
             categories = handedness[index] if index < len(handedness) else []
             category = categories[0] if categories else None
             hands.append(
                 {
                     "bbox": bbox,
                     "landmarks": landmarks,
+                    "wrist": (landmarks[WRIST]["x"], landmarks[WRIST]["y"]),
+                    "index_tip": (landmarks[INDEX_TIP]["x"], landmarks[INDEX_TIP]["y"]),
                     "handedness": getattr(category, "category_name", "unknown"),
                     "confidence": max(0.0, min(1.0, float(getattr(category, "score", 0.0)))),
                 }
             )
-        movement = max(
-            (math.dist(center, previous) for center, previous in zip(centers, self._last_centers, strict=False)),
-            default=0.0,
-        )
-        self._last_centers = centers
-        for hand in hands:
-            hand["activity"] = movement >= 0.025
+        matches = self._matcher.update([(hand["handedness"], hand["wrist"]) for hand in hands], timestamp)
+        for hand, (hand_id, displacement, dt_ms) in zip(hands, matches, strict=True):
+            hand["hand_id"] = hand_id
+            hand["displacement"] = displacement
+            hand["dt_ms"] = dt_ms
+            hand["activity"] = displacement >= self.movement_threshold
         return {
             "status": "ready" if hands else "no_detection",
             "reason": None,
             "hands": hands,
-            "hand_activity": movement >= 0.025,
-            "hand_movement": movement,
+            "hand_activity": any(hand["activity"] for hand in hands),
             "frame_id": frame.get("frame_id"),
         }
 

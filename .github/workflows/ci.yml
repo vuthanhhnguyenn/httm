@@ -38,7 +38,7 @@ jobs:
         run: uv run ruff check .
 
       - name: Python type check
-        run: uv run mypy apps/desktop/src packages/proctoring_core/src packages/proctoring_ai/src scripts
+        run: uv run mypy apps/desktop/src packages/proctoring_core/src packages/proctoring_ai/src packages/proctoring_runtime/src scripts
 
       - name: Python tests
         run: uv run pytest packages/proctoring_core/tests packages/proctoring_ai/tests tests

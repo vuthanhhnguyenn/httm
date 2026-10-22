@@ -9,20 +9,23 @@ from threading import Lock
 from typing import Any
 
 from ..pipeline.single_flight import InferenceBusyError, run_single_flight
+from .features import eye_features, keypoints, mouth_features
 from .head_pose import HeadPoseEstimator, pose_from_matrix
 
 try:
-    import mediapipe as mp  # type: ignore[import-not-found]
+    import mediapipe as mp
 except ImportError:  # pragma: no cover - optional dependency
     mp = None
 
 
 class MediaPipeFaceLandmarker:
-    """Detect one face and return only a box and coarse head pose."""
+    """Detect one face; return its box, coarse head pose and scalar eye/mouth features."""
 
-    def __init__(self, model_path: str | Path | None = None, *, timeout_ms: int = 1200) -> None:
+    def __init__(self, model_path: str | Path | None = None, *, timeout_ms: int = 1200,
+                 min_confidence: float = 0.5) -> None:
         self.model_path = Path(model_path) if model_path else None
         self.timeout_ms = timeout_ms
+        self.min_confidence = min_confidence
         self._landmarker: Any = None
         self._last_timestamp_ms = -1
         self._lock = Lock()
@@ -62,9 +65,9 @@ class MediaPipeFaceLandmarker:
             base_options=mp.tasks.BaseOptions(model_asset_path=str(self.model_path)),
             running_mode=mp.tasks.vision.RunningMode.VIDEO,
             num_faces=1,
-            min_face_detection_confidence=0.5,
-            min_face_presence_confidence=0.5,
-            min_tracking_confidence=0.5,
+            min_face_detection_confidence=self.min_confidence,
+            min_face_presence_confidence=self.min_confidence,
+            min_tracking_confidence=self.min_confidence,
             output_facial_transformation_matrixes=True,
         )
         self._landmarker = mp.tasks.vision.FaceLandmarker.create_from_options(options)
@@ -125,6 +128,10 @@ class MediaPipeFaceLandmarker:
             "quality": max(0.0, min(1.0, size_quality)) if pose else 0.0,
             "frame_width": int(width),
             "frame_height": int(height),
+            "face_width": right - left,
+            "gaze": eye_features(landmarks, int(width)),
+            "mouth": mouth_features(landmarks),
+            "keypoints": keypoints(landmarks),
         }
         face = self._pose_estimator.update(face, timestamp)
         return {"status": "ready", "reason": None, "faces": [face], "frame_id": frame.get("frame_id")}

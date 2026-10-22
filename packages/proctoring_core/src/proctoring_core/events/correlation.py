@@ -82,8 +82,8 @@ class CorrelationEngine:
             opened_ms = previous.opened_ms if previous else now_ms
             active[event.id] = _ActiveSource(event, opened_ms, now_ms)
 
-        for event_id, source in tuple(active.items()):
-            if now_ms - source.last_seen_ms > self.freshness_ms:
+        for event_id, active_source in tuple(active.items()):
+            if now_ms - active_source.last_seen_ms > self.freshness_ms:
                 del active[event_id]
 
         findings: list[CorrelationFinding] = []

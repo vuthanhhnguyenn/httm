@@ -8,11 +8,12 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
 from types import MappingProxyType
-from typing import Any, Mapping
+from typing import Any
 from uuid import UUID, uuid4
 
 from .schema import ExamPolicyConfig
@@ -85,7 +86,7 @@ class ExamPolicy:
         object.__setattr__(self, "updated_at", _utc(self.updated_at))
 
     @classmethod
-    def create(cls, content: Mapping[str, Any], *, version: int = 1, created_by: str = "system", policy_id: UUID | None = None) -> "ExamPolicy":
+    def create(cls, content: Mapping[str, Any], *, version: int = 1, created_by: str = "system", policy_id: UUID | None = None) -> ExamPolicy:
         validated = ExamPolicyConfig.model_validate(dict(content))
         now = datetime.now(UTC)
         return cls(
@@ -152,7 +153,7 @@ class SystemConfigVersion:
             object.__setattr__(self, "activated_at", _utc(self.activated_at))
 
     @classmethod
-    def create(cls, content: Mapping[str, Any], *, version: int = 1, status: ConfigVersionStatus = ConfigVersionStatus.DRAFT, created_by: str = "system", config_id: UUID | None = None) -> "SystemConfigVersion":
+    def create(cls, content: Mapping[str, Any], *, version: int = 1, status: ConfigVersionStatus = ConfigVersionStatus.DRAFT, created_by: str = "system", config_id: UUID | None = None) -> SystemConfigVersion:
         return cls(config_id or uuid4(), version, status, dict(content), canonical_sha256(content), created_by)
 
 
