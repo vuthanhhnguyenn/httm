@@ -83,7 +83,7 @@ risk:
   correlation_cap: 20
 
 evidence:
-  evidence_frame_enabled: true
+  evidence_frame_enabled: false
   evidence_clip_enabled: false
   retention_days: 30
 

@@ -119,6 +119,7 @@ class AnalyzerFactory:
 
             self.detector = YoloObjectDetector(
                 model_path,
+                model_name=str(entry.get("name", "yolo")),
                 model_version=str(entry.get("version", "unknown")),
                 model_sha256=str(entry["sha256"]),
                 confidence_threshold=0.25,
@@ -160,6 +161,26 @@ class AnalyzerFactory:
         if self.detector is not None:
             details["object_detector"]["device"] = self.detector.active_device
         return details
+
+    def model_versions(self) -> dict[str, dict[str, str]]:
+        """Return model name/version/sha256 for each initialized analyzer."""
+        result = {}
+        if self.detector is not None and hasattr(self.detector, "model_name"):
+            result["object_detector"] = {
+                "name": self.detector.model_name,
+                "version": self.detector.model_version,
+                "sha256": getattr(self.detector, "model_sha256", ""),
+            }
+        for key, analyzer in [("face", self.face_analyzer), ("pose", self.pose_analyzer),
+                              ("hands", self.hand_analyzer)]:
+            if analyzer is not None:
+                health = analyzer.health()
+                result[key] = {
+                    "name": health.get("model_name", ""),
+                    "version": health.get("model_version", ""),
+                    "sha256": health.get("model_sha256", ""),
+                }
+        return result
 
     def build_pipeline(self, config: dict[str, Any] | None = None) -> ObservationPipeline:
         settings = config or {}

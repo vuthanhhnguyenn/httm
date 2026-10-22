@@ -61,7 +61,9 @@ class JsonlEventRepository:
 SESSION_SCHEMA_VERSION = "2.0"
 
 
-def write_session_manifest(target_dir: Path, session: Any, exam_mode: ExamMode, settings: Any) -> Path:
+def write_session_manifest(target_dir: Path, session: Any, exam_mode: ExamMode, settings: Any,
+                          model_versions: dict[str, dict[str, str]] | None = None,
+                          calibration_profile_id: str | None = None) -> Path:
     """``session.json``: what a reviewer needs to interpret this session's events."""
 
     item = {
@@ -71,6 +73,8 @@ def write_session_manifest(target_dir: Path, session: Any, exam_mode: ExamMode, 
         "started_at": datetime.now().astimezone().isoformat(),
         "config_sha256": canonical_sha256(settings.raw_config),
         "policy_sha256": canonical_sha256(settings.raw_policy),
+        "model_versions": model_versions or {},
+        "calibration_profile_id": calibration_profile_id,
     }
     target = target_dir / "session.json"
     pending = target.with_suffix(".json.tmp")

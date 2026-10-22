@@ -128,7 +128,7 @@ class DurationRuleConfig(StrictModel):
 class GazeConfig(StrictModel):
     """Experimental eye-direction signals; silent without calibration or a clear view."""
 
-    enabled: bool = True
+    enabled: bool = False
     off_screen_enabled: bool = True
     min_eye_width_px: float = Field(default=14, ge=0, le=200)
     min_openness: float = Field(default=0.15, ge=0, le=1)
@@ -147,7 +147,7 @@ class GazeConfig(StrictModel):
 class TalkingConfig(StrictModel):
     """Experimental mouth-rhythm signal; yawns and a held-open mouth do not count."""
 
-    enabled: bool = True
+    enabled: bool = False
     window_seconds: float = Field(default=2.0, ge=0.5, le=10)
     min_samples: int = Field(default=6, ge=3, le=200)
     min_oscillations: int = Field(default=3, ge=1, le=20)

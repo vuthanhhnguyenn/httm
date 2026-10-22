@@ -21,6 +21,7 @@ class YoloObjectDetector:
         self,
         model_path: str | Path,
         *,
+        model_name: str = "yolo",
         model_version: str = "unknown",
         model_sha256: str | None = None,
         confidence_threshold: float = 0.25,
@@ -29,6 +30,7 @@ class YoloObjectDetector:
         allowed_classes: tuple[str, ...] | list[str] | None = None,
     ) -> None:
         self.model_path = Path(model_path)
+        self.model_name = model_name
         self.model_version = model_version
         self.model_sha256 = model_sha256.lower() if model_sha256 else self._hash_file()
         self.confidence_threshold = confidence_threshold

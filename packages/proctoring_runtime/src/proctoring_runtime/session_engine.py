@@ -292,6 +292,12 @@ class SessionEngine:
             capture_task = asyncio.create_task(self._capture_loop(source, queue, metrics), name="session-camera")
             await factory.initialize(on_progress=lambda health: self._state(
                 {"type": "analyzer_health", "analyzers": health}))
+            # Update manifest with model versions after initialization.
+            write_session_manifest(
+                self.repository.path.parent, session, self.exam_mode, settings,
+                model_versions=factory.model_versions(),
+                calibration_profile_id=None,
+            )
             if settings.device and factory.health()["object_detector"] != "ready":
                 raise RuntimeError(
                     f"YOLO không khởi tạo được trên thiết bị {settings.device}: "
