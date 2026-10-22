@@ -3,6 +3,10 @@
 Số liệu theo [spec 002](../specs/002-phase1-hardening/spec.md) (SC-001..SC-009). Báo cáo đầy đủ nằm ở
 `storage/evaluation/<lần chạy>/report.{md,json}` (ngoài Git); bảng dưới chỉ chép tóm tắt.
 
+> **Đọc trước:** [phương pháp đánh giá](evaluation-methodology.md) giải thích số liệu OEP chứng minh được
+> gì và cổng nào phải đạt trước khi bật mặc định một tín hiệu. Không dùng số liệu OEP để cam kết độ chính
+> xác với cơ sở đào tạo khi chưa có holdout theo người/thiết bị.
+
 ## Hồ sơ chạy
 
 | Mục | Giá trị |

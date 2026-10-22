@@ -118,7 +118,8 @@ uv run --no-sync python scripts/evaluate.py --set E:\datasets\oep\oep_set.yaml -
 
 Công cụ phát lại video qua đúng chuỗi phân tích và luật của app (thời gian lấy theo video nên kết quả lặp
 lại được), rồi báo cáo theo từng loại sự kiện: đúng, bỏ sót, báo nhầm/phút, độ trễ, tỉ lệ một sự kiện cho
-mỗi hành vi. Xem `specs/002-phase1-hardening/quickstart.md` và `docs/evaluation-results.md`.
+mỗi hành vi. Xem `specs/002-phase1-hardening/quickstart.md`, `docs/evaluation-results.md`,
+`docs/evaluation-methodology.md` (số liệu chứng minh được gì) và `docs/privacy-policy.md` (dữ liệu phiên thi).
 
 ## Cấu trúc
 
