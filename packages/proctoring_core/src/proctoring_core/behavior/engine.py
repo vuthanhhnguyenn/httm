@@ -61,6 +61,8 @@ class BehaviorEngine:
             document_classes=tuple(document.classes),
             phone_episode_gap_ms=phone.episode_gap_ms,
             document_episode_gap_ms=document.episode_gap_ms,
+            phone_geometry_max_height_ratio=phone.geometry_max_height_ratio,
+            phone_geometry_max_area_ratio=phone.geometry_max_area_ratio,
         )
         face_rule = behavior.face_not_visible
         self.safety = SafetyRuleEvaluator(

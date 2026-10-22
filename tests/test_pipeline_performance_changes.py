@@ -32,7 +32,7 @@ def test_quality_optimization_preserves_full_resolution_metrics(kind):
     assert actual["blur"] == pytest.approx(float(cv2.Laplacian(gray, cv2.CV_64F).var()), abs=1e-8)
 
 
-def test_fast_rgb_conversion_is_exact_and_does_not_modify_source():
+def test_fast_rgb_conversion_is_exact_and_does_not_modify_source() -> None:
     image = np.random.default_rng(2).integers(0, 256, (20, 30, 3), dtype=np.uint8)
     before = image.copy()
     rgb = _bgr_to_rgb(image)
@@ -43,7 +43,7 @@ def test_fast_rgb_conversion_is_exact_and_does_not_modify_source():
 
 
 @pytest.mark.asyncio
-async def test_quality_and_detector_run_concurrently_on_same_frame():
+async def test_quality_and_detector_run_concurrently_on_same_frame() -> None:
     quality_started = Event()
     image = np.zeros((20, 30, 3), dtype=np.uint8)
 
@@ -70,7 +70,7 @@ async def test_quality_and_detector_run_concurrently_on_same_frame():
 
 
 @pytest.mark.asyncio
-async def test_stopping_pipeline_cancels_all_inference_waiters():
+async def test_stopping_pipeline_cancels_all_inference_waiters() -> None:
     detector_started, face_started = asyncio.Event(), asyncio.Event()
     detector_stopped, face_stopped = asyncio.Event(), asyncio.Event()
 

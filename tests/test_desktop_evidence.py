@@ -4,6 +4,7 @@ import hashlib
 import json
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
+from typing import Any
 from uuid import uuid4
 
 import cv2
@@ -31,7 +32,7 @@ def sample(session_id, *, image=None, frame_id=1, timestamp=100):
 @pytest.mark.asyncio
 async def test_evidence_records_exact_analyzed_frame_and_expires_only_indexed_jpeg(tmp_path):
     session_id, event_id = uuid4(), uuid4()
-    notifications = []
+    notifications: list[dict[str, Any]] = []
     recorder = EvidenceRecorder(tmp_path / "storage", session_id, enabled=True, retention_days=2,
                                 on_result=notifications.append)
     frame, bundle = sample(session_id)
@@ -46,6 +47,7 @@ async def test_evidence_records_exact_analyzed_frame_and_expires_only_indexed_jp
     encoded = path.read_bytes()
     assert hashlib.sha256(encoded).hexdigest() == result["sha256"]
     decoded = cv2.imdecode(np.frombuffer(encoded, dtype=np.uint8), cv2.IMREAD_COLOR)
+    assert decoded is not None
     assert decoded.shape == original.shape
     assert np.mean(np.abs(decoded.astype(float) - original.astype(float))) < 3
     assert np.mean(decoded) > 50  # The mutated black frame was not stored.

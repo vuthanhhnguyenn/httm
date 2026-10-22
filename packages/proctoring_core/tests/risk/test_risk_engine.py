@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from proctoring_core.events.models import SuspiciousEvent
 from proctoring_core.risk.engine import RiskEngine
 from proctoring_core.types import EventType, Severity
 
 
-def event(session_id, event_type=EventType.PHONE_DETECTED, confidence=1.0, metrics=None):
+def event(session_id: UUID, event_type: EventType = EventType.PHONE_DETECTED,
+          confidence: float = 1.0, metrics: dict[str, float] | None = None) -> SuspiciousEvent:
     now = datetime.now(UTC)
     return SuspiciousEvent(session_id=session_id, event_type=event_type, severity=Severity.HIGH, confidence=confidence, started_at=now, reason_codes=["TEST"], metrics=metrics or {})
 

@@ -70,7 +70,8 @@ def test_sideways_glance_needs_straight_head_and_duration() -> None:
     calibrator = GazeCalibrator()
     calibrator.calibrate_center_only(GazeSample(0.01, 0.0, 0.0, 0.0))
     profile = calibrator.profile
-
+    assert profile is not None
+    assert not profile.has_screen  # centre-only profile never claims off screen
     short = run(rule(), profile, [face(0.25)] * 12)          # 1.5 s < 2 s
     sustained = run(rule(), profile, [face(0.25)] * 24)      # 3 s
     head_turned = run(rule(), profile, [face(0.25, yaw=30)] * 24)
@@ -78,7 +79,6 @@ def test_sideways_glance_needs_straight_head_and_duration() -> None:
     assert short == []
     assert [item["event_type"] for item in sustained][0] is EventType.GAZE_SIDEWAYS
     assert head_turned == []
-    assert not profile.has_screen  # centre-only profile never claims off screen
 
 
 def test_uncalibrated_or_poor_view_stays_silent() -> None:

@@ -21,9 +21,9 @@ def test_features_separate_covered_lens_from_scene() -> None:
     scene = extractor.extract(_scene(1))
     covered = ImageQualityExtractor().extract(np.full((72, 128, 3), 8, dtype=np.uint8))
 
-    assert scene["edge_density"] > covered["edge_density"]
-    assert scene["contrast"] > covered["contrast"]
-    assert covered["brightness"] < 0.06
+    assert scene["edge_density"] > covered["edge_density"]  # type: ignore[operator]
+    assert scene["contrast"] > covered["contrast"]  # type: ignore[operator]
+    assert covered["brightness"] < 0.06  # type: ignore[operator]
 
 
 def test_only_exactly_repeated_frames_count_as_frozen() -> None:

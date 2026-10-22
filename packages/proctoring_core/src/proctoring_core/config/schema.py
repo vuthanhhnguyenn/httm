@@ -105,6 +105,10 @@ class PhoneConfig(StrictModel):
     face_margin: float = Field(default=0.35, ge=0, le=3)       # face box grown by this × face width
     hand_radius: float = Field(default=1.2, ge=0, le=5)         # hand within this × face width
     hand_memory_ms: int = Field(default=800, ge=0, le=5_000)    # hands run at a lower rate than YOLO
+    # Optional geometric filter (off by default): a box much larger than a hand-held phone is
+    # more likely a wear-cam or another device. Only applied to phone events.
+    geometry_max_height_ratio: float | None = Field(default=None, ge=0, le=1)
+    geometry_max_area_ratio: float | None = Field(default=None, ge=0, le=1)
     classes: list[str] = Field(default_factory=lambda: ["cell phone", "phone", "mobile"], min_length=1)
 
 

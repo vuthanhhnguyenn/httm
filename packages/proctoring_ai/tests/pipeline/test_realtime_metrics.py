@@ -32,7 +32,7 @@ def test_slow_processing_reports_degraded_even_when_capture_is_fast() -> None:
 
     snapshot = metrics.snapshot(now=102.5)
 
-    assert snapshot["capture_fps"] >= 20
+    assert float(snapshot["capture_fps"]) >= 20
     assert snapshot["processed_fps"] == 10.0
     assert snapshot["dropped_frames"] == 35
     assert snapshot["latency_ms_p95"] == 280

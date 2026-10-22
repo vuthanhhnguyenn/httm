@@ -31,14 +31,14 @@ def test_operator_marks_false_positive_from_event_detail(tmp_path: Path, monkeyp
         texts = [label.text() for label in dialog.findChildren(type(window.app_status))]
         assert "Thi máy" in texts and "yolo11n 8.3.0" in texts and "42" in texts
 
-        dialog.review_buttons[ReviewType.FALSE_POSITIVE].click()
+        dialog.review_buttons[ReviewType.FALSE_POSITIVE].click()  # type: ignore[attr-defined]
 
         events = tmp_path / "storage" / "sessions" / str(session_id) / "events.jsonl"
         review = json.loads(events.read_text(encoding="utf-8").splitlines()[-1])
         assert review["action"] == "review" and review["verdict"] == "false_positive"
         assert review["event_id"] == event_id
         assert "đã rà soát: Báo nhầm" in window.events.item(0).text()
-        assert dialog.status.text() == "Đã rà soát: Báo nhầm"
+        assert dialog.status.text() == "Đã rà soát: Báo nhầm"  # type: ignore[attr-defined]
     finally:
         window.close()
     assert app is not None

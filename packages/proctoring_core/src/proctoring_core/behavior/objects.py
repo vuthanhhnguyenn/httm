@@ -29,6 +29,8 @@ class ObjectRuleEvaluator:
         document_classes: tuple[str, ...] = ("book",),
         phone_episode_gap_ms: int = 0,
         document_episode_gap_ms: int = 0,
+        phone_geometry_max_height_ratio: float | None = None,
+        phone_geometry_max_area_ratio: float | None = None,
     ) -> None:
         if policy is not None and hasattr(policy, "content"):
             policy = policy.content()
@@ -58,6 +60,27 @@ class ObjectRuleEvaluator:
         self._episode_gap_ms = {EventType.PHONE_DETECTED: max(0, phone_episode_gap_ms),
                                 EventType.DOCUMENT_DETECTED: max(0, document_episode_gap_ms)}
         self._episodes: dict[EventType, dict[str, Any]] = {}
+        self._phone_geometry = (phone_geometry_max_height_ratio, phone_geometry_max_area_ratio)
+
+    @staticmethod
+    def _bbox_too_large(item: dict[str, Any],
+                        max_height_ratio: float | None, max_area_ratio: float | None) -> bool:
+        box = item.get("bbox")
+        if not isinstance(box, dict) or max_height_ratio is None and max_area_ratio is None:
+            return False
+        try:
+            width = float(box["width"])
+            height = float(box["height"])
+        except (KeyError, TypeError, ValueError):
+            return False
+        return ((max_height_ratio is not None and height > max_height_ratio)
+                or (max_area_ratio is not None and width * height > max_area_ratio))
+
+    def _phone_geometry_admitted(self, item: dict[str, Any]) -> bool:
+        """Off by default: rejects boxes too large to be a hand-held phone."""
+        if all(limit is None for limit in self._phone_geometry):
+            return True
+        return not self._bbox_too_large(item, *self._phone_geometry)
 
     def evaluate(self, *, session_id: Any, track_id: Any, objects: list[dict[str, Any]], monotonic_ms: int,
                  frame_id: int | None = None) -> list[dict[str, Any]]:
@@ -70,6 +93,8 @@ class ObjectRuleEvaluator:
             candidate_matches = []
             for item in objects:
                 if str(item.get("class", "")).lower() not in classes:
+                    continue
+                if event_type is EventType.PHONE_DETECTED and not self._phone_geometry_admitted(item):
                     continue
                 confirmed = item.get("track_confirmed") is not False
                 confidence = float(item.get("confidence", 0))

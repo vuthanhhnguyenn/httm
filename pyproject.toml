@@ -64,11 +64,23 @@ strict = true
 warn_unused_configs = true
 exclude = "(^|/)(\\.venv|storage|models)(/|$)"
 mypy_path = [
+  ".",
   "apps/desktop/src",
   "packages/proctoring_core/src",
   "packages/proctoring_ai/src",
   "packages/proctoring_runtime/src",
 ]
+explicit_package_bases = true
+
+[[tool.mypy.overrides]]
+# Kiểm thử không cần kiểu chặt như mã nguồn; mã nguồn giữ strict.
+module = ["tests.*", "packages.*.tests.*", "apps.*.tests.*"]
+strict = false
+disallow_untyped_defs = false
+disallow_untyped_calls = false
+disallow_any_generics = false
+warn_return_any = false
+check_untyped_defs = true
 
 [[tool.mypy.overrides]]
 # Native/optional libraries without type information; adapters wrap them behind typed boundaries.
@@ -110,3 +122,4 @@ exclude_lines = [
   "raise NotImplementedError",
 ]
 fail_under = 80
+

@@ -48,7 +48,7 @@ def fast_rules(session_id):
     }})
 
 
-def test_face_and_hand_receive_same_track_only_when_one_person_is_located():
+def test_face_and_hand_receive_same_track_only_when_one_person_is_located() -> None:
     session, track, at = uuid4(), uuid4(), datetime.now(UTC)
     single = fast_rules(session).evaluate(observation(session, track, at, 1000))
     relevant = [item for item in single if item["active"] and item["event_type"] in {

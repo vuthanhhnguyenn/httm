@@ -1,8 +1,8 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from proctoring_core.events.aggregator import EventTransition
@@ -12,13 +12,15 @@ from proctoring_core.risk.engine import RiskEngine
 from proctoring_core.types import EventType, Severity
 
 
-def event(session, kind, at, track=None):
+def event(session: UUID, kind: EventType, at: datetime,
+          track: UUID | None = None) -> SuspiciousEvent:
     return SuspiciousEvent(session_id=session, event_type=kind, track_id=track,
                            severity=Severity.MEDIUM, confidence=1, started_at=at,
                            reason_codes=["TEST"])
 
 
-def bundle(session, at, ms, *, detector="ready", face="ready", hands="ready"):
+def bundle(session: UUID, at: datetime, ms: int, *, detector: str = "ready",
+           face: str = "ready", hands: str = "ready") -> ObservationBundle:
     return ObservationBundle(frame_id=ms + 1, session_id=session,
                              captured_at_utc=at + timedelta(milliseconds=ms),
                              captured_at_monotonic_ms=ms, frame_size=(80, 60),
@@ -27,11 +29,11 @@ def bundle(session, at, ms, *, detector="ready", face="ready", hands="ready"):
                                               "hands": ObservationHealth(hands)})
 
 
-def opened(*events):
+def opened(*events: SuspiciousEvent) -> list[EventTransition]:
     return [EventTransition("opened", item) for item in events]
 
 
-def test_confirmed_pair_has_source_ids_and_scores_only_once():
+def test_confirmed_pair_has_source_ids_and_scores_only_once() -> None:
     session, at, track = uuid4(), datetime.now(UTC), uuid4()
     hand = event(session, EventType.SUSPICIOUS_HAND_ACTIVITY, at, track)
     head = event(session, EventType.HEAD_TURN_LEFT, at, track)
@@ -55,7 +57,7 @@ def test_confirmed_pair_has_source_ids_and_scores_only_once():
     assert risk.history(session)["event_count"] == 2
 
 
-def test_same_track_is_required_and_unhealthy_source_resets_confirmation():
+def test_same_track_is_required_and_unhealthy_source_resets_confirmation() -> None:
     session, at = uuid4(), datetime.now(UTC)
     hand = event(session, EventType.SUSPICIOUS_HAND_ACTIVITY, at, uuid4())
     head = event(session, EventType.HEAD_TURN_RIGHT, at, uuid4())
@@ -70,7 +72,7 @@ def test_same_track_is_required_and_unhealthy_source_resets_confirmation():
     assert len(findings) == 1
 
 
-def test_stale_closed_and_out_of_window_episodes_do_not_correlate():
+def test_stale_closed_and_out_of_window_episodes_do_not_correlate() -> None:
     session, at, track = uuid4(), datetime.now(UTC), uuid4()
     hand = event(session, EventType.SUSPICIOUS_HAND_ACTIVITY, at, track)
     head = event(session, EventType.HEAD_TURN_LEFT, at, track)
@@ -90,7 +92,7 @@ def test_stale_closed_and_out_of_window_episodes_do_not_correlate():
     assert delayed.ingest(bundle(session, at, 6000), opened(head)) == []
 
 
-def test_session_cap_and_cooldown_bound_independent_pairs():
+def test_session_cap_and_cooldown_bound_independent_pairs() -> None:
     session, at = uuid4(), datetime.now(UTC)
     engine = CorrelationEngine(confirmation_seconds=0, session_cap=12,
                                window_seconds=5, freshness_seconds=2)
@@ -109,7 +111,7 @@ def test_session_cap_and_cooldown_bound_independent_pairs():
     assert sum(item.points for item in first + second) == pytest.approx(12)
 
 
-def test_phone_and_multiple_people_is_session_scoped_only():
+def test_phone_and_multiple_people_is_session_scoped_only() -> None:
     session, other, at = uuid4(), uuid4(), datetime.now(UTC)
     engine = CorrelationEngine(confirmation_seconds=0)
     phone = event(session, EventType.PHONE_DETECTED, at, uuid4())
