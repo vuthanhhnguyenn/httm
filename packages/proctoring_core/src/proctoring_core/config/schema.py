@@ -256,7 +256,8 @@ class RiskConfig(StrictModel):
 
 
 class EvidenceConfig(StrictModel):
-    evidence_frame_enabled: bool = True
+    # Evidence frames are personal data: opt in explicitly (config + policy must both allow).
+    evidence_frame_enabled: bool = False
     evidence_clip_enabled: bool = False
     retention_days: int = Field(default=30, gt=0)
     pre_event_seconds: float = Field(default=3, ge=0, le=30)

@@ -141,7 +141,8 @@ mỗi story có replay so với mốc.
 - [x] T050 [P] Rủi ro: xác nhận FR-026/FR-027 (decay, floor chỉ khi sự kiện còn cập nhật, lịch sử không thành sàn); tín hiệu thử nghiệm không một mình vượt "trung bình" (SC-006) + test
 - [x] T051 [P] Cập nhật README, `PRODUCT.md`, `docs/event-detection-tuning.md`, `docs/evaluation-results.md`; điền `docs/core-project-summary.md` (đang rỗng); liên kết spec 001 → 002
 - [ ] T052 Replay toàn bộ OEP + clip, so với mốc, kiểm SC-001..SC-008; ghi kết quả
-- [ ] T053 `ruff`, `mypy`, `pytest` 0 lỗi (SC-009); thử thật theo `quickstart.md` §5
+- [x] T053 `ruff`, `mypy`, `pytest` 0 lỗi (SC-009); thử thật theo `quickstart.md` §5 — lint/type/test sạch;
+      bước thử camera thủ công do người vận hành thực hiện
 
 ---
 
