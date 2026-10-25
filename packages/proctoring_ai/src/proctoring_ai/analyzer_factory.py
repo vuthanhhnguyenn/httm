@@ -4,18 +4,22 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import logging
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 import yaml
 
+from .acceleration import AUTO_DEVICE, resolve_torch_device
 from .face.landmarks import MediaPipeFaceLandmarker
 from .hands.hand_estimator import MediaPipeHandEstimator
 from .pipeline.observation_pipeline import ObservationPipeline
 from .pose.pose_estimator import MediaPipePoseEstimator
 from .tracking.object_tracks import ObjectEvidenceTracker
 from .tracking.single_tracker import SingleSubjectTracker
+
+logger = logging.getLogger("proctoring_ai.analyzer_factory")
 
 
 class _UnavailableDetector:
@@ -118,6 +122,9 @@ class AnalyzerFactory:
                 raise ValueError("detector manifest must list the allowed model classes")
             from .detectors.yolo_detector import YoloObjectDetector
 
+            # None/"auto" means: first CUDA GPU when PyTorch can use it, CPU otherwise.
+            automatic = self.detector_device in (None, "", AUTO_DEVICE)
+            device = resolve_torch_device(self.detector_device)
             self.detector = YoloObjectDetector(
                 model_path,
                 model_name=str(entry.get("name", "yolo")),
@@ -125,10 +132,22 @@ class AnalyzerFactory:
                 model_sha256=str(entry["sha256"]),
                 confidence_threshold=0.25,
                 image_size=self.detector_image_size,
-                device=self.detector_device,
+                device=device,
                 allowed_classes=[str(name) for name in class_map.values()],
             )
-            await self.detector.initialize()
+            try:
+                await self.detector.initialize()
+            except Exception as exc:
+                if not automatic or device == "cpu":
+                    raise
+                logger.warning("YOLO không chạy được trên GPU (%s: %s); chuyển sang CPU",
+                               type(exc).__name__, exc)
+                device = "cpu"
+                # Ultralytics keeps the predictor's first device, so reload the model.
+                self.detector.close()
+                self.detector.device = device
+                await self.detector.initialize()
+            self.detector_device = device
             self._models["object_detector"] = {
                 "name": str(entry.get("name", "yolo")),
                 "version": str(entry.get("version", "unknown")),
@@ -172,6 +191,10 @@ class AnalyzerFactory:
         }
         if self.detector is not None:
             details["object_detector"]["device"] = self.detector.active_device
+        for key, analyzer in (("face", self.face_analyzer), ("pose", self.pose_analyzer),
+                              ("hands", self.hand_analyzer)):
+            if analyzer is not None and details[key]["status"] == "ready":
+                details[key]["device"] = analyzer.device
         return details
 
     def model_versions(self) -> dict[str, dict[str, str]]:
@@ -183,7 +206,9 @@ class AnalyzerFactory:
         detection = settings.get("detection", {})
         confidence = float(detection.get("object_confidence_threshold", 0.25))
         image_size = int(detection.get("image_size", self.detector_image_size))
-        device = detection.get("device", self.detector_device)
+        # The configured device wins; otherwise keep the one chosen (or fallen back to) at load time.
+        configured = detection.get("device")
+        device = configured if configured not in (None, "", AUTO_DEVICE) else self.detector_device
         detector = self.detector
         if detector is None:
             detector = _UnavailableDetector(self._status["object_detector"][1])

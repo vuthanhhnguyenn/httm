@@ -8,6 +8,7 @@ from pathlib import Path
 from threading import Lock
 from typing import Any
 
+from ..acceleration import create_mediapipe_task
 from ..pipeline.single_flight import InferenceBusyError, run_single_flight
 from .features import eye_features, keypoints, mouth_features
 from .head_pose import HeadPoseEstimator, pose_from_matrix
@@ -31,6 +32,7 @@ class MediaPipeFaceLandmarker:
         self._lock = Lock()
         self._inference_gate = Lock()
         self._reason: str | None = None
+        self.device = "cpu"
         self._initialization_attempted = False
         self._pose_estimator = HeadPoseEstimator()
 
@@ -40,7 +42,7 @@ class MediaPipeFaceLandmarker:
     @property
     def health(self) -> dict[str, Any]:
         if self._landmarker is not None:
-            return {"status": "ready", "reason": None}
+            return {"status": "ready", "reason": None, "device": self.device}
         return {"status": "unavailable" if self._reason else "disabled", "reason": self._reason}
 
     async def initialize(self) -> dict[str, Any]:
@@ -61,16 +63,21 @@ class MediaPipeFaceLandmarker:
     def _load_sync(self) -> None:
         if mp is None or self.model_path is None:
             return
-        options = mp.tasks.vision.FaceLandmarkerOptions(
-            base_options=mp.tasks.BaseOptions(model_asset_path=str(self.model_path)),
-            running_mode=mp.tasks.vision.RunningMode.VIDEO,
-            num_faces=1,
-            min_face_detection_confidence=self.min_confidence,
-            min_face_presence_confidence=self.min_confidence,
-            min_tracking_confidence=self.min_confidence,
-            output_facial_transformation_matrixes=True,
-        )
-        self._landmarker = mp.tasks.vision.FaceLandmarker.create_from_options(options)
+        model_path = str(self.model_path)
+
+        def create(delegate: Any) -> Any:
+            options = mp.tasks.vision.FaceLandmarkerOptions(
+                base_options=mp.tasks.BaseOptions(model_asset_path=model_path, delegate=delegate),
+                running_mode=mp.tasks.vision.RunningMode.VIDEO,
+                num_faces=1,
+                min_face_detection_confidence=self.min_confidence,
+                min_face_presence_confidence=self.min_confidence,
+                min_tracking_confidence=self.min_confidence,
+                output_facial_transformation_matrixes=True,
+            )
+            return mp.tasks.vision.FaceLandmarker.create_from_options(options)
+
+        self._landmarker, self.device = create_mediapipe_task("face", mp, create)
 
     async def analyze(self, frame: dict[str, Any]) -> dict[str, Any]:
         if self._landmarker is None:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import sys
 from pathlib import Path
 
@@ -19,6 +20,8 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 
 
 def main() -> int:
+    # Shows which model runs on GPU or CPU, and why a GPU was not used.
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     app = QApplication(sys.argv)
     window = MainWindow(REPOSITORY_ROOT)
     window.show()

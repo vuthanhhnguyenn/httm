@@ -129,7 +129,7 @@ class HealthPanel:
             device = str(detail.get("device", ""))
             if not device and key in {"face", "pose", "hands"}:
                 device = "cpu"
-            device_label = "GPU" if "cuda" in device.casefold() else "CPU" if device.casefold() == "cpu" else ""
+            device_label = "GPU" if "cuda" in device.casefold() or device.casefold() == "gpu" else "CPU" if device.casefold() == "cpu" else ""
             stats = performance.get(key, {})
             fps_label = f"{float(stats['fps']):.1f}" if "fps" in stats else "—"
             display_status = str(stats.get("status", status) if status == "skipped" else status)

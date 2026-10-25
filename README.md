@@ -36,24 +36,34 @@ Xem [kế hoạch độ ổn định và hiệu năng AI](docs/ai-stability-perf
 
 ## Chạy bằng GPU NVIDIA
 
-Đã chuẩn bị môi trường `.venv-gpu` với PyTorch CUDA 11.8 cho Quadro M1200.
-Đóng phiên/app cũ, rồi từ thư mục gốc chạy:
+Không cần cấu hình thêm: khi khởi động, app tự cho YOLO dùng GPU NVIDIA đầu tiên (`cuda:0`)
+nếu PyTorch trong môi trường đang chạy dùng được CUDA. Nếu không dùng được (PyTorch bản CPU,
+không thấy GPU, GPU không nằm trong các kiến trúc PyTorch hỗ trợ, hoặc khởi động YOLO trên GPU
+bị lỗi), app chuyển YOLO sang CPU và ghi lý do ra terminal, ví dụ
+`WARNING proctoring_ai.acceleration: YOLO chạy CPU vì không dùng được CUDA: …`.
+Trạng thái YOLO trong app ghi **GPU** hoặc **CPU** theo thiết bị thực tế.
+
+MediaPipe (khuôn mặt, tư thế, bàn tay) cũng thử GPU trước, nhưng MediaPipe Tasks cho Python
+hiện chỉ có GPU delegate trên Linux. Trên Windows ba bộ này vẫn chạy CPU, và terminal ghi
+`MediaPipe … chạy CPU: MediaPipe Tasks Python chưa hỗ trợ GPU trên Windows`.
+
+`.venv` cài từ lockfile có PyTorch bản CPU trên Windows, nên muốn YOLO chạy GPU thì dùng môi
+trường `.venv-gpu` (PyTorch CUDA 11.8, hỗ trợ Quadro M1200). Đóng phiên/app cũ, rồi từ thư mục gốc chạy:
 
 ```powershell
 .\scripts\run_gpu.ps1
 ```
 
-App sẽ yêu cầu YOLO dùng `cuda:0`. Trên Task Manager, card NVIDIA hiện là **GPU 1**
-vì **GPU 0** là Intel; hai cách đánh số này không mâu thuẫn. Khi giám sát bắt đầu,
-trạng thái YOLO trong app phải ghi **GPU**. Khuôn mặt, tư thế và bàn tay hiện vẫn
-dùng MediaPipe trên CPU. Nếu PowerShell không cho chạy file `.ps1`, có thể dùng:
+Script này đặt `PROCTORING_AI_DEVICE=0`, tức là bắt buộc GPU: nếu CUDA không dùng được, app báo lỗi
+thay vì âm thầm chạy CPU. Trên Task Manager, card NVIDIA hiện là **GPU 1** vì **GPU 0** là Intel;
+hai cách đánh số này không mâu thuẫn. Nếu PowerShell không cho chạy file `.ps1`, có thể chạy
+trực tiếp (tự chọn GPU, lùi về CPU nếu cần):
 
 ```powershell
-$env:PROCTORING_AI_DEVICE = "0"
 .\.venv-gpu\Scripts\python.exe apps/desktop/main.py
-Remove-Item Env:PROCTORING_AI_DEVICE
 ```
 
+`PROCTORING_AI_DEVICE` nhận `auto` (mặc định), `cpu`, hoặc chỉ số GPU như `0`.
 Không chạy `uv sync` hoặc `uv run` cho `.venv-gpu` sau bước cài CUDA: lockfile
 chung có thể cài lại PyTorch CPU. Cách chạy CPU cũ vẫn dùng `.\.venv\Scripts\python.exe`.
 

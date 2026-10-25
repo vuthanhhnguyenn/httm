@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from proctoring_ai.acceleration import AUTO_DEVICE, cuda_status
 from proctoring_ai.analyzer_factory import AnalyzerFactory
 from proctoring_core.config.schema import AppConfig, DetectionConfig, ExamPolicyConfig
 
@@ -40,8 +41,10 @@ def _read_yaml(path: Path) -> dict[str, Any]:
 def load_settings(repository_root: Path, *, environ: Mapping[str, str] | None = None) -> RuntimeSettings:
     """Read ``configs/default.yaml`` and ``configs/exam_policy.yaml`` and apply the device override.
 
-    A requested CUDA device that the running interpreter cannot use is an error before any
-    camera is opened, so the operator is not left with a silent CPU fallback.
+    Without an override YOLO picks the first CUDA GPU when PyTorch can use it and falls back
+    to CPU with a logged reason. An explicitly requested CUDA device that the running
+    interpreter cannot use is an error before any camera is opened, so the operator is not
+    left with a silent CPU fallback.
     """
 
     env = os.environ if environ is None else environ
@@ -49,12 +52,13 @@ def load_settings(repository_root: Path, *, environ: Mapping[str, str] | None = 
     policy_file = _read_yaml(repository_root / "configs" / "exam_policy.yaml")
     raw_policy = dict(policy_file.get("exam_policy", policy_file))
     device = env.get(DEVICE_ENV) or None
+    if device == AUTO_DEVICE:
+        device = None
     if device:
         if device != "cpu":
-            import torch
-
-            if not torch.cuda.is_available():
-                raise RuntimeError("CUDA chưa khả dụng trong môi trường Python đang chạy")
+            available, detail = cuda_status()
+            if not available:
+                raise RuntimeError(f"CUDA chưa khả dụng trong môi trường Python đang chạy: {detail}")
         raw_config = {**raw_config, "detection": {**raw_config.get("detection", {}), "device": device}}
     return RuntimeSettings(
         config=AppConfig.model_validate(raw_config),
