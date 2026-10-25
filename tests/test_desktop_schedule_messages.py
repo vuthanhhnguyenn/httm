@@ -137,7 +137,7 @@ def test_window_displays_vietnamese_events_and_measured_analyzer_fps(monkeypatch
         assert "Cao" in window.events.item(0).text()
         assert "85%" in window.events.item(0).toolTip()
         assert "English" not in window.events.item(0).toolTip()
-        assert "Trung bình" in window.risk_value.text()
+        assert "Trung bình" in window.risk_panel.level.text()
         window._on_analysis({"captured_at_monotonic_ms": 100, "analyzer_health": {"hands": "skipped"},
                              "analyzer_performance": {"hands": {"status": "ready", "fps": 4.2, "latency_ms": 30}}})
         assert window.health_fps_labels["hands"].text() == "4.2"

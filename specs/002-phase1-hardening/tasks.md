@@ -36,7 +36,7 @@ mỗi story có replay so với mốc.
 - [x] T009 CLI `scripts/evaluate.py` theo `contracts/evaluation.md` (mã thoát, `--case`, `--mode`, `--rate`, `--baseline`, `--save-events`); xóa stub `scripts/replay.py`
 - [x] T010 [P] Kịch bản golden tổng hợp (fake analyzer theo thời gian: điện thoại có gián đoạn, rời ghế, quay đầu, che camera, hai người) trong `tests/golden/scenarios.py` + ghi `tests/golden/*.jsonl` + test so khớp `tests/golden/test_golden_replay.py`
 - [x] T011 Xác minh định dạng OEP và nghĩa mã nhãn (xem frame tại các khoảng `gt.txt` của vài subject) → cập nhật `oep_mapping.example.yaml`, `research.md` R1, `quickstart.md` §2
-- [ ] T012 Chạy mốc OEP trên mã hiện tại (tập con nhanh + toàn bộ khi tải xong), lưu `storage/evaluation/baseline/`, tóm tắt vào `docs/evaluation-results.md`
+- [x] T012 Chạy mốc OEP trên mã hiện tại (tập con nhanh + toàn bộ khi tải xong), lưu `storage/evaluation/baseline/`, tóm tắt vào `docs/evaluation-results.md` — đã chạy đủ 24 ca (mã trước thay đổi, `storage/evaluation/baseline/20261016-054444`), chấm lại theo luật matching mới ở `baseline_rescored/`
 
 **Checkpoint**: Có golden tổng hợp (CI) và mốc OEP. Từ đây mọi thay đổi đều đo được.
 

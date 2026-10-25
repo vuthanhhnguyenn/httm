@@ -10,6 +10,8 @@ from PySide6.QtCore import QPointF, Qt, QTimer
 from PySide6.QtGui import QColor, QFont, QKeyEvent, QPainter, QPaintEvent
 from PySide6.QtWidgets import QDialog, QWidget
 
+from .theme import COLORS
+
 # Screen-relative dot positions; corners are inset so the dot stays fully visible.
 POSITIONS = {
     "center": (0.5, 0.5),
@@ -34,7 +36,7 @@ class GazeCalibrationDialog(QDialog):
                  parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Hiệu chỉnh hướng mắt")
-        self.setStyleSheet("background: #050c16;")
+        self.setStyleSheet(f"background: {COLORS['sunken']};")
         self.sequence = SEQUENCES[exam_mode]
         self.on_target, self.on_finish, self.on_cancel = on_target, on_finish, on_cancel
         self.index = -1
@@ -88,8 +90,8 @@ class GazeCalibrationDialog(QDialog):
             return
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setPen(QColor("#dce8f4"))
-        painter.setFont(QFont("Segoe UI", 16, QFont.Weight.DemiBold))
+        painter.setPen(QColor(COLORS["text"]))
+        painter.setFont(QFont("Segoe UI", 15, QFont.Weight.DemiBold))
         name = self.sequence[self.index]
         step = f"Bước {self.index + 1}/{len(self.sequence)}"
         if name == PAPER_TARGET:
@@ -98,12 +100,17 @@ class GazeCalibrationDialog(QDialog):
         else:
             x, y = POSITIONS[name]
             centre = QPointF(self.width() * x, self.height() * y)
-            painter.setBrush(QColor("#45d39a" if self.collecting else "#f6c766"))
+            colour = QColor(COLORS["accent"] if self.collecting else COLORS["warn"])
+            halo = QColor(colour)
+            halo.setAlpha(50)
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawEllipse(centre, 16, 16)
-            painter.setBrush(QColor("#050c16"))
+            painter.setBrush(halo)
+            painter.drawEllipse(centre, 30, 30)
+            painter.setBrush(colour)
+            painter.drawEllipse(centre, 14, 14)
+            painter.setBrush(QColor(COLORS["sunken"]))
             painter.drawEllipse(centre, 4, 4)
-            painter.setPen(QColor("#dce8f4"))
+            painter.setPen(QColor(COLORS["text_2"]))
             painter.drawText(self.rect().adjusted(0, 0, 0, -40), Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignBottom,
                              f"{step} · Chỉ nhìn vào chấm tròn, giữ đầu yên · Esc để hủy")
         painter.end()

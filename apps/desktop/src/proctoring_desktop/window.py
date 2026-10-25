@@ -37,7 +37,7 @@ from .widgets.event_detail import REVIEW_LABELS, EventDetailDialog, load_evidenc
 from .widgets.event_list import RECORD_ROLE, EventListPanel
 from .widgets.preview import CameraPanel
 from .widgets.status_panel import HealthPanel, MetricsPanel, RiskPanel
-from .widgets.theme import card, set_text_if_changed, stylesheet
+from .widgets.theme import card, set_text_if_changed, set_tone, stylesheet
 
 STALE_FRAME_MS = 1000
 EXAM_MODES: tuple[tuple[ExamMode, str], ...] = ((ExamMode.COMPUTER, "Thi máy"), (ExamMode.PAPER, "Thi giấy"))
@@ -52,6 +52,8 @@ CALIBRATION_NOTES = {
                  "‘Chấp nhận hiệu chỉnh đề xuất’; nếu không, yêu cầu nhìn thẳng rồi hiệu chỉnh.",
 }
 CALIBRATE_LABELS = {"suggested": "Chấp nhận hiệu chỉnh đề xuất"}
+APP_STATUS_TONES = {"Đang khởi tạo": "warn", "Đang tải model AI": "warn", "Đang giám sát": "ok",
+                    "Đang dừng": "warn", "Cần kiểm tra": "danger"}
 GAZE_STATUS_TEXT = {
     "uncalibrated": "Hướng mắt: chưa hiệu chỉnh",
     "collecting": "Hướng mắt: đang hiệu chỉnh",
@@ -103,14 +105,15 @@ class MainWindow(QMainWindow):
 
     def _build_ui(self) -> None:
         root = QWidget()
+        root.setObjectName("root")
         page = QVBoxLayout(root)
-        page.setContentsMargins(28, 22, 28, 24)
-        page.setSpacing(18)
+        page.setContentsMargins(32, 26, 32, 28)
+        page.setSpacing(20)
         page.addLayout(self._build_header())
         page.addWidget(self._build_controls())
 
         content = QHBoxLayout()
-        content.setSpacing(18)
+        content.setSpacing(20)
         self.camera_panel = CameraPanel()
         self.camera_card = self.camera_panel.frame
         self.video = self.camera_panel.video
@@ -132,8 +135,9 @@ class MainWindow(QMainWindow):
         self.events.itemDoubleClicked.connect(self._open_evidence)
 
         rail = QVBoxLayout()
+        rail.setContentsMargins(0, 0, 4, 0)
         rail.setSpacing(14)
-        for panel in (self.metrics_panel, self.health_panel, self.risk_panel):
+        for panel in (self.risk_panel, self.metrics_panel, self.health_panel):
             rail.addWidget(panel.frame)
         rail.addWidget(self.event_panel.frame, 1)
         rail_container = QWidget()
@@ -150,34 +154,59 @@ class MainWindow(QMainWindow):
 
     def _build_header(self) -> QHBoxLayout:
         header = QHBoxLayout()
+        header.setSpacing(12)
         heading = QVBoxLayout()
-        eyebrow = QLabel("GIÁM THỊ · CHẠY TRÊN MÁY NÀY")
+        heading.setSpacing(6)
+        brand = QHBoxLayout()
+        brand.setSpacing(8)
+        mark = QLabel()
+        mark.setObjectName("brandMark")
+        mark.setFixedSize(8, 8)
+        brand.addWidget(mark, 0, Qt.AlignmentFlag.AlignVCenter)
+        name = QLabel("Smart Exam Proctoring")
+        name.setObjectName("brandName")
+        brand.addWidget(name)
+        eyebrow = QLabel("·   GIÁM THỊ · CHẠY TRÊN MÁY NÀY")
         eyebrow.setObjectName("eyebrow")
+        brand.addWidget(eyebrow)
+        brand.addStretch(1)
+        heading.addLayout(brand)
         title = QLabel("Giám sát phiên thi")
         title.setObjectName("pageTitle")
-        heading.addWidget(eyebrow)
         heading.addWidget(title)
-        header.addLayout(heading)
-        header.addStretch(1)
+        header.addLayout(heading, 1)
         self.app_status = QLabel("Sẵn sàng")
         self.app_status.setObjectName("statusBadge")
-        header.addWidget(self.app_status)
+        header.addWidget(self.app_status, 0, Qt.AlignmentFlag.AlignBottom)
         return header
 
+    @staticmethod
+    def _field(caption: str, widget: QWidget) -> QVBoxLayout:
+        field = QVBoxLayout()
+        field.setSpacing(5)
+        label = QLabel(caption.upper())
+        label.setObjectName("fieldLabel")
+        field.addWidget(label)
+        field.addWidget(widget)
+        return field
+
+    @staticmethod
+    def _divider() -> QFrame:
+        line = QFrame()
+        line.setObjectName("divider")
+        line.setFixedWidth(1)
+        return line
+
     def _build_controls(self) -> QFrame:
-        controls = card()
+        controls = card("toolbar")
         row = QHBoxLayout(controls)
-        label = QLabel("Camera")
-        label.setObjectName("cardTitle")
-        row.addWidget(label)
+        row.setContentsMargins(18, 12, 14, 12)
+        row.setSpacing(14)
         self.camera_index = QSpinBox()
         self.camera_index.setRange(0, 16)
         self.camera_index.setValue(0)
         self.camera_index.setPrefix("Thiết bị ")
-        row.addWidget(self.camera_index)
-        exam_label = QLabel("Kiểu bài thi")
-        exam_label.setObjectName("cardTitle")
-        row.addWidget(exam_label)
+        row.addLayout(self._field("Camera", self.camera_index))
         self.exam_mode = QComboBox()
         self.exam_mode.setToolTip("Thi giấy: cúi nhìn bài là bình thường. "
                                   "Thi máy: chỉ cúi đầu kéo dài mới cần rà soát. "
@@ -187,7 +216,7 @@ class MainWindow(QMainWindow):
         remembered = str(self._settings().value(SETTINGS_EXAM_MODE, ExamMode.COMPUTER.value))
         index = self.exam_mode.findData(remembered)
         self.exam_mode.setCurrentIndex(index if index >= 0 else 0)
-        row.addWidget(self.exam_mode)
+        row.addLayout(self._field("Kiểu bài thi", self.exam_mode))
         row.addStretch(1)
         self.calibrate_button = QPushButton("Hiệu chỉnh hướng đầu")
         self.calibrate_button.setToolTip("Nhìn thẳng màn hình và giữ đầu yên khoảng 2 giây.")
@@ -200,16 +229,27 @@ class MainWindow(QMainWindow):
         self.gaze_button.setEnabled(False)
         self.gaze_button.clicked.connect(self._calibrate_gaze)
         row.addWidget(self.gaze_button)
-        self.start_button = QPushButton("Bắt đầu giám sát")
-        self.start_button.setObjectName("primaryButton")
-        self.start_button.clicked.connect(self._start)
-        row.addWidget(self.start_button)
+        row.addWidget(self._divider())
         self.stop_button = QPushButton("Dừng phiên")
         self.stop_button.setObjectName("stopButton")
         self.stop_button.setEnabled(False)
         self.stop_button.clicked.connect(self._stop)
         row.addWidget(self.stop_button)
+        self.start_button = QPushButton("Bắt đầu giám sát")
+        self.start_button.setObjectName("primaryButton")
+        self.start_button.clicked.connect(self._start)
+        row.addWidget(self.start_button)
+        for button in (self.calibrate_button, self.gaze_button, self.stop_button, self.start_button):
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
         return controls
+
+    def _set_app_status(self, text: str) -> None:
+        set_text_if_changed(self.app_status, text)
+        set_tone(self.app_status, APP_STATUS_TONES.get(text, ""))
+
+    def _set_camera_status(self, text: str, tone: str = "") -> None:
+        set_text_if_changed(self.camera_status, text)
+        set_tone(self.camera_status, tone)
 
     @staticmethod
     def _settings() -> QSettings:
@@ -252,7 +292,7 @@ class MainWindow(QMainWindow):
         self.runtime.event_ready.connect(self._on_event)
         self.runtime.runtime_error.connect(self._on_error)
         self._set_idle_controls(False)
-        self.app_status.setText("Đang khởi tạo")
+        self._set_app_status("Đang khởi tạo")
         self.runtime.start()
 
     def _calibrate_head(self) -> None:
@@ -276,23 +316,23 @@ class MainWindow(QMainWindow):
             return
         self.stop_button.setEnabled(False)
         self.calibrate_button.setEnabled(False)
-        self.app_status.setText("Đang dừng")
+        self._set_app_status("Đang dừng")
         self.runtime.request_stop()
 
     def _on_state(self, update: dict[str, Any]) -> None:
         kind = update.get("type")
         if kind == "loading_models":
-            self.app_status.setText("Đang tải model AI")
+            self._set_app_status("Đang tải model AI")
             self.realtime_status.setText("Đang khởi tạo các bộ phân tích…")
         elif kind == "camera_ready":
-            self.camera_status.setText("Webcam trực tiếp · đang tải model AI")
+            self._set_camera_status("Webcam trực tiếp · đang tải model AI", "warn")
         elif kind == "analyzer_health":
             self._last_analyzers = update.get("analyzers", {})
             self._refresh_health()
         elif kind == "running":
             self._session_id = UUID(str(update["session_id"])) if update.get("session_id") else None
-            self.app_status.setText("Đang giám sát")
-            self.camera_status.setText("Camera đã mở")
+            self._set_app_status("Đang giám sát")
+            self._set_camera_status("Camera đã mở", "ok")
             self.calibrate_button.setEnabled(self._last_analyzers.get("face", {}).get("status") == "ready")
         elif kind == "metrics":
             self._metrics = update.get("metrics", {})
@@ -309,12 +349,12 @@ class MainWindow(QMainWindow):
         elif kind == "camera_fault":
             self._camera_fault = bool(update.get("active"))
             if self._camera_fault:
-                self.camera_status.setText("Camera có thể bị treo · tạm dừng đánh giá hành vi")
+                self._set_camera_status("Camera có thể bị treo · tạm dừng đánh giá hành vi", "danger")
         elif kind == "stopped":
             self.calibrate_button.setEnabled(False)
             self.gaze_button.setEnabled(False)
-            self.app_status.setText("Cần kiểm tra" if self._last_error else "Đã dừng")
-            self.camera_status.setText("Camera chưa mở")
+            self._set_app_status("Cần kiểm tra" if self._last_error else "Đã dừng")
+            self._set_camera_status("Camera chưa mở")
             self._set_idle_controls(True)
 
     def _on_analysis(self, result: dict[str, Any]) -> None:
@@ -383,8 +423,8 @@ class MainWindow(QMainWindow):
     def _on_error(self, message: str) -> None:
         self._last_error = message
         self.calibrate_button.setEnabled(False)
-        self.app_status.setText("Cần kiểm tra")
-        self.camera_status.setText("Camera chưa mở")
+        self._set_app_status("Cần kiểm tra")
+        self._set_camera_status("Camera chưa mở")
         self.preview_note.setText(message)
         self._set_idle_controls(True)
 
@@ -406,7 +446,7 @@ class MainWindow(QMainWindow):
         frame_age_ms = max(0, time.monotonic_ns() // 1_000_000 - captured_at_ms)
         if frame_id == self._last_frame_id:
             if frame_age_ms > STALE_FRAME_MS:
-                set_text_if_changed(self.camera_status, "Khung webcam đã cũ · kiểm tra camera")
+                self._set_camera_status("Khung webcam đã cũ · kiểm tra camera", "warn")
             return
         self._last_frame_id = frame_id
         if not self.camera_panel.render(frame, self._overlay):
@@ -420,11 +460,11 @@ class MainWindow(QMainWindow):
             self._preview_fps = (len(self._preview_times) - 1) / elapsed if elapsed > 0 else 0.0
         self._refresh_metrics()
         if self._camera_fault:
-            set_text_if_changed(self.camera_status, "Camera có thể bị treo · tạm dừng đánh giá hành vi")
+            self._set_camera_status("Camera có thể bị treo · tạm dừng đánh giá hành vi", "danger")
         elif frame_age_ms > STALE_FRAME_MS:
-            set_text_if_changed(self.camera_status, "Khung webcam đã cũ · kiểm tra camera")
+            self._set_camera_status("Khung webcam đã cũ · kiểm tra camera", "warn")
         else:
-            set_text_if_changed(self.camera_status, f"Đang hiển thị · {self._preview_fps:.1f} FPS")
+            self._set_camera_status(f"Trực tiếp · {self._preview_fps:.1f} FPS", "ok")
         set_text_if_changed(self.preview_note, self._last_error or CALIBRATION_NOTES.get(
             self._calibration_status, "Khung AI hiển thị kết quả gần nhất và độ trễ."))
 

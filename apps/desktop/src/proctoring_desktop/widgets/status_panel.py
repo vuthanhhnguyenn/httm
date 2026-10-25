@@ -6,11 +6,19 @@ from typing import Any
 
 from proctoring_runtime.messages import health_reason, level_name
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QFrame, QGridLayout, QLabel, QVBoxLayout
+from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QProgressBar, QVBoxLayout
 
-from .theme import card, muted_label, set_text_if_changed, title_label
+from .theme import (
+    COLORS,
+    LEVEL_TONES,
+    card,
+    muted_label,
+    set_text_if_changed,
+    set_tone,
+    title_label,
+)
 
-METRICS = (("preview", "FPS hiển thị"), ("processed", "AI FPS"), ("latency", "Độ trễ AI · ms"),
+METRICS = (("preview", "FPS hiển thị"), ("processed", "AI FPS"), ("latency", "Độ trễ AI p95 · ms"),
            ("dropped", "Khung bỏ qua"))
 ANALYZERS = (("object_detector", "YOLO"), ("face", "Mặt"), ("pose", "Tư thế"), ("hands", "Bàn tay"))
 REALTIME_TEXT = {
@@ -45,10 +53,12 @@ class MetricsPanel:
     def __init__(self) -> None:
         self.frame = card()
         layout = QVBoxLayout(self.frame)
+        layout.setContentsMargins(18, 16, 18, 16)
+        layout.setSpacing(12)
         layout.addWidget(title_label("Hiệu năng thời gian thực"))
         grid = QGridLayout()
-        grid.setHorizontalSpacing(10)
-        grid.setVerticalSpacing(10)
+        grid.setHorizontalSpacing(8)
+        grid.setVerticalSpacing(8)
         grid.setColumnStretch(0, 1)
         grid.setColumnStretch(1, 1)
         self.values: dict[str, QLabel] = {}
@@ -56,8 +66,8 @@ class MetricsPanel:
             tile = QFrame()
             tile.setObjectName("metricTile")
             tile_layout = QVBoxLayout(tile)
-            tile_layout.setContentsMargins(10, 7, 10, 7)
-            tile_layout.setSpacing(1)
+            tile_layout.setContentsMargins(12, 10, 12, 10)
+            tile_layout.setSpacing(2)
             value = QLabel("—")
             value.setObjectName("metricValue")
             caption = QLabel(label)
@@ -84,12 +94,14 @@ class HealthPanel:
     def __init__(self) -> None:
         self.frame = card()
         layout = QVBoxLayout(self.frame)
+        layout.setContentsMargins(18, 16, 18, 16)
+        layout.setSpacing(12)
         layout.addWidget(title_label("Bộ phân tích · FPS"))
         self.labels: dict[str, QLabel] = {}
         self.fps_labels: dict[str, QLabel] = {}
         grid = QGridLayout()
-        grid.setHorizontalSpacing(8)
-        grid.setVerticalSpacing(8)
+        grid.setHorizontalSpacing(10)
+        grid.setVerticalSpacing(10)
         grid.setColumnStretch(0, 1)
         for row, (key, label) in enumerate(ANALYZERS):
             name = QLabel(label)
@@ -145,17 +157,46 @@ class RiskPanel:
     def __init__(self) -> None:
         self.frame = card()
         layout = QVBoxLayout(self.frame)
-        layout.addWidget(title_label("Tín hiệu cần rà soát"))
+        layout.setContentsMargins(18, 16, 18, 18)
+        layout.setSpacing(10)
+        header = QHBoxLayout()
+        header.addWidget(title_label("Tín hiệu cần rà soát"))
+        header.addStretch(1)
+        self.level = QLabel("Bình thường")
+        self.level.setObjectName("pill")
+        set_tone(self.level, "ok")
+        header.addWidget(self.level)
+        layout.addLayout(header)
         self.value = QLabel("—")
         self.value.setObjectName("riskValue")
+        self.value.setTextFormat(Qt.TextFormat.RichText)
         self.value.setWordWrap(True)
         layout.addWidget(self.value)
-        layout.addWidget(muted_label("AI hỗ trợ phát hiện tín hiệu; giám thị đưa ra đánh giá cuối cùng."))
+        self.bar = QProgressBar()
+        self.bar.setObjectName("riskBar")
+        self.bar.setRange(0, 1000)
+        self.bar.setValue(0)
+        self.bar.setTextVisible(False)
+        self.bar.setFixedHeight(6)
+        layout.addWidget(self.bar)
         self.history = muted_label("Lịch sử phiên: 0 sự kiện · 0 điểm tích lũy · đỉnh 0/100")
         layout.addWidget(self.history)
+        note = muted_label("AI hỗ trợ phát hiện tín hiệu; giám thị đưa ra đánh giá cuối cùng.")
+        note.setObjectName("faintText")
+        layout.addWidget(note)
+        self.refresh(0.0, "NORMAL", {})
 
     def refresh(self, score: float, level: str, history: dict[str, Any]) -> None:
-        self.value.setText(f"{score:.1f} / 100   ·   {level_name(level)}")
+        tone = LEVEL_TONES.get(level, "ok")
+        colour = COLORS[tone]
+        self.value.setText(
+            f"<span style='color:{colour}'>{score:.1f}</span>"
+            f"<span style='color:{COLORS['text_3']}; font-size:16px'>&nbsp;/ 100</span>"
+        )
+        set_text_if_changed(self.level, level_name(level))
+        set_tone(self.level, tone)
+        set_tone(self.bar, tone)
+        self.bar.setValue(round(max(0.0, min(100.0, score)) * 10))
         self.history.setText(
             f"Lịch sử phiên: {int(history.get('event_count', 0))} sự kiện · "
             f"{float(history.get('cumulative_score', 0)):.0f} điểm tích lũy · "
