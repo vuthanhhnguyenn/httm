@@ -1,7 +1,7 @@
 # Phase 2b: Chế độ CCTV cả phòng bằng YOLO-pose — Thiết kế
 
 - Ngày: 2026-10-29
-- Trạng thái: chờ duyệt
+- Trạng thái: đã duyệt 2026-10-29
 - Người yêu cầu: Nguyên
 - Nối tiếp: `2026-10-29-phase2-multi-subject-design.md` (chế độ webcam 2–6 người, giữ nguyên)
 
@@ -41,7 +41,8 @@ Thử YOLO11n-pose 960 px, ngưỡng 0.25 trên 3 ảnh chụp của clip: thấ
 3. Giám thị đi lại không sinh sự kiện nào.
 4. Người quay ra sau / quay sang bên khoảng 0:44–0:47 (ảnh chụp số 3) có sự kiện.
 5. Không có `FACE_NOT_VISIBLE`, `LOOK_DOWN`, `GAZE_*` (các luật dựa trên mặt tắt ở chế độ CCTV).
-6. Nguyên ghi tay danh sách mốc thời gian hành vi thật trong clip; báo cáo số sự kiện đúng/sai/sót
+6. Nhãn tay `phase2/nhan-tay-EPf9O7UXRoM.md` (0:02 và 0:51 chụm đầu trao đổi, 0:43 giám thị,
+   0:46 quay ra sau, 0:51 quay đầu sang bên); Nguyên ghi tay danh sách mốc thời gian hành vi thật trong clip; báo cáo số sự kiện đúng/sai/sót
    theo danh sách đó.
 
 ### Ngoài phạm vi
@@ -95,12 +96,14 @@ frame ─► PoseDetectionStage (YOLO11n-pose, 960 px, GPU)  ─┐
 | `LOOK_AT_NEIGHBOR` | lệch khỏi mốc > ngưỡng và hướng về một ghế kề (dùng `NeighborLookEvaluator`) |
 | `HEAD_TURN_LEFT/RIGHT` | lệch khỏi mốc > ngưỡng, không có ghế kề phía đó |
 | `TURN_AROUND` (mới, "Quay ra phía sau") | điều kiện quay ra sau ở 2.4 |
+| `HEADS_TOGETHER` (mới, "Chụm đầu với thí sinh bên cạnh") | khoảng cách đầu hai ghế kề < 0.6 lần khoảng cách bình thường của cặp đó (trung vị trượt 30 s) |
 | `SUSPICIOUS_HAND_ACTIVITY` ("trao đổi đồ") | cổ tay của ghế A nằm trong box ghế B ≥ 1 s |
 | `PHONE_DETECTED` | điện thoại gán cho ghế có cổ tay gần nhất (`assign_objects`) |
 | `LEAVING_SEAT` | như 2.3 |
 
-- Mỗi ghế vẫn có một `SessionRuleProcessor`; các tín hiệu trên đi vào qua `extra_signals`, luật dựa
-  trên mặt tắt bằng profile `configs/cctv.yaml`.
+- `CctvSeatRules` tự mở/đóng sự kiện (cùng định dạng `events.jsonl`: `opened`/`closed`, `id`,
+  `type`, `seat_id`, `runtime_track_id`, `video_offset_ms`), không đi qua `SessionRuleProcessor`, nên
+  các luật dựa trên mặt không thể chạy ở chế độ CCTV.
 - Ngưỡng ban đầu: lệch 0.35 (đơn vị độ rộng vai), chỉnh sau khi có nhãn tay của Nguyên.
 
 ## 3. Tốc độ (ước tính trên M1200)
@@ -127,6 +130,6 @@ frame ─► PoseDetectionStage (YOLO11n-pose, 960 px, GPU)  ─┐
 1. `PoseDetectionStage` + tải model + smoke test số người.
 2. `SeatRoleClassifier`.
 3. `KeypointHeadPose`.
-4. `CctvSeatRules` + `TURN_AROUND` + `configs/cctv.yaml`.
+4. `CctvSeatRules` + `TURN_AROUND` + `HEADS_TOGETHER`.
 5. Nối vào `analyze_video_multi.py --scene cctv`, vẽ màu theo vai trò, `timing.json`.
 6. Đo trên M1200, chỉnh ngưỡng theo nhãn tay, ghi `docs/evaluation-results.md`.
