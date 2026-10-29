@@ -42,7 +42,7 @@ của phase 1 và app desktop giữ nguyên.
 ```
 VideoFileFrameSource
   → YOLO (GPU, person/cell phone/book)          [có thể cách 1 frame]
-  → MultiSubjectTracker (ByteTrack + nối lại theo ghế)
+  → MultiSubjectTracker (ghép IoU + nối lại theo ghế)
   → SubjectCropper (vùng đầu/vai từng track)
   → PerSubjectFaceAnalyzer (song song theo track, có bỏ qua khi đứng yên)
   → FocusScheduler → tay/tư thế cho ≤ 2 track đang nghi
@@ -53,10 +53,12 @@ VideoFileFrameSource
 ### 2.1 `MultiSubjectTracker`
 
 - Vào: danh sách box `person` của YOLO (đã lọc `person_confidence_threshold`).
-- Dùng ByteTrack của ultralytics (`model.track(..., tracker="bytetrack.yaml", persist=True)`)
-  để có ID theo frame. Phụ thuộc `lap`/`lapx` cần kiểm tra có trong `uv.lock` và `.venv-gpu`.
+- Gán ID bằng ghép IoU tham lam giữa box mới và các ghế đang theo dõi (tự viết, không thêm
+  phụ thuộc). Đã cân nhắc ByteTrack của ultralytics: bản khóa 8.4.160 cần gói `lap` không có
+  trong `uv.lock` và sẽ tự `pip install` lúc chạy; với 2–6 người ngồi yên, ghép IoU + nối lại
+  theo ghế là đủ. Interface `IdAssigner` cho phép thay ByteTrack sau.
 - Lớp nối lại theo ghế: mỗi `runtime_track_id` gắn với một "ghế" (tâm box trung bình). Khi
-  ByteTrack sinh ID mới mà tâm box nằm trong bán kính 0,5 × chiều rộng box của một ghế đã
+  box mới không ghép được với ghế nào mà tâm box nằm trong bán kính 0,5 × chiều rộng box của một ghế đã
   mất < 10 s, gán lại ID cũ. Mục đích: một thí sinh không bị tách thành nhiều track.
 - Ra: cùng dạng dict với `SingleSubjectTracker` (`runtime_track_id`, `track_id` UUID,
   `bbox`, `confidence`) để luật và aggregator dùng lại được.
@@ -71,15 +73,18 @@ VideoFileFrameSource
 
 ### 2.3 `PerSubjectFaceAnalyzer`
 
-- Mỗi track có một FaceLandmarker (chế độ VIDEO, `num_faces=1`) và một `HeadPoseEstimator`
-  riêng, lấy từ pool tối đa 6 instance. Track đóng thì trả instance về pool và reset.
+- Mỗi ghế có một FaceLandmarker (chế độ VIDEO, `num_faces=1`) và một `HeadPoseEstimator`
+  riêng, tối đa 6 instance. Ghế hết hạn thì đóng instance. Mặt có tâm nằm ngoài box người
+  của ghế (bắt nhầm mặt người phía sau) bị loại, ghi `status="mismatch"`.
 - Dùng lại `face/features.py` và `face/head_pose.py` của phase 1.
 - Các track chạy song song trên `ThreadPoolExecutor` (số luồng = min(số track, số nhân CPU)).
 - **Bỏ qua khi đứng yên:** tính chênh lệch trung bình tuyệt đối giữa ảnh cắt xám thu nhỏ
   64×64 với lần chạy trước. Nếu dưới `motion_skip_threshold` và kết quả cũ chưa quá 500 ms,
-  dùng lại kết quả cũ (đánh dấu `reused=true`, không sinh bằng chứng mới).
+  dùng lại kết quả cũ (đánh dấu `reused=true`; sự kiện mở trên kết quả dùng lại ghi
+  `face_reused=true` trong `events.jsonl`).
 - **Tự hiệu chỉnh:** trung vị yaw/pitch trong 3 s đầu mặt ổn định của track là mốc "nhìn
-  thẳng". Track được nối lại theo ghế thì giữ mốc của ghế. Trước khi có mốc, không sinh sự
+  thẳng" (dùng cơ chế gợi ý mốc sẵn có của `HeadPoseEstimator`, `suggest_after_ms=3000`, tự
+  chấp nhận gợi ý). Track được nối lại theo ghế thì giữ mốc của ghế. Trước khi có mốc, không sinh sự
   kiện quay/cúi đầu cho track đó.
 
 ### 2.4 `FocusScheduler`
