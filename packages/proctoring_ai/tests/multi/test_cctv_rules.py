@@ -170,3 +170,30 @@ def test_turn_is_caught_when_slow_hardware_analyses_two_frames_a_second() -> Non
 
     events = play(rules, [a, b], turned, 10_000, 13_000, step=500)
     assert [e["seat_id"] for e in opened(events, "LOOK_AT_NEIGHBOR")] == [str(a.seat_id)]
+
+
+def _rows():
+    return CctvSeatRules(), seat(0.3, 1, top=0.4), seat(0.32, 2, top=0.2)
+
+
+def test_writer_bending_over_row_in_front_is_not_heads_together() -> None:
+    rules, front, behind = _rows()
+    play(rules, [front, behind], calm, 0, 10_000)
+
+    def bend(s: Seat, ms: int):  # the one behind bends to write: the head drops towards the front row
+        return person(cx=s.bbox.x + 0.05, top=s.bbox.y + (0.1 if s is behind else 0.0))
+
+    assert opened(play(rules, [front, behind], bend, 10_000, 13_000), "HEADS_TOGETHER") == []
+
+
+def test_front_row_turning_back_to_lean_in_is_heads_together() -> None:
+    rules, front, behind = _rows()
+    play(rules, [front, behind], calm, 0, 10_000)
+
+    def lean_back(s: Seat, ms: int):
+        if s is front:
+            return person(cx=s.bbox.x + 0.05, top=s.bbox.y - 0.1, face=False)
+        return person(cx=s.bbox.x + 0.05, top=s.bbox.y + 0.05)
+
+    together = opened(play(rules, [front, behind], lean_back, 10_000, 13_000), "HEADS_TOGETHER")
+    assert len(together) == 2

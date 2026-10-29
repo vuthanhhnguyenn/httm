@@ -164,6 +164,7 @@ class CctvSeatRules:
                   and float(item.get("confidence", 0.0)) >= cfg.phone_min_confidence
                   and (box := Box.parse(item.get("bbox"))) is not None]
         active: dict[tuple[str, ...], tuple[int, dict[str, Any]]] = {}
+        turned: set[UUID] = set()
 
         for seat_id, seat in candidates.items():
             kps = result.poses.get(seat_id)
@@ -178,6 +179,7 @@ class CctvSeatRules:
                 baseline.add(yaw, ms)
             if yaw is not None and reference is not None and abs(yaw - reference) > cfg.yaw_threshold:
                 side = 1 if yaw > reference else -1
+                turned.add(seat_id)
                 neighbor = self._neighbor_on_side(seat, heads[seat_id], side, heads, candidates)
                 details: dict[str, Any] = {"yaw_index": round(yaw - reference, 2)}
                 if neighbor is not None:
@@ -187,6 +189,8 @@ class CctvSeatRules:
                     # Candidates face the camera: nose towards image right is their left.
                     turn = EventType.HEAD_TURN_LEFT if side > 0 else EventType.HEAD_TURN_RIGHT
                     active[(turn.value, seat_key)] = (cfg.turn_hold_ms, details)
+            if view != "front" and seat_id in self._seen_face:
+                turned.add(seat_id)
             if view == "back" and seat_id in self._seen_face:
                 active[(EventType.TURN_AROUND.value, seat_key)] = (cfg.turn_hold_ms, {})
             if self.roles.left_seat(seat_id, ms):
@@ -224,7 +228,11 @@ class CctvSeatRules:
                 baseline = self._pair_distance.setdefault((first, second), RollingBaseline())
                 reference = baseline.value(ms)
                 baseline.add(gap, ms)
-                if reference is not None and gap < cfg.together_ratio * reference:
+                # Across rows, a head bent over the desk drops towards the row in front; only a front-row
+                # candidate who turns round makes it a real exchange.
+                front = first if heads[first][1] > heads[second][1] else second
+                across = abs(heads[first][1] - heads[second][1]) >= cfg.same_row_widths * width
+                if reference is not None and gap < cfg.together_ratio * reference and (not across or front in turned):
                     for seat_id, partner in ((first, second), (second, first)):
                         active[(EventType.HEADS_TOGETHER.value, str(seat_id), str(partner))] = (
                             cfg.together_hold_ms, {"neighbor_seat_id": str(partner)})

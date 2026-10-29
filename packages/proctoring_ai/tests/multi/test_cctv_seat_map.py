@@ -130,8 +130,16 @@ def test_seated_person_fidgeting_is_pending_not_walker() -> None:
 
 def test_seated_person_close_to_camera_is_a_seat_not_walker() -> None:
     # Near the camera the thighs point down the image, so the knees sit well below the hips,
-    # but the box is wide (aspect 1.5): that is a seated person, not someone standing.
+    # but the box is still fairly wide (aspect 1.8): that is a seated person, not someone standing.
     tracker = SeatMapTracker()
-    near = body(0.8, top=0.5, width=0.2, height=0.3) | {"keypoints": person(cx=0.8, top=0.5, standing=True)}
+    near = body(0.8, top=0.5, width=0.2, height=0.36) | {"keypoints": person(cx=0.8, top=0.5, standing=True)}
     feed(tracker, [[near]] * 40)
     assert len(tracker.seats) == 1 and set(tracker.roles.values()) == {"candidate"}
+
+
+def test_standing_person_cut_by_the_frame_top_is_not_a_seat() -> None:
+    # An invigilator at the back is cut off by the top of the image, so the box looks short.
+    tracker = SeatMapTracker()
+    cut = body(0.45, top=0.0, width=0.07, height=0.1) | {"keypoints": person(cx=0.45, top=0.0, standing=True)}
+    feed(tracker, [[cut]] * 60)
+    assert tracker.seats == {}
