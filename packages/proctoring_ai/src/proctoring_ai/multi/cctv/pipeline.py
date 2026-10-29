@@ -52,7 +52,8 @@ class CctvPipeline:
             health = ObservationHealth(health.status, health.latency_ms + object_health.latency_ms, health.reason)
             reused = False
         started = perf_counter()
-        update = _snapshot(self.tracker.update(people, int(frame.get("captured_at_monotonic_ms", 0))))
+        update = _snapshot(self.tracker.update(people, int(frame.get("captured_at_monotonic_ms", 0)),
+                                                frame_size=frame.get("frame_size")))
         return DetectionStage(frame, people + list(self._objects), update, health, health.latency_ms,
                               (perf_counter() - started) * 1000, reused)
 

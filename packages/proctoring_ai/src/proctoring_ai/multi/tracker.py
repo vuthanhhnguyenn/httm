@@ -102,7 +102,8 @@ class MultiSubjectTracker:
         seat.bbox, seat.confidence = box, confidence
         seat.last_seen_ms, seat.visible = monotonic_ms, True
 
-    def update(self, people: Sequence[Mapping[str, Any]], monotonic_ms: int) -> TrackerUpdate:
+    def update(self, people: Sequence[Mapping[str, Any]], monotonic_ms: int,
+               frame_size: tuple[int, int] | None = None) -> TrackerUpdate:
         detections = [(box, float(item.get("confidence", 0.0)))
                       for item in people if (box := Box.parse(item.get("bbox"))) is not None]
         boxes = [box for box, _ in detections]

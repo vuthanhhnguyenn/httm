@@ -24,12 +24,13 @@ from .roles import CANDIDATE, PENDING, WALKER, is_standing
 
 
 def looks_standing(box: Box, kps: Keypoints | None, *, max_aspect: float = 2.2, min_aspect: float = 2.0,
-                   edge: float = 0.01) -> bool:
+                   edge: float = 0.01, frame_aspect: float = 1.0) -> bool:
     """Standing bodies are tall and narrow; seated ones are cut by the desk. Close to a high camera a
     seated person's thighs point down the image, so low knees alone count only on a narrow box, or on a
-    box cut by the top or bottom of the frame, whose shape says nothing."""
+    box cut by the top or bottom of the frame, whose shape says nothing. ``frame_aspect`` (width / height
+    of the frame) turns the normalised box back into its pixel shape."""
 
-    aspect = box.height / max(box.width, 1e-6)
+    aspect = box.height / max(box.width * frame_aspect, 1e-6)
     cut = box.y <= edge or box.y + box.height >= 1 - edge
     return aspect > max_aspect or ((aspect > min_aspect or cut) and is_standing(kps))
 
@@ -74,6 +75,7 @@ class SeatMapTracker:
         self._next_seat_id = 1
         self._next_outsider_id = 1000
         self.roles: dict[UUID, str] = {}
+        self.frame_aspect = 1.0
 
     def _promote(self, pending: _Pending, ms: int) -> bool:
         if len(self.seats) >= self.max_subjects or pending.moving or pending.standing_since is not None:
@@ -95,8 +97,11 @@ class SeatMapTracker:
         self.seats[seat.seat_id] = _MapSeat(seat, head, width, box, deque([(ms, True)]), ms)
         return True
 
-    def update(self, people: Sequence[Mapping[str, Any]], monotonic_ms: int) -> TrackerUpdate:
+    def update(self, people: Sequence[Mapping[str, Any]], monotonic_ms: int,
+               frame_size: tuple[int, int] | None = None) -> TrackerUpdate:
         ms = monotonic_ms
+        if frame_size and frame_size[1] > 0:
+            self.frame_aspect = frame_size[0] / frame_size[1]
         observed = [(box, item.get("keypoints"), float(item.get("confidence", 0.0)))
                     for item in people if (box := Box.parse(item.get("bbox"))) is not None]
         heads = [head_point(kps, box) for box, kps, _ in observed]
@@ -110,7 +115,7 @@ class SeatMapTracker:
             if index in assigned or seat_id in taken:
                 continue
             box, kps, _ = observed[index]
-            if looks_standing(box, kps):
+            if self._standing(box, kps):
                 continue  # standing up at the seat: the seat counts as empty, the person as an outsider
             assigned[index] = seat_id
             taken.add(seat_id)
@@ -121,7 +126,7 @@ class SeatMapTracker:
                          and distance(heads[i], seat.head) < self.lean_radius * seat.width
                          and iou(observed[i][0], seat.home_box) >= self.lean_overlap)
         for _, index, seat_id in leaning:
-            if index in assigned or seat_id in taken or looks_standing(*observed[index][:2]):
+            if index in assigned or seat_id in taken or self._standing(*observed[index][:2]):
                 continue
             assigned[index] = seat_id
             taken.add(seat_id)
@@ -168,7 +173,7 @@ class SeatMapTracker:
             near.history.append((ms, head[0], head[1], box.width))
             while near.history and ms - near.history[0][0] > max(self.settle_ms, self.walk_window_ms):
                 near.history.popleft()
-            near.standing_since = (near.standing_since or ms) if looks_standing(box, kps) else None
+            near.standing_since = (near.standing_since or ms) if self._standing(box, kps) else None
             recent = [(x, y) for t, x, y, _ in near.history if ms - t <= self.walk_window_ms]
             if any(hypot(head[0] - x, head[1] - y) > self.settle_drift * box.width for x, y in recent):
                 near.quiet_since = ms
@@ -191,6 +196,9 @@ class SeatMapTracker:
         return TrackerUpdate(analyzed=visible_seats + outsiders, over_limit=[],
                              missing=[entry.seat for entry in self.seats.values() if not entry.seat.visible],
                              expired=[], created=created, relinked=0)
+
+    def _standing(self, box: Box, kps: Keypoints | None) -> bool:
+        return looks_standing(box, kps, frame_aspect=self.frame_aspect)
 
     def left_seat(self, seat_id: UUID, monotonic_ms: int) -> bool:
         """Empty for ``leave_ms`` after being occupied most of the preceding window."""

@@ -143,3 +143,13 @@ def test_standing_person_cut_by_the_frame_top_is_not_a_seat() -> None:
     cut = body(0.45, top=0.0, width=0.07, height=0.1) | {"keypoints": person(cx=0.45, top=0.0, standing=True)}
     feed(tracker, [[cut]] * 60)
     assert tracker.seats == {}
+
+
+def test_box_shape_is_judged_in_pixels_on_a_wide_frame() -> None:
+    # 0.11 x 0.33 of a 1280x720 frame is 141 x 238 px (aspect 1.7): a seated person, though the
+    # normalised numbers alone (aspect 3) would look like someone standing.
+    tracker = SeatMapTracker()
+    seated = body(0.84, top=0.56, width=0.11, height=0.33)
+    for index in range(40):
+        tracker.update([seated], index * 100, frame_size=(1280, 720))
+    assert len(tracker.seats) == 1 and set(tracker.roles.values()) == {"candidate"}
