@@ -201,7 +201,7 @@ class HandActivityConfig(StrictModel):
 _FACE_SIGNALS = [
     EventType.HEAD_TURN_LEFT, EventType.HEAD_TURN_RIGHT, EventType.LOOK_DOWN,
     EventType.ABNORMAL_HEAD_MOVEMENT, EventType.POSSIBLE_TALKING, EventType.SUSPICIOUS_HAND_ACTIVITY,
-    EventType.GAZE_OFF_SCREEN, EventType.GAZE_SIDEWAYS,
+    EventType.GAZE_OFF_SCREEN, EventType.GAZE_SIDEWAYS, EventType.LOOK_AT_NEIGHBOR,
 ]
 
 
