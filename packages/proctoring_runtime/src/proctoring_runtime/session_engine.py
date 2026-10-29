@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -22,6 +22,7 @@ from proctoring_ai.capture.opencv_source import OpenCVFrameSource
 from proctoring_ai.pipeline.frame_queue import LatestFrameQueue
 from proctoring_ai.pipeline.metrics import PipelineMetrics
 from proctoring_core.behavior.engine import BehaviorEngine
+from proctoring_core.behavior.signals import RuleSignal
 from proctoring_core.config.schema import AppConfig
 from proctoring_core.events.aggregator import EventAggregator
 from proctoring_core.events.correlation import CorrelationEngine
@@ -137,6 +138,8 @@ class SessionRuleProcessor:
         self.recorder = recorder
         self.on_event = on_event
         self.on_state = on_state
+        # Every signal of the last processed frame (candidates included), for schedulers.
+        self.last_signals: tuple[RuleSignal, ...] = ()
 
     @classmethod
     def for_config(cls, session: RiskSession, policy: Mapping[str, Any], config: AppConfig, *,
@@ -167,12 +170,15 @@ class SessionRuleProcessor:
             emitted.append(item)
         return emitted
 
-    async def process(self, bundle: ObservationBundle, frame: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    async def process(self, bundle: ObservationBundle, frame: dict[str, Any] | None = None, *,
+                      extra_signals: Sequence[RuleSignal] = ()) -> list[dict[str, Any]]:
         emitted: list[dict[str, Any]] = []
         session = self.session
         self.risk_engine.decay(session.id, occurred_at=bundle.captured_at_utc)
         transitions = []
-        for signal in self.rules.evaluate(Observation.from_bundle(bundle)):
+        # Extra signals come from rules that need more than this bundle (other seats' geometry).
+        self.last_signals = (*self.rules.evaluate(Observation.from_bundle(bundle)), *extra_signals)
+        for signal in self.last_signals:
             transition = self.aggregator.process(signal.as_mapping(), occurred_at=bundle.captured_at_utc,
                                                  risk_score_after=session.current_risk_score)
             if transition is None:
