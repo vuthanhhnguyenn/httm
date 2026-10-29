@@ -22,7 +22,7 @@ class MediaPipeFaceLandmarker:
     """Detect one face; return its box, coarse head pose and scalar eye/mouth features."""
 
     def __init__(self, model_path: str | Path | None = None, *, timeout_ms: int = 1200,
-                 min_confidence: float = 0.5) -> None:
+                 min_confidence: float = 0.5, suggest_after_ms: int = 2000) -> None:
         self.model_path = Path(model_path) if model_path else None
         self.timeout_ms = timeout_ms
         self.min_confidence = min_confidence
@@ -32,10 +32,17 @@ class MediaPipeFaceLandmarker:
         self._inference_gate = Lock()
         self._reason: str | None = None
         self._initialization_attempted = False
-        self._pose_estimator = HeadPoseEstimator()
+        self._pose_estimator = HeadPoseEstimator(suggest_after_ms=suggest_after_ms)
 
     def request_calibration(self) -> None:
         self._pose_estimator.begin_calibration()
+
+    def auto_calibrate(self) -> str:
+        """Accept a pending neutral-pose suggestion (no operator on recorded video)."""
+
+        if self._pose_estimator.calibration_status == "suggested":
+            self._pose_estimator.begin_calibration()
+        return self._pose_estimator.calibration_status
 
     @property
     def health(self) -> dict[str, Any]:

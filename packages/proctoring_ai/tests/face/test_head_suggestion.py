@@ -38,3 +38,15 @@ def test_off_axis_baseline_is_rejected() -> None:
     estimator.begin_calibration()
     status = feed(estimator, [50.0] * 20, start=5000)
     assert status == "failed" and estimator.calibration_reason == "BASELINE_OFF_AXIS"
+
+
+def test_auto_calibrate_accepts_suggestion_after_3_s() -> None:
+    from proctoring_ai.face.landmarks import MediaPipeFaceLandmarker
+
+    landmarker = MediaPipeFaceLandmarker(None, suggest_after_ms=3000)
+    estimator = landmarker._pose_estimator
+    feed(estimator, [3.0 + (index % 2) for index in range(17)])  # 0 … 2000 ms
+    assert landmarker.auto_calibrate() == "uncalibrated"
+    feed(estimator, [3.0 + (index % 2) for index in range(9)], start=2125)  # … 3125 ms
+    assert landmarker.auto_calibrate() == "calibrated"
+    assert 3.0 <= estimator.calibration.yaw_offset <= 4.0
