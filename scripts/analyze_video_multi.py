@@ -50,7 +50,7 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--pose-size", type=int, default=960, help="cctv: kích thước ảnh vào YOLO-pose")
     parser.add_argument("--pose-conf", type=float, default=0.25, help="cctv: ngưỡng tin cậy người")
     parser.add_argument("--phone-every", type=int, default=3, help="cctv: tìm điện thoại mỗi N frame")
-    parser.add_argument("--tile-every", type=int, default=2,
+    parser.add_argument("--tile-every", type=int, default=4,
                         help="cctv: soi kỹ hàng xa (2 ô phóng to) mỗi N frame; 0 để tắt")
     parser.add_argument("--no-seat-map", action="store_true", help="cctv: theo dõi từng người thay vì bản đồ ghế")
     return parser.parse_args(argv)

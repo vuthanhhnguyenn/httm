@@ -7,6 +7,7 @@ Records use the ``events.jsonl`` shape of webcam mode (``opened``/``closed``, ``
 
 from __future__ import annotations
 
+from collections import deque
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -70,6 +71,8 @@ class CctvSeatRules:
         self.config = config or CctvRuleConfig()
         self.roles: Any = roles or SeatRoleClassifier()
         self._latches: dict[tuple[str, ...], _Latch] = {}
+        self._frame_steps: deque[int] = deque(maxlen=30)
+        self._last_ms: int | None = None
         self._yaw: dict[UUID, RollingBaseline] = {}
         self._pair_distance: dict[tuple[UUID, UUID], RollingBaseline] = {}
         self._seen_face: set[UUID] = set()
@@ -104,10 +107,11 @@ class CctvSeatRules:
         """``key`` = (event type, seat id[, partner]): one latch per seat and rule."""
 
         cfg = self.config
+        gap_ms = self._gap_ms()
         latch = self._latches.setdefault(key, _Latch(hold_ms))
         out: list[tuple[UUID, dict[str, Any]]] = []
         if active:
-            if latch.since is None or (latch.last_true is not None and ms - latch.last_true > cfg.gap_ms):
+            if latch.since is None or (latch.last_true is not None and ms - latch.last_true > gap_ms):
                 latch.since = ms if latch.event_id is None else latch.since
             latch.last_true = ms
             if latch.event_id is None and latch.since is not None and ms - latch.since >= latch.hold_ms:
@@ -116,9 +120,15 @@ class CctvSeatRules:
         elif latch.event_id is not None:
             if latch.last_true is None or ms - latch.last_true >= cfg.release_ms:
                 out.append(self._close(key, latch, offset, ms))
-        elif latch.last_true is None or ms - latch.last_true > cfg.gap_ms:
+        elif latch.last_true is None or ms - latch.last_true > gap_ms:
             latch.since = None
         return out
+
+    def _gap_ms(self) -> float:
+        """Slow hardware analyses a frame every 0.5 s or so: one missed frame must not reset a hold."""
+
+        steps = sorted(self._frame_steps)
+        return max(self.config.gap_ms, 2.5 * steps[len(steps) // 2]) if steps else self.config.gap_ms
 
     # -- per-frame evaluation -------------------------------------------------------------
     def _neighbor_on_side(self, seat: Seat, head: tuple[float, float], side: int,
@@ -139,6 +149,9 @@ class CctvSeatRules:
     async def step(self, result: MultiFrameResult, frame: Mapping[str, Any],
                    offset: int) -> list[tuple[UUID, dict[str, Any]]]:
         cfg, ms = self.config, result.monotonic_ms
+        if self._last_ms is not None and ms > self._last_ms:
+            self._frame_steps.append(ms - self._last_ms)
+        self._last_ms = ms
         out: list[tuple[UUID, dict[str, Any]]] = []
         seats = {seat.seat_id: seat for seat in result.tracker.analyzed}
         for seat in (*result.tracker.analyzed, *result.tracker.missing):

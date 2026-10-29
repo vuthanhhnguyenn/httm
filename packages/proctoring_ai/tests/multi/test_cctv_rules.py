@@ -159,3 +159,14 @@ def test_turning_towards_row_behind_is_look_at_neighbor() -> None:
 
     look = opened(play(rules, [front, behind], turned, 10_000, 12_000), "LOOK_AT_NEIGHBOR")
     assert [e["neighbor_seat_id"] for e in look] == [str(behind.seat_id)]
+
+
+def test_turn_is_caught_when_slow_hardware_analyses_two_frames_a_second() -> None:
+    rules, a, b = CctvSeatRules(), seat(0.3, 1), seat(0.45, 2)
+    play(rules, [a, b], calm, 0, 10_000, step=500)
+
+    def turned(s: Seat, ms: int):
+        return person(cx=s.bbox.x + 0.05, top=s.bbox.y, nose_dx=0.6 if s is a else 0.0)
+
+    events = play(rules, [a, b], turned, 10_000, 13_000, step=500)
+    assert [e["seat_id"] for e in opened(events, "LOOK_AT_NEIGHBOR")] == [str(a.seat_id)]

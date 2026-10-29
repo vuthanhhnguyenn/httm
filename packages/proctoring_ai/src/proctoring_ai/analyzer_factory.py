@@ -202,7 +202,7 @@ class AnalyzerFactory:
         return self.health()
 
     def build_cctv_pipeline(self, *, max_subjects: int = 60, phone_every: int = 3, timeout_ms: int = 1200,
-                            seat_map: bool = True, tile_every: int = 2) -> Any:
+                            seat_map: bool = True, tile_every: int = 4) -> Any:
         """Whole-room CCTV: pose for everyone (plus enlarged tiles of the far rows), seats learned from
         still heads; the object detector only looks for phones."""
 
