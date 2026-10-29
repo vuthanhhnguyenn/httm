@@ -153,3 +153,26 @@ def test_box_shape_is_judged_in_pixels_on_a_wide_frame() -> None:
     for index in range(40):
         tracker.update([seated], index * 100, frame_size=(1280, 720))
     assert len(tracker.seats) == 1 and set(tracker.roles.values()) == {"candidate"}
+
+
+def test_person_cut_by_the_top_of_the_frame_never_becomes_a_seat() -> None:
+    # An invigilator standing at the back wall: legs hidden by the back row, box starts at the frame top.
+    tracker = SeatMapTracker()
+    feed(tracker, [[body(0.45, top=0.0, width=0.06, height=0.12)]] * 60)
+    assert tracker.seats == {}
+
+
+def test_person_much_taller_than_the_seated_row_is_not_a_seat() -> None:
+    tracker = SeatMapTracker()
+    feed(tracker, [[body(0.2), body(0.4)]] * 40)
+    feed(tracker, [[body(0.2), body(0.4), body(0.7, top=0.22, width=0.2, height=0.36)]] * 60, start=4_000)
+    assert len(tracker.seats) == 2
+
+
+def test_tall_passer_by_over_a_seat_does_not_take_it() -> None:
+    tracker = SeatMapTracker()
+    feed(tracker, [[body(0.3), body(0.6)]] * 40)
+    seat_id = next(s for s, e in tracker.seats.items() if e.head[0] < 0.4)
+    # The invigilator walks past: head near the seat's head, but the box is twice the seated height.
+    update = feed(tracker, [[body(0.31, top=0.28, width=0.3, height=0.45), body(0.6)]] * 5, start=4_000)
+    assert seat_id not in {seat.seat_id for seat in update.analyzed}

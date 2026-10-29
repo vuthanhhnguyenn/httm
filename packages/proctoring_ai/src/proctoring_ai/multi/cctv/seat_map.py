@@ -42,8 +42,14 @@ class _MapSeat:
     width: float
     home_box: Box
     occupancy: deque[tuple[int, bool]] = field(default_factory=deque)
+    heights: deque[float] = field(default_factory=lambda: deque(maxlen=50))
     last_occupied_ms: int = 0
     last_nearby_ms: int = 0
+
+    def height(self) -> float:
+        """Typical box height of the seated candidate."""
+
+        return median(self.heights) if self.heights else self.home_box.height
 
 
 @dataclass(slots=True)
@@ -60,6 +66,7 @@ class SeatMapTracker:
     def __init__(self, *, settle_ms: int = 3_000, settle_drift: float = 0.35, walk_drift: float = 1.0,
                  walk_window_ms: int = 2_000, standing_ms: int = 1_000, seat_radius: float = 0.9, nearby_radius: float = 1.5,
                  lean_radius: float = 1.8, lean_overlap: float = 0.3, walker_travel: float = 2.5,
+                 row_height_ratio: float = 1.4, seat_height_ratio: float = 1.6, top_edge: float = 0.01,
                  head_alpha: float = 0.05,
                  pending_ttl_ms: int = 1_000, leave_ms: int = 5_000, occupied_ratio: float = 0.8,
                  occupancy_window_ms: int = 30_000, max_subjects: int = 80) -> None:
@@ -68,6 +75,7 @@ class SeatMapTracker:
         self.seat_radius, self.pending_ttl_ms = seat_radius, pending_ttl_ms
         self.nearby_radius, self.head_alpha = nearby_radius, head_alpha
         self.lean_radius, self.lean_overlap, self.walker_travel = lean_radius, lean_overlap, walker_travel
+        self.row_height_ratio, self.seat_height_ratio, self.top_edge = row_height_ratio, seat_height_ratio, top_edge
         self.leave_ms, self.occupied_ratio, self.occupancy_window_ms = leave_ms, occupied_ratio, occupancy_window_ms
         self.max_subjects = max_subjects
         self.seats: dict[UUID, _MapSeat] = {}
@@ -92,9 +100,15 @@ class SeatMapTracker:
                for other in self.seats.values()):
             return False
         box = pending.seat.bbox
+        if box.y <= self.top_edge:
+            return False  # cut by the frame top: someone standing at the back wall, legs hidden by the back row
+        row = [other.height() for other in self.seats.values()
+               if abs(other.head[1] - head[1]) < 0.5 * max(width, other.width)]
+        if row and box.height > self.row_height_ratio * median(row):
+            return False  # head and shoulders above the seated row: standing, even with the legs hidden
         seat = Seat(uuid4(), self._next_seat_id, box, head, pending.seat.confidence, ms, ms, True)
         self._next_seat_id += 1
-        self.seats[seat.seat_id] = _MapSeat(seat, head, width, box, deque([(ms, True)]), ms)
+        self.seats[seat.seat_id] = _MapSeat(seat, head, width, box, deque([(ms, True)]), deque([box.height], maxlen=50), ms)
         return True
 
     def update(self, people: Sequence[Mapping[str, Any]], monotonic_ms: int,
@@ -115,8 +129,8 @@ class SeatMapTracker:
             if index in assigned or seat_id in taken:
                 continue
             box, kps, _ = observed[index]
-            if self._standing(box, kps):
-                continue  # standing up at the seat: the seat counts as empty, the person as an outsider
+            if self._standing(box, kps) or self._too_tall(box, self.seats[seat_id]):
+                continue  # standing up at the seat or someone tall passing by: the seat counts as empty
             assigned[index] = seat_id
             taken.add(seat_id)
         # Second pass: a seated candidate leaning or turning toward a neighbour moves the head out of the
@@ -126,7 +140,8 @@ class SeatMapTracker:
                          and distance(heads[i], seat.head) < self.lean_radius * seat.width
                          and iou(observed[i][0], seat.home_box) >= self.lean_overlap)
         for _, index, seat_id in leaning:
-            if index in assigned or seat_id in taken or self._standing(*observed[index][:2]):
+            if (index in assigned or seat_id in taken or self._standing(*observed[index][:2])
+                    or self._too_tall(observed[index][0], self.seats[seat_id])):
                 continue
             assigned[index] = seat_id
             taken.add(seat_id)
@@ -147,6 +162,7 @@ class SeatMapTracker:
             entry.last_occupied_ms = ms
             if index in leaned:
                 continue  # keep the seat's resting head and box; leaning is not where the seat is
+            entry.heights.append(box.height)
             hx, hy = heads[index]
             alpha = self.head_alpha
             entry.head = (entry.head[0] + alpha * (hx - entry.head[0]), entry.head[1] + alpha * (hy - entry.head[1]))
@@ -196,6 +212,9 @@ class SeatMapTracker:
         return TrackerUpdate(analyzed=visible_seats + outsiders, over_limit=[],
                              missing=[entry.seat for entry in self.seats.values() if not entry.seat.visible],
                              expired=[], created=created, relinked=0)
+
+    def _too_tall(self, box: Box, entry: _MapSeat) -> bool:
+        return box.height > self.seat_height_ratio * entry.height()
 
     def _standing(self, box: Box, kps: Keypoints | None) -> bool:
         return looks_standing(box, kps, frame_aspect=self.frame_aspect)

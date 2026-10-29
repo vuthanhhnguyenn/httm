@@ -35,6 +35,8 @@ class CctvRuleConfig:
     release_ms: int = 1_000
     gap_ms: int = 400
     yaw_spread_factor: float = 2.5
+    min_head_lift: float = 0.1
+    lean_widths: float = 0.45
     neighbor_gap_widths: float = 2.5
     pair_gap_widths: float = 2.5
     neighbor_rows_heights: float = 1.2
@@ -83,6 +85,7 @@ class CctvSeatRules:
         self._role_of: dict[UUID, str] = {}
         self.opened_by_type: dict[str, int] = {}
         self._heads: dict[UUID, tuple[float, float]] = {}
+        self._home: dict[UUID, tuple[RollingBaseline, RollingBaseline]] = {}
         self.debug_rows: list[dict[str, Any]] | None = [] if debug else None
 
     # -- latch bookkeeping -------------------------------------------------------------
@@ -169,6 +172,13 @@ class CctvSeatRules:
         candidates = {seat_id: seat for seat_id, seat in seats.items() if self._role_of[seat_id] == CANDIDATE}
         heads = {seat_id: head_point(result.poses.get(seat_id), seat.bbox) for seat_id, seat in candidates.items()}
         self._heads.update(heads)
+        homes: dict[UUID, tuple[float, float]] = {}
+        for seat_id, head in heads.items():
+            home_x, home_y = self._home.setdefault(seat_id, (RollingBaseline(), RollingBaseline()))
+            if (x := home_x.value(ms)) is not None and (y := home_y.value(ms)) is not None:
+                homes[seat_id] = (x, y)
+            home_x.add(head[0], ms)
+            home_y.add(head[1], ms)
         phones = [box for item in result.objects if str(item.get("class", "")).casefold() == "cell phone"
                   and float(item.get("confidence", 0.0)) >= cfg.phone_min_confidence
                   and (box := Box.parse(item.get("bbox"))) is not None]
@@ -188,13 +198,16 @@ class CctvSeatRules:
             threshold = max(cfg.yaw_threshold, cfg.yaw_spread_factor * baseline.spread(ms))
             if yaw is not None:
                 baseline.add(yaw, ms)
+            lift = head_lift(kps, aspect)
             if self.debug_rows is not None:
                 self.debug_rows.append({
                     "t": offset, "seat": seat.runtime_track_id, "head": [round(v, 3) for v in heads[seat_id]],
                     "yaw": None if yaw is None else round(yaw, 3),
                     "ref": None if reference is None else round(reference, 3), "thr": round(threshold, 3),
-                    "lift": None if (lift := head_lift(kps, aspect)) is None else round(lift, 3), "view": view})
-            if yaw is not None and reference is not None and abs(yaw - reference) > threshold:
+                    "lift": None if lift is None else round(lift, 3), "view": view})
+            # Bowed over the paper, the nose drifts along the line being written: no head direction then.
+            head_up = lift is not None and lift >= cfg.min_head_lift
+            if head_up and yaw is not None and reference is not None and abs(yaw - reference) > threshold:
                 side = 1 if yaw > reference else -1
                 turned.add(seat_id)
                 neighbor = self._neighbor_on_side(seat, heads[seat_id], side, heads, candidates)
@@ -250,10 +263,16 @@ class CctvSeatRules:
                                             "gap": round(gap / width, 3),
                                             "ref": None if reference is None else round(reference / width, 3)})
                 # Across rows, a head bent over the desk drops towards the row in front; only a front-row
-                # candidate who turns round makes it a real exchange.
+                # candidate who turns round or leans back makes it a real exchange.
                 front = first if heads[first][1] > heads[second][1] else second
                 across = abs(heads[first][1] - heads[second][1]) >= cfg.same_row_widths * width
-                if reference is not None and gap < cfg.together_ratio * reference and (not across or front in turned):
+                if across:
+                    partner = second if front == first else first
+                    reached = front in turned or self._leaned(front, partner, heads, homes, width)
+                else:
+                    reached = (self._leaned(first, second, heads, homes, width)
+                               or self._leaned(second, first, heads, homes, width))
+                if reference is not None and gap < cfg.together_ratio * reference and reached:
                     for seat_id, partner in ((first, second), (second, first)):
                         active[(EventType.HEADS_TOGETHER.value, str(seat_id), str(partner))] = (
                             cfg.together_hold_ms, {"neighbor_seat_id": str(partner)})
@@ -265,6 +284,18 @@ class CctvSeatRules:
         for seat in result.tracker.expired:
             out += self._drop(seat.seat_id, offset, ms, reason="SEAT_EXPIRED")
         return out
+
+    def _leaned(self, mover: UUID, partner: UUID, heads: Mapping[UUID, tuple[float, float]],
+                homes: Mapping[UUID, tuple[float, float]], width: float) -> bool:
+        """The mover's head left its usual place by ``lean_widths`` box widths towards the partner."""
+
+        home = homes.get(mover)
+        if home is None:
+            return False
+        to_x, to_y = heads[partner][0] - home[0], heads[partner][1] - home[1]
+        norm = max((to_x ** 2 + to_y ** 2) ** 0.5, 1e-6)
+        moved = ((heads[mover][0] - home[0]) * to_x + (heads[mover][1] - home[1]) * to_y) / norm
+        return bool(moved >= self.config.lean_widths * width)
 
     def _drop(self, seat_id: UUID, offset: int, ms: int, *, reason: str) -> list[tuple[UUID, dict[str, Any]]]:
         out = []

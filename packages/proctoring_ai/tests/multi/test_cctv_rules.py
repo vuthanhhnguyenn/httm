@@ -87,7 +87,7 @@ def test_heads_together_opens_for_both_seats() -> None:
 
     def lean(s: Seat, ms: int):
         cx = s.bbox.x + 0.05
-        return person(cx=cx + (0.04 if s is a else -0.04), top=s.bbox.y)
+        return person(cx=cx + (0.05 if s is a else -0.05), top=s.bbox.y)
 
     together = opened(play(rules, [a, b], lean, 10_000, 12_000), "HEADS_TOGETHER")
     assert sorted(e["seat_id"] for e in together) == sorted([str(a.seat_id), str(b.seat_id)])
@@ -230,3 +230,24 @@ def test_writer_whose_head_always_swings_needs_a_bigger_turn() -> None:
         return person(cx=s.bbox.x + 0.05, top=s.bbox.y, nose_dx=0.5 if s is a else 0.0)
 
     assert opened(play(rules, [a, b], offset, 15_000, 17_000)) == []
+
+
+def test_nose_offset_while_bent_over_the_desk_is_not_a_turn() -> None:
+    rules, a, b = CctvSeatRules(), seat(0.3, 1), seat(0.45, 2)
+    play(rules, [a, b], calm, 0, 10_000)
+
+    def bent(s: Seat, ms: int):  # writing: head bowed, nose drifts along the line being written
+        return person(cx=s.bbox.x + 0.05, top=s.bbox.y, nose_dx=0.6 if s is a else 0.0, bent=s is a)
+
+    assert opened(play(rules, [a, b], bent, 10_000, 13_000)) == []
+
+
+def test_front_row_leaning_back_into_row_behind_is_heads_together() -> None:
+    rules, front, behind = _rows()
+    play(rules, [front, behind], calm, 0, 10_000)
+
+    def lean_back(s: Seat, ms: int):  # face still to the camera, head pulled back towards the row behind
+        return person(cx=s.bbox.x + 0.05, top=s.bbox.y - (0.08 if s is front else 0.0))
+
+    together = opened(play(rules, [front, behind], lean_back, 10_000, 13_000), "HEADS_TOGETHER")
+    assert len(together) == 2
