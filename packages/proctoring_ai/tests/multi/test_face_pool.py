@@ -97,7 +97,7 @@ async def test_seats_run_concurrently() -> None:
 
 
 async def test_still_seat_reuses_previous_result_unless_forced() -> None:
-    fake = FakeFace()
+    fake = FakeFace(calibration="calibrated")
     pool = pool_with([fake], motion_gate=MotionGate())
     a = uuid4()
     crop = crop_at(0)
@@ -107,6 +107,20 @@ async def test_still_seat_reuses_previous_result_unless_forced() -> None:
     assert second[a].face == (await run(pool, {a: crop}, 150))[a].face
     third = await run(pool, {a: crop}, 200, force={a})
     assert not third[a].reused and fake.calls == 2
+
+
+async def test_still_seat_keeps_running_until_calibrated() -> None:
+    # A still head is exactly what the neutral-pose suggestion needs; reusing would starve it.
+    fake = FakeFace()
+    pool = pool_with([fake], motion_gate=MotionGate())
+    a = uuid4()
+    crop = crop_at(0)
+    for ms in (0, 100, 200):
+        assert not (await run(pool, {a: crop}, ms))[a].reused
+    assert fake.calls == 3
+    fake.calibration = "calibrated"
+    await run(pool, {a: crop}, 300)
+    assert (await run(pool, {a: crop}, 400))[a].reused and fake.calls == 4
 
 
 async def test_face_centred_outside_seat_box_is_mismatch() -> None:

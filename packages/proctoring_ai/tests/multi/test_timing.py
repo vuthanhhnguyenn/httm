@@ -74,3 +74,17 @@ def test_empty_video_summary_has_zeros_not_errors() -> None:
     assert summary["frames"] == 0 and summary["ai_fps"] == 0.0
     assert summary["latency_ms"] == {"p50": 0.0, "p95": 0.0}
     assert summary["seats"] == {} and summary["face_reuse_ratio"] == 0.0 and summary["id_switches"] == 0
+
+
+def test_seat_pose_stats_explain_missing_calibration() -> None:
+    recorder = TimingRecorder()
+    s = seat(1)
+    for index, (yaw, pitch, valid) in enumerate([(10.0, -40.0, True), (14.0, -42.0, True), (12.0, -50.0, True),
+                                                 (0.0, 0.0, False)]):
+        face = {"yaw": yaw, "pitch": pitch, "pose_valid": valid, "quality": 0.9 if valid else 0.0}
+        frame = result(index * 100, [s])
+        frame.faces[s.seat_id] = FaceResult("ready", face, False, 10.0, "uncalibrated")
+        recorder.add(frame, latency_ms=1.0)
+    pose = recorder.summary(wall_s=1.0)["seats"][1]["pose"]
+    assert pose == {"samples": 4, "valid_ratio": 0.75, "yaw_p50": 12.0, "pitch_p50": -42.0, "jitter_p50": 4.0}
+    assert recorder.summary(wall_s=1.0)["max_visible"] == 1

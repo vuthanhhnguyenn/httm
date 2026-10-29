@@ -103,7 +103,9 @@ class PerSubjectFaceAnalyzer:
         pending: dict[UUID, Any] = {}
         for seat_id, crop in crops.items():
             previous = self._last.get(seat_id)
+            # Until a seat has its neutral pose, a still head is the sample calibration needs.
             if (previous is not None and self.motion_gate is not None and seat_id not in force
+                    and previous.calibration_status == "calibrated"
                     and not self.motion_gate.should_run(seat_id, crop.image, monotonic_ms)):
                 results[seat_id] = replace(previous, reused=True, latency_ms=0.0)
                 continue
