@@ -14,8 +14,8 @@ from proctoring_ai.multi.focus_analyzers import FocusAnalyzers  # noqa: E402
 
 
 def test_focus_event_types() -> None:
-    assert FOCUS_EVENT_TYPES == {EventType.HEAD_TURN_LEFT, EventType.HEAD_TURN_RIGHT, EventType.LOOK_DOWN,
-                                 EventType.PHONE_DETECTED, EventType.LOOK_AT_NEIGHBOR}
+    assert {EventType.HEAD_TURN_LEFT, EventType.HEAD_TURN_RIGHT, EventType.LOOK_DOWN,
+                                 EventType.PHONE_DETECTED, EventType.LOOK_AT_NEIGHBOR} == FOCUS_EVENT_TYPES
 
 
 def test_marked_seats_are_focus_for_5_s_max_two_newest_first() -> None:
