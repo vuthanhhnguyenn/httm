@@ -51,7 +51,7 @@ class AnnotatedVideoWriter:
         self._writer: Any = None
 
     def write(self, image: Any, result: MultiFrameResult, open_labels: Mapping[UUID, list[str]],
-              repeat: int = 1) -> None:
+              repeat: int = 1, roles: Mapping[UUID, str] | None = None) -> None:
         """``repeat`` holds the frame over skipped source frames so video time matches event offsets."""
         if cv2 is None or image is None:
             return
@@ -70,7 +70,17 @@ class AnnotatedVideoWriter:
             rect(seat.bbox.as_dict(), (128, 128, 128), 1)
         for seat in result.tracker.analyzed:
             labels = open_labels.get(seat.seat_id, [])
+            role = (roles or {}).get(seat.seat_id)
+            if role is not None and role != "candidate":
+                # CCTV: walkers (invigilators) grey, tracks still settling thin yellow; no rules on either.
+                x0, y0 = rect(seat.bbox.as_dict(), (128, 128, 128) if role == "walker" else (0, 200, 200), 1)
+                cv2.putText(canvas, f"#{seat.runtime_track_id} {role}", (x0 + 2, max(14, y0 - 6)),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200), 1)
+                continue
             x0, y0 = rect(seat.bbox.as_dict(), (0, 0, 255) if labels else (0, 200, 0))
+            for kp in result.poses.get(seat.seat_id, [])[:5]:
+                if kp[2] >= 0.3:
+                    cv2.circle(canvas, (int(kp[0] * width), int(kp[1] * height)), 2, (0, 220, 255), -1)
             face = result.faces.get(seat.seat_id)
             text = f"#{seat.runtime_track_id}"
             if face is not None and face.face is not None:
@@ -196,7 +206,7 @@ def _save_evidence(directory: Path, item: dict[str, Any], image: Any) -> str:
 
 async def run_multi_replay(
     source: FrameSource,
-    pipeline: MultiSubjectPipeline,
+    pipeline: MultiSubjectPipeline | Any,
     *,
     policy: Mapping[str, Any],
     raw_config: Mapping[str, Any],
@@ -208,12 +218,15 @@ async def run_multi_replay(
     session_id: UUID | None = None,
     exam_mode: ExamMode | str = ExamMode.COMPUTER,
     run_config: Mapping[str, Any] | None = None,
+    rules: Any | None = None,
     clock: Callable[[], float] = time.perf_counter,
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
 ) -> MultiReplayResult:
     session = session_id or uuid4()
     out_dir.mkdir(parents=True, exist_ok=True)
-    rules = _SeatRules(session, policy, raw_config, ExamMode(exam_mode))
+    # CCTV mode passes its own rule set with the same step/finish/labels interface.
+    rules = rules if rules is not None else _SeatRules(session, policy, raw_config, ExamMode(exam_mode))
+    seat_roles = getattr(rules, "seat_roles", None)
     timing = TimingRecorder()
     writer = AnnotatedVideoWriter(out_dir / "annotated.mp4", video_fps) if write_video else None
     result = MultiReplayResult()
@@ -270,7 +283,8 @@ async def run_multi_replay(
             timing.add(analysed, latency_ms=latency)
             if writer is not None:
                 repeat = 1 if written_offset is None else round((offset - written_offset) * video_fps / 1000)
-                writer.write(frame.get("image"), analysed, rules.labels(), repeat=repeat)
+                writer.write(frame.get("image"), analysed, rules.labels(), repeat=repeat,
+                             roles=seat_roles() if seat_roles is not None else None)
                 written_offset = offset
             result.frames_analyzed += 1
             last_frame, last_offset = frame, offset
@@ -287,7 +301,8 @@ async def run_multi_replay(
         if writer is not None:
             writer.close()
         pipeline.close()
-    result.timing = {**timing.summary(wall_s=clock() - started), "config": dict(run_config or {})}
+    extra = rules.summary() if hasattr(rules, "summary") else {}
+    result.timing = {**timing.summary(wall_s=clock() - started), **extra, "config": dict(run_config or {})}
     (out_dir / "timing.json").write_text(json.dumps(result.timing, ensure_ascii=False, indent=2, default=str),
                                          encoding="utf-8")
     return result

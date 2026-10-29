@@ -45,6 +45,11 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--no-video", action="store_true")
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument("--exam-mode", choices=("computer", "paper"), default="computer")
+    parser.add_argument("--scene", choices=("webcam", "cctv"), default="webcam",
+                        help="webcam: 2-6 người, phân tích mặt; cctv: camera cả phòng, khung xương YOLO-pose")
+    parser.add_argument("--pose-size", type=int, default=960, help="cctv: kích thước ảnh vào YOLO-pose")
+    parser.add_argument("--pose-conf", type=float, default=0.25, help="cctv: ngưỡng tin cậy người")
+    parser.add_argument("--phone-every", type=int, default=3, help="cctv: tìm điện thoại mỗi N frame")
     return parser.parse_args(argv)
 
 
@@ -74,13 +79,31 @@ async def run(args: argparse.Namespace) -> int:
     raw_config = {**settings.raw_config, "detection": detection}
     config = AppConfig.model_validate(raw_config)
     factory = create_factory(ROOT, settings)
-    factory.detector_image_size = args.yolo_size
+    cctv = args.scene == "cctv"
+    # CCTV: phones are small in a whole-room view, so the object detector runs at the pose size.
+    factory.detector_image_size = args.pose_size if cctv else args.yolo_size
     factory.analyzer_options = analyzer_options(config.detection)
     health = await factory.initialize()
-    print("AI:", health, flush=True)
-    pipeline = factory.build_multi_pipeline(raw_config, max_subjects=args.max_subjects, crop_size=args.crop_size,
-                                            yolo_every=args.yolo_every, motion_skip=not args.no_motion_skip,
-                                            focus=not args.no_focus)
+    rules: Any = None
+    if cctv:
+        from proctoring_ai.multi.cctv.rules import CctvSeatRules
+
+        health = await factory.initialize_pose_detector(image_size=args.pose_size, confidence=args.pose_conf)
+        print("AI:", health, flush=True)
+        if factory.pose_detector is None:
+            print(f"Không tải được YOLO-pose: {factory.health_details()['pose_detector']['reason']}. "
+                  "Chạy scripts/download_model.py để tải model.", file=sys.stderr)
+            factory.close()
+            return 1
+        timeout = FULL_MODE_TIMEOUT_MS if args.mode == "full" else 1200
+        pipeline: Any = factory.build_cctv_pipeline(max_subjects=60, phone_every=args.phone_every,
+                                                    timeout_ms=timeout)
+        rules = CctvSeatRules()
+    else:
+        print("AI:", health, flush=True)
+        pipeline = factory.build_multi_pipeline(raw_config, max_subjects=args.max_subjects,
+                                                crop_size=args.crop_size, yolo_every=args.yolo_every,
+                                                motion_skip=not args.no_motion_skip, focus=not args.no_focus)
     rate = args.fps if args.mode == "full" else 240.0  # realtime: every frame, dropped when late
     source = VideoFileFrameSource(args.video, analysis_rate_hz=rate)
     run_config: dict[str, Any] = {key: (str(value) if isinstance(value, Path) else value)
@@ -99,12 +122,15 @@ async def run(args: argparse.Namespace) -> int:
         result = await run_multi_replay(source, pipeline, policy=settings.raw_policy, raw_config=raw_config,
                                         out_dir=args.out, mode=args.mode, overlap=not args.no_overlap,
                                         write_video=not args.no_video, video_fps=video_fps,
-                                        exam_mode=args.exam_mode, run_config=run_config)
+                                        exam_mode=args.exam_mode, run_config=run_config, rules=rules)
     finally:
         factory.close()
     timing = result.timing
     print(f"Xong {timing['frames']} frame, AI FPS {timing['ai_fps']}, độ trễ p95 {timing['latency_ms']['p95']} ms, "
-          f"bỏ {timing['dropped_frames']} frame, {len(timing['seats'])} thí sinh, đổi ID {timing['id_switches']}")
+          f"bỏ {timing['dropped_frames']} frame, "
+          f"{timing['max_visible'] if cctv else len(timing['seats'])} người, đổi ID {timing['id_switches']}")
+    if cctv:
+        print(f"  Vai trò: {timing.get('roles')}, sự kiện: {timing.get('events_opened')}")
     for seat, stats in timing["seats"].items():
         print(f"  #{seat}: mặt {stats['face_hz']} lần/giây (mới {stats['fresh_face_hz']}), "
               f"hiệu chỉnh {stats['calibration_status']}")

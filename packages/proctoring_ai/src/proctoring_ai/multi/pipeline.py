@@ -8,7 +8,7 @@ the GPU, then the tracker) for frame t+1 can run while ``analyze_subjects``
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from time import perf_counter
 from typing import Any
 from uuid import UUID
@@ -58,6 +58,8 @@ class MultiFrameResult:
     focus: dict[UUID, FocusResult]
     objects: list[dict[str, Any]]
     timing: FrameTiming
+    # CCTV mode: COCO keypoints per seat (webcam mode leaves it empty).
+    poses: dict[UUID, list[list[float]]] = field(default_factory=dict)
 
 
 def _snapshot(update: TrackerUpdate) -> TrackerUpdate:

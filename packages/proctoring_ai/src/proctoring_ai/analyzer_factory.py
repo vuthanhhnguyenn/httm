@@ -75,6 +75,7 @@ class AnalyzerFactory:
         self.face_analyzer: MediaPipeFaceLandmarker | None = None
         self.pose_analyzer: MediaPipePoseEstimator | None = None
         self.hand_analyzer: MediaPipeHandEstimator | None = None
+        self.pose_detector: Any | None = None
         # Checksum-verified model files, so multi-subject sessions can open one instance per seat.
         self._model_paths: dict[str, Path] = {}
         self._status = {
@@ -182,6 +183,35 @@ class AnalyzerFactory:
         except Exception as exc:
             self._status[key] = ("unavailable", f"{type(exc).__name__}:{exc}")
 
+    async def initialize_pose_detector(self, *, image_size: int = 960, confidence: float = 0.25) -> dict[str, str]:
+        """CCTV mode only: YOLO-pose for the whole room; loaded on request so desktop start-up is unchanged."""
+
+        try:
+            model_path, entry = await asyncio.to_thread(
+                self._resolve_model, "pose_detect", licenses={"AGPL-3.0-only", "Enterprise"})
+            from .multi.cctv.pose_detector import YoloPoseDetector
+
+            self.pose_detector = YoloPoseDetector(
+                model_path, model_version=str(entry.get("version", "unknown")), model_sha256=str(entry["sha256"]),
+                confidence_threshold=confidence, image_size=image_size, device=self.detector_device)
+            await self.pose_detector.initialize()
+            self._status["pose_detector"] = ("ready", "")
+        except Exception as exc:
+            self.pose_detector = None
+            self._status["pose_detector"] = ("unavailable", f"{type(exc).__name__}:{exc}")
+        return self.health()
+
+    def build_cctv_pipeline(self, *, max_subjects: int = 60, phone_every: int = 3,
+                            timeout_ms: int = 1200) -> Any:
+        """Whole-room CCTV: one pose pass for everyone; the object detector only looks for phones."""
+
+        from .multi.cctv.pipeline import CctvPipeline
+
+        if self.pose_detector is None:
+            raise RuntimeError(f"pose detector unavailable: {self._status.get('pose_detector', ('', ''))[1]}")
+        return CctvPipeline(pose_detector=self.pose_detector, tracker=MultiSubjectTracker(max_subjects=max_subjects),
+                            object_detector=self.detector, phone_every=phone_every, timeout_ms=timeout_ms)
+
     def health(self) -> dict[str, str]:
         return {name: status for name, (status, _reason) in self._status.items()}
 
@@ -192,6 +222,8 @@ class AnalyzerFactory:
         }
         if self.detector is not None:
             details["object_detector"]["device"] = self.detector.active_device
+        if self.pose_detector is not None:
+            details["pose_detector"]["device"] = self.pose_detector.active_device
         return details
 
     def build_pipeline(self, config: dict[str, Any] | None = None) -> ObservationPipeline:
@@ -269,6 +301,8 @@ class AnalyzerFactory:
     def close(self) -> None:
         if self.detector is not None:
             self.detector.close()
+        if self.pose_detector is not None:
+            self.pose_detector.close()
         for analyzer in (self.face_analyzer, self.pose_analyzer, self.hand_analyzer):
             if analyzer is not None:
                 analyzer.close()

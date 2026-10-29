@@ -304,3 +304,28 @@ def test_cli_records_analyzer_health_in_timing(tmp_path: Path) -> None:
     timing = json.loads((out / "timing.json").read_text(encoding="utf-8"))
     assert set(timing["config"]["analyzers"]) >= {"object_detector", "face"}
     assert "status" in timing["config"]["analyzers"]["face"]
+
+
+def cctv_person(cx: float, *, face: bool = True) -> dict[str, Any]:
+    kps = [[0.0, 0.0, 0.0] for _ in range(17)]
+    if face:
+        kps[0], kps[1], kps[2] = [cx, 0.33, 0.9], [cx - 0.01, 0.32, 0.9], [cx + 0.01, 0.32, 0.9]
+    kps[5], kps[6] = [cx - 0.05, 0.38, 0.9], [cx + 0.05, 0.38, 0.9]
+    return {"class": "person", "confidence": 0.8, "keypoints": kps,
+            "bbox": {"x": cx - 0.06, "y": 0.3, "width": 0.12, "height": 0.25}}
+
+
+async def test_cctv_mode_turn_around_without_face_rules(tmp_path: Path) -> None:
+    from proctoring_ai.multi.cctv.pipeline import CctvPipeline
+    from proctoring_ai.multi.cctv.rules import CctvSeatRules
+
+    def room(index: int) -> list[dict[str, Any]]:
+        return [cctv_person(0.3), cctv_person(0.6, face=index < 50)]  # second turns away at 5 s
+
+    pipeline = CctvPipeline(pose_detector=ScriptedDetector(room), tracker=MultiSubjectTracker(max_subjects=60))
+    result = await run(pipeline, 80, tmp_path, rules=CctvSeatRules())
+    types = {(e["type"], e["action"]) for e in read_events(tmp_path)}
+    assert ("TURN_AROUND", "opened") in types
+    assert not any(kind in {"FACE_NOT_VISIBLE", "PERSON_MISSING", "LOOK_DOWN"} for kind, _ in types)
+    assert result.timing["roles"]["candidate"] == 2 and result.timing["events_opened"] == {"TURN_AROUND": 1}
+    assert (tmp_path / "annotated.mp4").stat().st_size > 0
