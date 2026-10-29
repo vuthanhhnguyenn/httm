@@ -176,3 +176,34 @@ def test_tall_passer_by_over_a_seat_does_not_take_it() -> None:
     # The invigilator walks past: head near the seat's head, but the box is twice the seated height.
     update = feed(tracker, [[body(0.31, top=0.28, width=0.3, height=0.45), body(0.6)]] * 5, start=4_000)
     assert seat_id not in {seat.seat_id for seat in update.analyzed}
+
+
+def stool_room(extra: list[dict] | None = None) -> list[dict]:
+    # Candidates on high stools at tall desks: legs in view, every box about 3 times taller than wide.
+    return [body(cx, top=0.4, width=0.06, height=0.18, standing=True) for cx in (0.15, 0.35, 0.55, 0.75)] + (extra or [])
+
+
+def test_seated_people_on_high_stools_become_seats() -> None:
+    tracker = SeatMapTracker()
+    feed(tracker, [stool_room()] * 40)
+    assert len(tracker.seats) == 4 and set(tracker.roles.values()) == {"candidate"}
+
+
+def test_person_standing_in_a_high_stool_room_is_still_a_walker() -> None:
+    tracker = SeatMapTracker()
+    standing = body(0.9, top=0.2, width=0.05, height=0.32, standing=True)
+    feed(tracker, [stool_room([standing])] * 40)
+    assert len(tracker.seats) == 4
+    assert sorted(tracker.roles.values()) == ["candidate"] * 4 + ["walker"]
+
+
+def test_small_fragment_box_does_not_take_the_seat_from_the_candidate() -> None:
+    # The detector sometimes adds a tiny box on part of a seated body (head, hands). Closer to the seat's
+    # head than the candidate's own box, it must not win the seat or shrink the seat's usual height.
+    tracker = SeatMapTracker()
+    feed(tracker, [[body(0.5), body(0.8)]] * 40)
+    fragment = body(0.5, top=0.3, width=0.04, height=0.05)
+    update = feed(tracker, [[fragment, body(0.53), body(0.8)]] * 60, start=4_000)
+    seat = next(s for s in update.analyzed if s.runtime_track_id == 1)
+    assert seat.bbox.height == pytest.approx(0.2)
+    assert next(e for e in tracker.seats.values() if e.seat.runtime_track_id == 1).height() == pytest.approx(0.2)

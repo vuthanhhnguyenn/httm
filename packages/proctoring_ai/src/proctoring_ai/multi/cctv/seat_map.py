@@ -23,14 +23,24 @@ from .head import Keypoints, distance, head_point
 from .roles import CANDIDATE, PENDING, WALKER, is_standing
 
 
+def box_aspect(box: Box, frame_aspect: float = 1.0) -> float:
+    """Height over width in pixels; ``frame_aspect`` (frame width / height) undoes the normalisation."""
+
+    return box.height / max(box.width * frame_aspect, 1e-6)
+
+
 def looks_standing(box: Box, kps: Keypoints | None, *, max_aspect: float = 2.2, min_aspect: float = 2.0,
-                   edge: float = 0.01, frame_aspect: float = 1.0) -> bool:
+                   edge: float = 0.01, frame_aspect: float = 1.0, scene_aspect: float | None = None,
+                   scene_max: float = 1.6, scene_min: float = 1.4) -> bool:
     """Standing bodies are tall and narrow; seated ones are cut by the desk. Close to a high camera a
     seated person's thighs point down the image, so low knees alone count only on a narrow box, or on a
-    box cut by the top or bottom of the frame, whose shape says nothing. ``frame_aspect`` (width / height
-    of the frame) turns the normalised box back into its pixel shape."""
+    box cut by the top or bottom of the frame, whose shape says nothing. In a room of high stools and tall
+    desks every seated body is tall, so the limits also scale with ``scene_aspect``, the typical shape of
+    the people in view: standing means clearly taller than everyone else."""
 
-    aspect = box.height / max(box.width * frame_aspect, 1e-6)
+    if scene_aspect is not None:
+        max_aspect, min_aspect = max(max_aspect, scene_max * scene_aspect), max(min_aspect, scene_min * scene_aspect)
+    aspect = box_aspect(box, frame_aspect)
     cut = box.y <= edge or box.y + box.height >= 1 - edge
     return aspect > max_aspect or ((aspect > min_aspect or cut) and is_standing(kps))
 
@@ -66,7 +76,8 @@ class SeatMapTracker:
     def __init__(self, *, settle_ms: int = 3_000, settle_drift: float = 0.35, walk_drift: float = 1.0,
                  walk_window_ms: int = 2_000, standing_ms: int = 1_000, seat_radius: float = 0.9, nearby_radius: float = 1.5,
                  lean_radius: float = 1.8, lean_overlap: float = 0.3, walker_travel: float = 2.5,
-                 row_height_ratio: float = 1.4, seat_height_ratio: float = 1.6, top_edge: float = 0.01,
+                 row_height_ratio: float = 1.4, seat_height_ratio: float = 1.6, fragment_ratio: float = 0.5,
+                 top_edge: float = 0.01,
                  head_alpha: float = 0.05,
                  pending_ttl_ms: int = 1_000, leave_ms: int = 5_000, occupied_ratio: float = 0.8,
                  occupancy_window_ms: int = 30_000, max_subjects: int = 80) -> None:
@@ -76,6 +87,7 @@ class SeatMapTracker:
         self.nearby_radius, self.head_alpha = nearby_radius, head_alpha
         self.lean_radius, self.lean_overlap, self.walker_travel = lean_radius, lean_overlap, walker_travel
         self.row_height_ratio, self.seat_height_ratio, self.top_edge = row_height_ratio, seat_height_ratio, top_edge
+        self.fragment_ratio = fragment_ratio
         self.leave_ms, self.occupied_ratio, self.occupancy_window_ms = leave_ms, occupied_ratio, occupancy_window_ms
         self.max_subjects = max_subjects
         self.seats: dict[UUID, _MapSeat] = {}
@@ -84,6 +96,8 @@ class SeatMapTracker:
         self._next_outsider_id = 1000
         self.roles: dict[UUID, str] = {}
         self.frame_aspect = 1.0
+        self._scene_aspects: deque[float] = deque(maxlen=50)
+        self.scene_aspect: float | None = None
 
     def _promote(self, pending: _Pending, ms: int) -> bool:
         if len(self.seats) >= self.max_subjects or pending.moving or pending.standing_since is not None:
@@ -119,6 +133,10 @@ class SeatMapTracker:
         observed = [(box, item.get("keypoints"), float(item.get("confidence", 0.0)))
                     for item in people if (box := Box.parse(item.get("bbox"))) is not None]
         heads = [head_point(kps, box) for box, kps, _ in observed]
+        if len(observed) >= 3:
+            # Most people in an exam room sit, so the median shape of a crowded frame is the seated shape.
+            self._scene_aspects.append(median(box_aspect(box, self.frame_aspect) for box, _, _ in observed))
+            self.scene_aspect = median(self._scene_aspects)
         # Greedy nearest assignment of people to seats within the seat radius.
         pairs = sorted((distance(heads[i], seat.head), i, seat_id) for i in range(len(observed))
                        for seat_id, seat in self.seats.items()
@@ -128,8 +146,7 @@ class SeatMapTracker:
         for _, index, seat_id in pairs:
             if index in assigned or seat_id in taken:
                 continue
-            box, kps, _ = observed[index]
-            if self._standing(box, kps) or self._too_tall(box, self.seats[seat_id]):
+            if not self._fits(*observed[index][:2], self.seats[seat_id]):
                 continue  # standing up at the seat or someone tall passing by: the seat counts as empty
             assigned[index] = seat_id
             taken.add(seat_id)
@@ -140,8 +157,7 @@ class SeatMapTracker:
                          and distance(heads[i], seat.head) < self.lean_radius * seat.width
                          and iou(observed[i][0], seat.home_box) >= self.lean_overlap)
         for _, index, seat_id in leaning:
-            if (index in assigned or seat_id in taken or self._standing(*observed[index][:2])
-                    or self._too_tall(observed[index][0], self.seats[seat_id])):
+            if index in assigned or seat_id in taken or not self._fits(*observed[index][:2], self.seats[seat_id]):
                 continue
             assigned[index] = seat_id
             taken.add(seat_id)
@@ -213,11 +229,16 @@ class SeatMapTracker:
                              missing=[entry.seat for entry in self.seats.values() if not entry.seat.visible],
                              expired=[], created=created, relinked=0)
 
-    def _too_tall(self, box: Box, entry: _MapSeat) -> bool:
-        return box.height > self.seat_height_ratio * entry.height()
+    def _fits(self, box: Box, kps: Keypoints | None, entry: _MapSeat) -> bool:
+        """A seated body of about the seat's usual size: not standing, not a tall passer-by, and not a
+        small fragment box on part of a body (a head or hands), which would drag the seat's head away."""
+
+        height = entry.height()
+        return (not self._standing(box, kps) and box.height <= self.seat_height_ratio * height
+                and box.height >= self.fragment_ratio * height)
 
     def _standing(self, box: Box, kps: Keypoints | None) -> bool:
-        return looks_standing(box, kps, frame_aspect=self.frame_aspect)
+        return looks_standing(box, kps, frame_aspect=self.frame_aspect, scene_aspect=self.scene_aspect)
 
     def left_seat(self, seat_id: UUID, monotonic_ms: int) -> bool:
         """Empty for ``leave_ms`` after being occupied most of the preceding window."""
@@ -251,4 +272,4 @@ class SeatMapRoles:
         return {"seats": len(self.tracker.seats), "pending": roles.count(PENDING), "walker": roles.count(WALKER)}
 
 
-__all__ = ["SeatMapRoles", "SeatMapTracker", "looks_standing"]
+__all__ = ["SeatMapRoles", "SeatMapTracker", "box_aspect", "looks_standing"]

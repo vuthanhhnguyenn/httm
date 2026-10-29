@@ -27,6 +27,14 @@ def test_facing_front_back_unknown() -> None:
     assert facing(None) == "unknown"
 
 
+def test_bowed_head_showing_only_the_crown_is_not_turned_around() -> None:
+    # Bent low over the desk under a close, high camera: no face and no ears, just the top of the head.
+    # Turning around shows the back of the head with the ears at its sides.
+    crown = person(face=False, bent=True)
+    crown[3][2] = crown[4][2] = 0.1
+    assert facing(crown) == "unknown"
+
+
 def test_head_point_falls_back_to_box_top() -> None:
     box = Box(0.4, 0.2, 0.2, 0.5)
     assert head_point([[0, 0, 0]] * 17, box) == pytest.approx((0.5, 0.26))

@@ -65,13 +65,15 @@ def head_lift(kps: Keypoints | None, frame_aspect: float = 1.0) -> float | None:
 
 
 def facing(kps: Keypoints | None) -> str:
-    """``front`` when the face is seen, ``back`` when only shoulders are, else ``unknown``."""
+    """``front`` when the face is seen, ``back`` when the face is hidden but the shoulders and an ear are,
+    else ``unknown``. A head bowed low under a close camera hides the ears too, showing only its crown."""
 
     face = [point(kps, index, FACE_MIN_CONF) for index in (NOSE, LEFT_EYE, RIGHT_EYE)]
     if any(item is not None for item in face):
         return "front"
     hidden = all(point(kps, index, POINT_MIN_CONF) is None for index in (NOSE, LEFT_EYE, RIGHT_EYE))
-    return "back" if hidden and shoulders(kps) is not None else "unknown"
+    ear = any(point(kps, index) is not None for index in (LEFT_EAR, RIGHT_EAR))
+    return "back" if hidden and ear and shoulders(kps) is not None else "unknown"
 
 
 def head_point(kps: Keypoints | None, box: Box) -> tuple[float, float]:

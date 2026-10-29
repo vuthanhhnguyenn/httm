@@ -54,3 +54,17 @@ Clip YouTube `EPf9O7UXRoM` (71.7 s, 1280×720, ~25 thí sinh, camera cao; chỉ 
 - Sự kiện sai còn lại ở `--fps 10` (1:00, chị áo đen): chị đang cúi viết nhưng YOLO-pose vẫn đặt mũi và mắt
   với độ tin cậy cao lên tóc, ra hướng đầu "ngẩng, quay ngang". Lỗi của mô hình khung xương, không sửa được
   bằng ngưỡng mà không làm sót ca thật.
+
+### Clip thứ hai: `LUy81HI7wS0` (103 s, 480×548, ~10 thí sinh, chưa có nhãn)
+
+Phòng ghế cao, bàn cao, camera gần và cao: thấy cả chân người ngồi, nên khung người ngồi cao gấp ~3 lần
+rộng (clip 1 chỉ ~1). Ngưỡng cũ coi gần như mọi người là đang đứng.
+
+| Phiên bản | Ghế | Bị coi là đi lại | Sự kiện |
+|---|---|---|---|
+| `4a83249` | 10, phần lớn thời gian trống | 9 | 0 |
+| Sau sửa | 10 | 2 | 3 `LOOK_AT_NEIGHBOR` (chờ Nguyên xác nhận) |
+
+Sửa: ngưỡng "đứng" so với dáng trung vị của mọi người trong khung hình; khung nhỏ hơn một nửa chiều cao
+quen của ghế (một mảnh người: đầu, tay) không được chiếm ghế; đầu cúi thấp chỉ thấy đỉnh đầu, không thấy tai,
+không còn tính là `TURN_AROUND`. Clip 1 giữ nguyên kết quả ở cả `--fps 5` và `--fps 10`.

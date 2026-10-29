@@ -310,6 +310,7 @@ def cctv_person(cx: float, *, face: bool = True) -> dict[str, Any]:
     kps = [[0.0, 0.0, 0.0] for _ in range(17)]
     if face:
         kps[0], kps[1], kps[2] = [cx, 0.33, 0.9], [cx - 0.01, 0.32, 0.9], [cx + 0.01, 0.32, 0.9]
+    kps[3], kps[4] = [cx - 0.02, 0.33, 0.7], [cx + 0.02, 0.33, 0.7]  # ears show from the front and the back
     kps[5], kps[6] = [cx - 0.05, 0.38, 0.9], [cx + 0.05, 0.38, 0.9]
     return {"class": "person", "confidence": 0.8, "keypoints": kps,
             "bbox": {"x": cx - 0.06, "y": 0.3, "width": 0.12, "height": 0.25}}
