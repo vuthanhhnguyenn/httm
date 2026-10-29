@@ -44,9 +44,13 @@ Clip YouTube `EPf9O7UXRoM` (71.7 s, 1280×720, ~25 thí sinh, camera cao; chỉ 
 | Phiên bản | Nhãn bắt được | Sự kiện ngoài nhãn | FPS (M1200) |
 |---|---|---|---|
 | Trước phase 2d (`37fc290`) | 2/4 | 13/16 | 10.3 |
-| Sau phase 2d | 5/6 | 0/7 | chưa đo |
+| Sau phase 2d, `--fps 5` | 5/6 | 0/7 | ~10 (đo ở `--fps 10`: 9.8) |
+| Sau phase 2d, `--fps 10` | 5/6 | 1/8 | 9.8 |
 
 - Nhãn còn sót: 0:02 (hai người sau bên trái) rơi vào 3 giây đầu clip, khi chưa có mốc tư thế bình thường
   nào; khi dùng thật camera bật trước giờ thi.
 - Nhãn A, B, C (0:35, 0:44, 0:57) được thêm sau khi Nguyên xem ảnh cắt các sự kiện ngoài nhãn cũ.
 - Chỉ có một clip có nhãn: ngưỡng có thể khớp quá với clip này. Cần thêm ít nhất một clip phòng thi khác.
+- Sự kiện sai còn lại ở `--fps 10` (1:00, chị áo đen): chị đang cúi viết nhưng YOLO-pose vẫn đặt mũi và mắt
+  với độ tin cậy cao lên tóc, ra hướng đầu "ngẩng, quay ngang". Lỗi của mô hình khung xương, không sửa được
+  bằng ngưỡng mà không làm sót ca thật.

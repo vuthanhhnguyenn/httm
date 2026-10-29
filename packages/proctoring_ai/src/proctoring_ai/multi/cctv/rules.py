@@ -33,7 +33,7 @@ class CctvRuleConfig:
     phone_hold_ms: int = 1_000
     phone_min_confidence: float = 0.5
     release_ms: int = 1_000
-    gap_ms: int = 400
+    gap_ms: int = 500  # the detector misses a candidate for a few frames now and then
     yaw_spread_factor: float = 2.5
     min_head_lift: float = 0.1
     lean_widths: float = 0.45
@@ -177,12 +177,14 @@ class CctvSeatRules:
         for seat_id, head in heads.items():
             home_x, home_y = self._home.setdefault(seat_id, (RollingBaseline(min_span_ms=cfg.home_min_ms),
                                                              RollingBaseline(min_span_ms=cfg.home_min_ms)))
+            lift = head_lift(result.poses.get(seat_id), aspect)
+            if lift is None or lift < cfg.min_head_lift:
+                continue  # a bowed head (or a head the detector swapped with the next person's) cannot lean
             if (x := home_x.value(ms)) is not None and (y := home_y.value(ms)) is not None:
                 homes[seat_id] = (x, y)
             # Learned from upright frames only: straightening up from the paper is not a lean.
-            if (lift := head_lift(result.poses.get(seat_id), aspect)) is not None and lift >= cfg.min_head_lift:
-                home_x.add(head[0], ms)
-                home_y.add(head[1], ms)
+            home_x.add(head[0], ms)
+            home_y.add(head[1], ms)
         phones = [box for item in result.objects if str(item.get("class", "")).casefold() == "cell phone"
                   and float(item.get("confidence", 0.0)) >= cfg.phone_min_confidence
                   and (box := Box.parse(item.get("bbox"))) is not None]

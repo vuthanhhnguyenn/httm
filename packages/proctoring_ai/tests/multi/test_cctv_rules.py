@@ -291,3 +291,28 @@ def test_sitting_up_after_writing_is_not_leaning_back() -> None:
         return person(cx=s.bbox.x + 0.05, top=s.bbox.y)
 
     assert opened(play(rules, [front, behind], upright, 15_000, 18_000), "HEADS_TOGETHER") == []
+
+
+def test_short_detection_dropout_does_not_restart_the_hold() -> None:
+    # 10 analysed frames a second, the neighbour turning for 1.8 s but missed by the detector for 0.4 s.
+    rules, a, b = CctvSeatRules(), seat(0.3, 1), seat(0.45, 2)
+    play(rules, [a, b], calm, 0, 10_000)
+
+    def turned(s: Seat, ms: int):
+        missing = s is a and 10_300 <= ms < 10_700
+        return None if missing else person(cx=s.bbox.x + 0.05, top=s.bbox.y, nose_dx=0.6 if s is a else 0.0)
+
+    events = play(rules, [a, b], turned, 10_000, 11_800)
+    assert [e["seat_id"] for e in opened(events, "LOOK_AT_NEIGHBOR")] == [str(a.seat_id)]
+
+
+def test_bowed_head_cannot_lean_in() -> None:
+    # A head swapped with the bowed head of the person in front jumps towards the row behind, but it is
+    # bent over the desk: no lean.
+    rules, front, behind = _rows()
+    play(rules, [front, behind], calm, 0, 15_000)
+
+    def swapped(s: Seat, ms: int):
+        return person(cx=s.bbox.x + 0.05, top=s.bbox.y - (0.14 if s is front else 0.0), bent=s is front)
+
+    assert opened(play(rules, [front, behind], swapped, 15_000, 18_000), "HEADS_TOGETHER") == []

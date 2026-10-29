@@ -25,12 +25,14 @@ def _inside(head: list[float] | None, region: list[float], margin: float = 0.02)
 
 def score(events: list[dict[str, Any]], labels: list[dict[str, Any]]) -> dict[str, Any]:
     opened = [e for e in events if e.get("action") == "opened"]
+    closed = {e.get("id"): e["video_offset_ms"] / 1000 for e in events if e.get("action") == "closed"}
     targets = [label for label in labels if label.get("kind") != "none"]
     hits: dict[str, list[dict[str, Any]]] = {label["id"]: [] for label in targets}
     false: list[dict[str, Any]] = []
     for event in opened:
-        t = event["video_offset_ms"] / 1000
-        matched = [label for label in targets if label["start_s"] - SLACK_S <= t <= label["end_s"] + SLACK_S
+        start = event["video_offset_ms"] / 1000
+        end = closed.get(event.get("id"), start)  # still open at the end of the clip: count the opening only
+        matched = [label for label in targets if start <= label["end_s"] + SLACK_S and end >= label["start_s"] - SLACK_S
                    and _inside(event.get("head"), label["region"])]
         for label in matched:
             hits[label["id"]].append(event)
