@@ -84,3 +84,23 @@ def test_candidate_leaves_seat_after_moving_away_for_leave_time() -> None:
     assert classifier.left_seat(seat, 8_600)
     classifier.update(seat, home, 8_700)
     assert not classifier.left_seat(seat, 8_700)
+
+
+def test_seated_writer_with_jumping_box_bottom_stays_candidate() -> None:
+    # Desk and the candidate in front hide the legs on and off: the box height jumps, the head does not.
+    classifier, seat = SeatRoleClassifier(), uuid4()
+    kps = person(cx=0.45, top=0.3)
+    for index in range(100):
+        height = 0.2 if index % 4 < 2 else 0.45
+        role = classifier.update(seat, Box(0.4, 0.3, 0.1, height), index * 100, kps)
+        assert role != WALKER
+    assert role == CANDIDATE
+
+
+def test_walker_who_sits_still_long_enough_becomes_candidate() -> None:
+    classifier, seat = SeatRoleClassifier(), uuid4()
+    run(classifier, seat, [Box(0.1 + 0.03 * i, 0.3, 0.1, 0.3) for i in range(10)])
+    assert classifier.role(seat) == WALKER
+    still = Box(0.4, 0.3, 0.1, 0.3)
+    assert run(classifier, seat, [still] * 50, start=1_000) == WALKER
+    assert run(classifier, seat, [still] * 35, start=6_000) == CANDIDATE  # 6 s after the last step

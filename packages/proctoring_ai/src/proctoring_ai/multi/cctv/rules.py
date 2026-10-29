@@ -26,7 +26,7 @@ from .roles import CANDIDATE, SeatRoleClassifier
 class CctvRuleConfig:
     yaw_threshold: float = 0.35
     turn_hold_ms: int = 1_500
-    together_ratio: float = 0.6
+    together_ratio: float = 0.7
     together_hold_ms: int = 1_500
     hand_hold_ms: int = 1_000
     phone_hold_ms: int = 1_000
@@ -34,7 +34,9 @@ class CctvRuleConfig:
     release_ms: int = 1_000
     gap_ms: int = 400
     neighbor_gap_widths: float = 2.5
-    pair_gap_widths: float = 1.6
+    pair_gap_widths: float = 2.5
+    neighbor_rows_heights: float = 1.2
+    max_hand_overlap: float = 0.3
 
 
 @dataclass(slots=True)
@@ -45,6 +47,13 @@ class _Latch:
     event_id: str | None = None
     opened_ms: int = 0
     details: dict[str, Any] = field(default_factory=dict)
+
+
+def _horizontal_overlap(a: Box, b: Box) -> float:
+    """Shared x-extent as a fraction of the narrower box."""
+
+    shared = min(a.x + a.width, b.x + b.width) - max(a.x, b.x)
+    return max(0.0, shared) / max(min(a.width, b.width), 1e-6)
 
 
 def _inside(p: tuple[float, float], box: Box) -> bool:
@@ -118,7 +127,8 @@ class CctvSeatRules:
             dx = (other_head[0] - head[0]) * side
             width = (seat.bbox.width + seats[other_id].bbox.width) / 2
             close = 0 < dx <= self.config.neighbor_gap_widths * width
-            level = abs(other_head[1] - head[1]) <= seat.bbox.height / 2
+            # Same row, or the row behind / in front: turning to talk across rows is the same act.
+            level = abs(other_head[1] - head[1]) <= self.config.neighbor_rows_heights * seat.bbox.height
             if close and level and (best is None or dx < best_dx):
                 best, best_dx = other_id, dx
         return best
@@ -167,7 +177,10 @@ class CctvSeatRules:
                 active[(EventType.LEAVING_SEAT.value, seat_key)] = (0, {})
             wrists = [p for index in (LEFT_WRIST, RIGHT_WRIST) if (p := point(kps, index, 0.4))]
             for other_id, other in candidates.items():
-                if other_id != seat_id and any(_inside(p, other.bbox) and not _inside(p, seat.bbox) for p in wrists):
+                # Rows in front/behind overlap in a high camera's view; only side neighbours can be reached into.
+                if other_id == seat_id or _horizontal_overlap(seat.bbox, other.bbox) > cfg.max_hand_overlap:
+                    continue
+                if any(_inside(p, other.bbox) and not _inside(p, seat.bbox) for p in wrists):
                     active[(EventType.SUSPICIOUS_HAND_ACTIVITY.value, seat_key)] = (
                         cfg.hand_hold_ms, {"neighbor_seat_id": str(other_id)})
             for phone in phones:
@@ -184,13 +197,12 @@ class CctvSeatRules:
                 a, b = candidates[first], candidates[second]
                 width = (a.bbox.width + b.bbox.width) / 2
                 gap = distance(heads[first], heads[second])
-                if gap > cfg.pair_gap_widths * width * 2:
+                if gap > cfg.pair_gap_widths * width:
                     continue
                 baseline = self._pair_distance.setdefault((first, second), RollingBaseline())
                 reference = baseline.value(ms)
                 baseline.add(gap, ms)
-                if reference is not None and distance(a.bbox.center, b.bbox.center) <= cfg.pair_gap_widths * width \
-                        and gap < cfg.together_ratio * reference:
+                if reference is not None and gap < cfg.together_ratio * reference:
                     for seat_id, partner in ((first, second), (second, first)):
                         active[(EventType.HEADS_TOGETHER.value, str(seat_id), str(partner))] = (
                             cfg.together_hold_ms, {"neighbor_seat_id": str(partner)})

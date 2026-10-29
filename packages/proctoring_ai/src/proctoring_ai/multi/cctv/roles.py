@@ -1,8 +1,8 @@
 """Tell seated candidates from people walking around (invigilators, passers-by).
 
-A track becomes a candidate only after it has stayed put for a few seconds without standing;
-anything that moves a lot first, stands, or never settles is a walker and gets no rules.
-Walkers stay walkers for the life of the track.
+A track becomes a candidate only after its head has stayed put for a few seconds without standing;
+a track whose head travels a box width within two seconds, or that stands, is a walker and gets no
+rules until it sits still for longer. Tracks that never settle stay pending (no rules either).
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from uuid import UUID
 
 from proctoring_core.observations import Box
 
-from .head import Keypoints, point, shoulders
+from .head import Keypoints, head_point, point, shoulders
 
 PENDING, CANDIDATE, WALKER = "pending", "candidate", "walker"
 LEFT_HIP, RIGHT_HIP, LEFT_KNEE, RIGHT_KNEE = 11, 12, 13, 14
@@ -45,15 +45,19 @@ class _Track:
     home: tuple[float, float] | None = None
     home_height: float = 0.0
     away_since: int | None = None
+    walk_ms: int = 0
 
 
 class SeatRoleClassifier:
-    def __init__(self, *, settle_ms: int = 3_000, settle_drift: float = 0.25, walk_drift: float = 0.5,
-                 walk_window_ms: int = 2_000, undecided_ms: int = 8_000, standing_ms: int = 2_000,
-                 leave_ms: int = 5_000) -> None:
+    def __init__(self, *, settle_ms: int = 3_000, settle_drift: float = 0.35, walk_drift: float = 1.0,
+                 walk_window_ms: int = 2_000, resettle_ms: int = 6_000, standing_ms: int = 2_000,
+                 leave_widths: float = 1.5, leave_ms: int = 5_000) -> None:
+        """Distances in box widths of the head movement; tracks that never settle stay ``pending``."""
+
         self.settle_ms, self.settle_drift = settle_ms, settle_drift
         self.walk_drift, self.walk_window_ms = walk_drift, walk_window_ms
-        self.undecided_ms, self.standing_ms, self.leave_ms = undecided_ms, standing_ms, leave_ms
+        self.resettle_ms, self.standing_ms = resettle_ms, standing_ms
+        self.leave_widths, self.leave_ms = leave_widths, leave_ms
         self._tracks: dict[UUID, _Track] = {}
 
     def role(self, seat_id: UUID) -> str:
@@ -61,36 +65,37 @@ class SeatRoleClassifier:
         return track.role if track is not None else PENDING
 
     def update(self, seat_id: UUID, box: Box, monotonic_ms: int, kps: Keypoints | None = None) -> str:
+        """Movement is measured on the head in box widths: a seated box's bottom edge jumps whenever the
+        desk or the candidate in front hides the legs, but the head stays put while someone writes."""
+
         track = self._tracks.setdefault(seat_id, _Track(monotonic_ms))
-        anchor_x, anchor_y = box.x + box.width / 2, box.y + box.height
-        height = max(box.height, 1e-6)
+        anchor_x, anchor_y = head_point(kps, box)
+        scale = max(box.width, 1e-6)
         if track.role == CANDIDATE and track.home is not None:
-            away = hypot(anchor_x - track.home[0], anchor_y - track.home[1]) > self.walk_drift * track.home_height
+            away = hypot(anchor_x - track.home[0], anchor_y - track.home[1]) > self.leave_widths * track.home_height
             track.away_since = (track.away_since or monotonic_ms) if away else None
             return track.role
-        if track.role == WALKER:
-            return track.role
-        track.history.append((monotonic_ms, anchor_x, anchor_y, height))
-        keep = max(self.settle_ms, self.walk_window_ms)
+        track.history.append((monotonic_ms, anchor_x, anchor_y, scale))
+        keep = max(self.settle_ms, self.walk_window_ms, self.resettle_ms)
         while track.history and monotonic_ms - track.history[0][0] > keep:
             track.history.popleft()
         standing = is_standing(kps)
         track.standing_since = (track.standing_since or monotonic_ms) if standing else None
         recent = [item for item in track.history if monotonic_ms - item[0] <= self.walk_window_ms]
         if (track.standing_since is not None and monotonic_ms - track.standing_since >= self.standing_ms) or any(
-                hypot(anchor_x - x, anchor_y - y) > self.walk_drift * height for _, x, y, _ in recent):
-            track.role = WALKER
+                hypot(anchor_x - x, anchor_y - y) > self.walk_drift * scale for _, x, y, _ in recent):
+            track.role, track.walk_ms = WALKER, monotonic_ms
             return track.role
-        span = monotonic_ms - track.history[0][0]
-        settled = all(hypot(anchor_x - x, anchor_y - y) <= self.settle_drift * height
-                      for _, x, y, _ in track.history)
-        if span >= 0.8 * self.settle_ms and monotonic_ms - track.first_ms >= self.settle_ms and settled \
-                and track.standing_since is None:
+        # A walker who sits down for good becomes a candidate, but only after a longer quiet period.
+        need = self.resettle_ms if track.role == WALKER else self.settle_ms
+        window = [item for item in track.history if monotonic_ms - item[0] <= need]
+        settled = all(hypot(anchor_x - x, anchor_y - y) <= self.settle_drift * scale for _, x, y, _ in window)
+        quiet_since = track.walk_ms if track.role == WALKER else track.first_ms
+        if (window and monotonic_ms - window[0][0] >= 0.8 * need and monotonic_ms - quiet_since >= need
+                and settled and track.standing_since is None):
             track.role = CANDIDATE
-            track.home = (median(x for _, x, _, _ in track.history), median(y for _, _, y, _ in track.history))
-            track.home_height = median(h for *_, h in track.history)
-        elif monotonic_ms - track.first_ms >= self.undecided_ms:
-            track.role = WALKER
+            track.home = (median(x for _, x, _, _ in window), median(y for _, _, y, _ in window))
+            track.home_height = median(w for *_, w in window)
         return track.role
 
     def left_seat(self, seat_id: UUID, monotonic_ms: int) -> bool:

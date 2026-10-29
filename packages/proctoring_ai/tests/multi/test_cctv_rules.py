@@ -137,3 +137,25 @@ def test_keypoints_follow_best_matching_box() -> None:
     people = [{"bbox": a.bbox.as_dict(), "keypoints": [[1, 1, 1]]},
               {"bbox": {"x": 0.8, "y": 0.1, "width": 0.1, "height": 0.1}, "keypoints": [[2, 2, 2]]}]
     assert keypoints_for([a], people) == {a.seat_id: [[1, 1, 1]]}
+
+
+def test_wrist_over_row_in_front_is_not_hand_activity() -> None:
+    # Row behind overlaps the row in front in the image; a writing hand there is not a reach.
+    rules, back, front = CctvSeatRules(), seat(0.4, 1, top=0.2), seat(0.42, 2, top=0.35)
+    play(rules, [back, front], calm, 0, 5_000)
+
+    def write(s: Seat, ms: int):
+        return person(cx=s.bbox.x + 0.05, top=s.bbox.y, wrist=(0.42, 0.42) if s is back else None)
+
+    assert opened(play(rules, [back, front], write, 5_000, 7_000)) == []
+
+
+def test_turning_towards_row_behind_is_look_at_neighbor() -> None:
+    rules, front, behind = CctvSeatRules(), seat(0.3, 1, top=0.4), seat(0.42, 2, top=0.2)
+    play(rules, [front, behind], calm, 0, 10_000)
+
+    def turned(s: Seat, ms: int):
+        return person(cx=s.bbox.x + 0.05, top=s.bbox.y, nose_dx=0.6 if s is front else 0.0)
+
+    look = opened(play(rules, [front, behind], turned, 10_000, 12_000), "LOOK_AT_NEIGHBOR")
+    assert [e["neighbor_seat_id"] for e in look] == [str(behind.seat_id)]
