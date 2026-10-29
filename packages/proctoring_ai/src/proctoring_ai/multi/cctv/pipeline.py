@@ -19,7 +19,7 @@ from .rules import keypoints_for
 
 
 class CctvPipeline:
-    def __init__(self, *, pose_detector: Any, tracker: MultiSubjectTracker, object_detector: Any | None = None,
+    def __init__(self, *, pose_detector: Any, tracker: MultiSubjectTracker | Any, object_detector: Any | None = None,
                  phone_every: int = 3, timeout_ms: int = 1200) -> None:
         self.pose_detector = pose_detector
         self.tracker = tracker

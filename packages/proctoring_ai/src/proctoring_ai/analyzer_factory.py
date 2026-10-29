@@ -201,16 +201,22 @@ class AnalyzerFactory:
             self._status["pose_detector"] = ("unavailable", f"{type(exc).__name__}:{exc}")
         return self.health()
 
-    def build_cctv_pipeline(self, *, max_subjects: int = 60, phone_every: int = 3,
-                            timeout_ms: int = 1200) -> Any:
-        """Whole-room CCTV: one pose pass for everyone; the object detector only looks for phones."""
+    def build_cctv_pipeline(self, *, max_subjects: int = 60, phone_every: int = 3, timeout_ms: int = 1200,
+                            seat_map: bool = True, tile_every: int = 2) -> Any:
+        """Whole-room CCTV: pose for everyone (plus enlarged tiles of the far rows), seats learned from
+        still heads; the object detector only looks for phones."""
 
         from .multi.cctv.pipeline import CctvPipeline
+        from .multi.cctv.seat_map import SeatMapTracker
+        from .multi.cctv.tiling import TiledPoseDetector
 
         if self.pose_detector is None:
             raise RuntimeError(f"pose detector unavailable: {self._status.get('pose_detector', ('', ''))[1]}")
-        return CctvPipeline(pose_detector=self.pose_detector, tracker=MultiSubjectTracker(max_subjects=max_subjects),
-                            object_detector=self.detector, phone_every=phone_every, timeout_ms=timeout_ms)
+        detector: Any = TiledPoseDetector(self.pose_detector, every=tile_every) if tile_every > 0 else self.pose_detector
+        tracker: Any = (SeatMapTracker(max_subjects=max_subjects) if seat_map
+                        else MultiSubjectTracker(max_subjects=max_subjects))
+        return CctvPipeline(pose_detector=detector, tracker=tracker, object_detector=self.detector,
+                            phone_every=phone_every, timeout_ms=timeout_ms)
 
     def health(self) -> dict[str, str]:
         return {name: status for name, (status, _reason) in self._status.items()}

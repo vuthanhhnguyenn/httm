@@ -50,6 +50,9 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--pose-size", type=int, default=960, help="cctv: kích thước ảnh vào YOLO-pose")
     parser.add_argument("--pose-conf", type=float, default=0.25, help="cctv: ngưỡng tin cậy người")
     parser.add_argument("--phone-every", type=int, default=3, help="cctv: tìm điện thoại mỗi N frame")
+    parser.add_argument("--tile-every", type=int, default=2,
+                        help="cctv: soi kỹ hàng xa (2 ô phóng to) mỗi N frame; 0 để tắt")
+    parser.add_argument("--no-seat-map", action="store_true", help="cctv: theo dõi từng người thay vì bản đồ ghế")
     return parser.parse_args(argv)
 
 
@@ -96,9 +99,15 @@ async def run(args: argparse.Namespace) -> int:
             factory.close()
             return 1
         timeout = FULL_MODE_TIMEOUT_MS if args.mode == "full" else 1200
-        pipeline: Any = factory.build_cctv_pipeline(max_subjects=60, phone_every=args.phone_every,
-                                                    timeout_ms=timeout)
-        rules = CctvSeatRules()
+        pipeline: Any = factory.build_cctv_pipeline(max_subjects=80, phone_every=args.phone_every,
+                                                    timeout_ms=timeout, seat_map=not args.no_seat_map,
+                                                    tile_every=args.tile_every)
+        if args.no_seat_map:
+            rules = CctvSeatRules()
+        else:
+            from proctoring_ai.multi.cctv.seat_map import SeatMapRoles
+
+            rules = CctvSeatRules(roles=SeatMapRoles(pipeline.tracker))
     else:
         print("AI:", health, flush=True)
         pipeline = factory.build_multi_pipeline(raw_config, max_subjects=args.max_subjects,

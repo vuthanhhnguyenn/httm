@@ -37,6 +37,7 @@ class CctvRuleConfig:
     pair_gap_widths: float = 2.5
     neighbor_rows_heights: float = 1.2
     max_hand_overlap: float = 0.3
+    same_row_widths: float = 0.5
 
 
 @dataclass(slots=True)
@@ -63,9 +64,11 @@ def _inside(p: tuple[float, float], box: Box) -> bool:
 class CctvSeatRules:
     """Same interface as the webcam ``_SeatRules`` so ``run_multi_replay`` can drive either."""
 
-    def __init__(self, config: CctvRuleConfig | None = None, roles: SeatRoleClassifier | None = None) -> None:
+    def __init__(self, config: CctvRuleConfig | None = None, roles: Any | None = None) -> None:
+        """``roles``: per-track ``SeatRoleClassifier`` (default) or a seat map's ``SeatMapRoles``."""
+
         self.config = config or CctvRuleConfig()
-        self.roles = roles or SeatRoleClassifier()
+        self.roles: Any = roles or SeatRoleClassifier()
         self._latches: dict[tuple[str, ...], _Latch] = {}
         self._yaw: dict[UUID, RollingBaseline] = {}
         self._pair_distance: dict[tuple[UUID, UUID], RollingBaseline] = {}
@@ -178,7 +181,8 @@ class CctvSeatRules:
             wrists = [p for index in (LEFT_WRIST, RIGHT_WRIST) if (p := point(kps, index, 0.4))]
             for other_id, other in candidates.items():
                 # Rows in front/behind overlap in a high camera's view; only side neighbours can be reached into.
-                if other_id == seat_id or _horizontal_overlap(seat.bbox, other.bbox) > cfg.max_hand_overlap:
+                same_row = abs(heads[other_id][1] - heads[seat_id][1]) < cfg.same_row_widths * seat.bbox.width
+                if other_id == seat_id or not same_row or _horizontal_overlap(seat.bbox, other.bbox) > cfg.max_hand_overlap:
                     continue
                 if any(_inside(p, other.bbox) and not _inside(p, seat.bbox) for p in wrists):
                     active[(EventType.SUSPICIOUS_HAND_ACTIVITY.value, seat_key)] = (
@@ -190,6 +194,11 @@ class CctvSeatRules:
                                 key=lambda s: distance(centre, s.bbox.center))
                     if owner.seat_id == seat_id:
                         active[(EventType.PHONE_DETECTED.value, seat_key)] = (cfg.phone_hold_ms, {})
+
+        for seat in result.tracker.missing:
+            # Seat-map mode: an empty seat is not in ``analyzed`` but can still have been left.
+            if self.roles.left_seat(seat.seat_id, ms):
+                active[(EventType.LEAVING_SEAT.value, str(seat.seat_id))] = (0, {})
 
         ordered = sorted(candidates, key=str)
         for index, first in enumerate(ordered):
