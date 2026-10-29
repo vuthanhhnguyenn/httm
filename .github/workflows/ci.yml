@@ -31,6 +31,10 @@ jobs:
         with:
           version: "0.12.x"
 
+      - name: Install Qt/MediaPipe system libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libegl1 libgles2 libgl1 libxkbcommon0
+
       - name: Install desktop dependencies
         run: uv sync --no-default-groups --group dev --extra opencv-python
 

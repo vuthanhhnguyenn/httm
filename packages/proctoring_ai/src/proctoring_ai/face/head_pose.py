@@ -54,6 +54,17 @@ class HeadPoseEstimator:
         self.calibration_status = "collecting"
         self._angle_window.clear()
 
+    def discard_history(self) -> None:
+        """Forget pending samples (smoothing, suggestion, collection); keep an accepted baseline."""
+
+        self._previous = None
+        self._last_ms = None
+        self._samples.clear()
+        self._angle_window.clear()
+        self._steady.clear()
+        if self.calibration_status == "suggested":
+            self.calibration_status = "uncalibrated"
+
     def calibrate(self, samples: list[dict[str, float]]) -> None:
         candidate = HeadPoseCalibration.from_samples(samples)
         if max(abs(candidate.yaw_offset), abs(candidate.pitch_offset)) > self.max_baseline_degrees:

@@ -21,6 +21,9 @@ EVENT_NAMES = {
     "POSSIBLE_TALKING": "Có dấu hiệu nói chuyện",
     "GAZE_OFF_SCREEN": "Nhìn ra ngoài màn hình",
     "GAZE_SIDEWAYS": "Liếc mắt sang bên kéo dài",
+    "LOOK_AT_NEIGHBOR": "Quay đầu về phía thí sinh bên cạnh",
+    "TURN_AROUND": "Quay ra phía sau",
+    "HEADS_TOGETHER": "Chụm đầu với thí sinh bên cạnh",
 }
 
 CORRELATION_NAMES = {
