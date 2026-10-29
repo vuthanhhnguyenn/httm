@@ -97,5 +97,11 @@ class RollingBaseline:
             return None
         return float(median(value for _, value in self._samples))
 
+    def spread(self, monotonic_ms: int) -> float:
+        """Median absolute deviation around the baseline: how much this seat normally moves."""
+
+        centre = self.value(monotonic_ms)
+        return 0.0 if centre is None else float(median(abs(value - centre) for _, value in self._samples))
+
 
 __all__ = ["RollingBaseline", "distance", "facing", "head_point", "head_yaw_index", "point", "shoulders"]

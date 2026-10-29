@@ -34,6 +34,7 @@ class CctvRuleConfig:
     phone_min_confidence: float = 0.5
     release_ms: int = 1_000
     gap_ms: int = 400
+    yaw_spread_factor: float = 2.5
     neighbor_gap_widths: float = 2.5
     pair_gap_widths: float = 2.5
     neighbor_rows_heights: float = 1.2
@@ -175,9 +176,11 @@ class CctvSeatRules:
             yaw = head_yaw_index(kps)
             baseline = self._yaw.setdefault(seat_id, RollingBaseline())
             reference = baseline.value(ms)
+            # A writer's head swings across the page all the time: the threshold grows with that seat's own jitter.
+            threshold = max(cfg.yaw_threshold, cfg.yaw_spread_factor * baseline.spread(ms))
             if yaw is not None:
                 baseline.add(yaw, ms)
-            if yaw is not None and reference is not None and abs(yaw - reference) > cfg.yaw_threshold:
+            if yaw is not None and reference is not None and abs(yaw - reference) > threshold:
                 side = 1 if yaw > reference else -1
                 turned.add(seat_id)
                 neighbor = self._neighbor_on_side(seat, heads[seat_id], side, heads, candidates)

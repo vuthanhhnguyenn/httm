@@ -197,3 +197,36 @@ def test_front_row_turning_back_to_lean_in_is_heads_together() -> None:
 
     together = opened(play(rules, [front, behind], lean_back, 10_000, 13_000), "HEADS_TOGETHER")
     assert len(together) == 2
+
+
+class _AllSeated:
+    """Seat-map roles: every seat is a candidate however much the head moves."""
+
+    def update(self, *_args, **_kwargs) -> str:
+        return "candidate"
+
+    def left_seat(self, *_args) -> bool:
+        return False
+
+    def forget(self, *_args) -> None:
+        return None
+
+    def counts(self) -> dict[str, int]:
+        return {}
+
+
+def test_writer_whose_head_always_swings_needs_a_bigger_turn() -> None:
+    # Writing across the page swings the nose ±0.4 shoulder widths all the time; holding 0.5 to one
+    # side is within that seat's normal range, not a look at the neighbour.
+    rules, a, b = CctvSeatRules(roles=_AllSeated()), seat(0.3, 1), seat(0.45, 2)
+
+    def writing(s: Seat, ms: int):
+        swing = 0.4 * ((ms // 500) % 3 - 1) if s is a else 0.0
+        return person(cx=s.bbox.x + 0.05, top=s.bbox.y, nose_dx=swing)
+
+    play(rules, [a, b], writing, 0, 15_000)
+
+    def offset(s: Seat, ms: int):
+        return person(cx=s.bbox.x + 0.05, top=s.bbox.y, nose_dx=0.5 if s is a else 0.0)
+
+    assert opened(play(rules, [a, b], offset, 15_000, 17_000)) == []
