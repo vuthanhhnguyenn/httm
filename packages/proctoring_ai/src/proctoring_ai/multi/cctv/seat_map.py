@@ -18,7 +18,7 @@ from uuid import UUID, uuid4
 
 from proctoring_core.observations import Box
 
-from ..tracker import Seat, TrackerUpdate
+from ..tracker import Seat, TrackerUpdate, iou
 from .head import Keypoints, distance, head_point
 from .roles import CANDIDATE, PENDING, WALKER, is_standing
 
@@ -34,6 +34,7 @@ class _MapSeat:
     seat: Seat
     head: tuple[float, float]
     width: float
+    home_box: Box
     occupancy: deque[tuple[int, bool]] = field(default_factory=deque)
     last_occupied_ms: int = 0
     last_nearby_ms: int = 0
@@ -52,6 +53,7 @@ class _Pending:
 class SeatMapTracker:
     def __init__(self, *, settle_ms: int = 3_000, settle_drift: float = 0.35, walk_drift: float = 1.0,
                  walk_window_ms: int = 2_000, standing_ms: int = 1_000, seat_radius: float = 0.9, nearby_radius: float = 1.5,
+                 lean_radius: float = 1.8, lean_overlap: float = 0.3, walker_travel: float = 2.5,
                  head_alpha: float = 0.05,
                  pending_ttl_ms: int = 1_000, leave_ms: int = 5_000, occupied_ratio: float = 0.8,
                  occupancy_window_ms: int = 30_000, max_subjects: int = 80) -> None:
@@ -59,6 +61,7 @@ class SeatMapTracker:
         self.walk_drift, self.walk_window_ms, self.standing_ms = walk_drift, walk_window_ms, standing_ms
         self.seat_radius, self.pending_ttl_ms = seat_radius, pending_ttl_ms
         self.nearby_radius, self.head_alpha = nearby_radius, head_alpha
+        self.lean_radius, self.lean_overlap, self.walker_travel = lean_radius, lean_overlap, walker_travel
         self.leave_ms, self.occupied_ratio, self.occupancy_window_ms = leave_ms, occupied_ratio, occupancy_window_ms
         self.max_subjects = max_subjects
         self.seats: dict[UUID, _MapSeat] = {}
@@ -84,7 +87,7 @@ class SeatMapTracker:
         box = pending.seat.bbox
         seat = Seat(uuid4(), self._next_seat_id, box, head, pending.seat.confidence, ms, ms, True)
         self._next_seat_id += 1
-        self.seats[seat.seat_id] = _MapSeat(seat, head, width, deque([(ms, True)]), ms)
+        self.seats[seat.seat_id] = _MapSeat(seat, head, width, box, deque([(ms, True)]), ms)
         return True
 
     def update(self, people: Sequence[Mapping[str, Any]], monotonic_ms: int) -> TrackerUpdate:
@@ -106,6 +109,18 @@ class SeatMapTracker:
                 continue  # standing up at the seat: the seat counts as empty, the person as an outsider
             assigned[index] = seat_id
             taken.add(seat_id)
+        # Second pass: a seated candidate leaning or turning toward a neighbour moves the head out of the
+        # seat radius while the body box still covers the seat. That is exactly when rules must keep running.
+        leaning = sorted((distance(heads[i], seat.head), i, seat_id) for i in range(len(observed)) if i not in assigned
+                         for seat_id, seat in self.seats.items() if seat_id not in taken
+                         and distance(heads[i], seat.head) < self.lean_radius * seat.width
+                         and iou(observed[i][0], seat.home_box) >= self.lean_overlap)
+        for _, index, seat_id in leaning:
+            if index in assigned or seat_id in taken or looks_standing(*observed[index][:2]):
+                continue
+            assigned[index] = seat_id
+            taken.add(seat_id)
+        leaned = {index for _, index, _ in leaning if index in assigned}
         for seat_id, entry in self.seats.items():
             occupied = seat_id in taken
             entry.occupancy.append((ms, occupied))
@@ -120,6 +135,8 @@ class SeatMapTracker:
             entry = self.seats[seat_id]
             entry.seat.bbox, entry.seat.confidence, entry.seat.last_seen_ms = box, confidence, ms
             entry.last_occupied_ms = ms
+            if index in leaned:
+                continue  # keep the seat's resting head and box; leaning is not where the seat is
             hx, hy = heads[index]
             alpha = self.head_alpha
             entry.head = (entry.head[0] + alpha * (hx - entry.head[0]), entry.head[1] + alpha * (hy - entry.head[1]))
@@ -147,11 +164,11 @@ class SeatMapTracker:
             while near.history and ms - near.history[0][0] > max(self.settle_ms, self.walk_window_ms):
                 near.history.popleft()
             near.standing_since = (near.standing_since or ms) if looks_standing(box, kps) else None
-            moved = any(hypot(head[0] - x, head[1] - y) > self.walk_drift * box.width
-                        for t, x, y, _ in near.history if ms - t <= self.walk_window_ms)
-            if moved:
+            recent = [(x, y) for t, x, y, _ in near.history if ms - t <= self.walk_window_ms]
+            if any(hypot(head[0] - x, head[1] - y) > self.settle_drift * box.width for x, y in recent):
                 near.quiet_since = ms
-            near.moving = moved
+            # Only real travel makes a walker; a seated person shifting in place stays pending.
+            near.moving = any(hypot(head[0] - x, head[1] - y) > self.walker_travel * box.width for x, y in recent)
             if self._promote(near, ms):
                 created += 1
                 self._pending.pop(near.seat.seat_id)

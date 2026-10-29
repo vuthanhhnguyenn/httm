@@ -106,3 +106,23 @@ def test_person_leaning_near_seat_is_not_leaving() -> None:
     # Leans far enough to drop out of the seat radius but stays at the desk.
     feed(tracker, [[body(0.39, height=0.45, width=0.1), body(0.6)]] * 80, start=15_000)
     assert not tracker.left_seat(seat_id, 23_000)
+
+
+def test_candidate_leaning_to_neighbour_keeps_seat_number() -> None:
+    tracker = SeatMapTracker()
+    feed(tracker, [[body(0.3), body(0.6)]] * 40)
+    seat_id = next(s for s, e in tracker.seats.items() if e.head[0] < 0.4)
+    number = tracker.seats[seat_id].seat.runtime_track_id
+    # Head moves 1.2 shoulder widths toward the neighbour; the body box still covers the seat.
+    leaning = body(0.3, width=0.22) | {"keypoints": person(cx=0.42, top=0.3)}
+    update = feed(tracker, [[leaning, body(0.6)]] * 20, start=4_000)
+    assert seat_id in {seat.seat_id for seat in update.analyzed}
+    assert tracker.roles[seat_id] == "candidate"
+    assert tracker.seats[seat_id].seat.runtime_track_id == number
+
+
+def test_seated_person_fidgeting_is_pending_not_walker() -> None:
+    tracker = SeatMapTracker()
+    # Head drifts 1.4 widths sideways and back every 2 s while seated: no seat yet, but no walker.
+    feed(tracker, [[body(0.3 + 0.007 * (i % 20 if (i // 20) % 2 == 0 else 20 - i % 20))] for i in range(60)])
+    assert set(tracker.roles.values()) <= {"pending", "candidate"}
