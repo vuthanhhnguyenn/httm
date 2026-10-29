@@ -1,0 +1,35 @@
+# Nhãn tay cho clip YouTube EPf9O7UXRoM (2 phút đầu, 1280x720), theo Nguyên 2026-10-29.
+# region: vùng đầu người liên quan [x0, y0, x1, y1], toạ độ chuẩn hoá theo khung hình.
+# kind: exchange = trao đổi / quay sang / chụm đầu; none = không được có sự kiện (giám thị).
+# Sự kiện ngoài mọi nhãn bị tính là báo sai.
+video: EPf9O7UXRoM.mp4
+labels:
+  - id: back-left-exchange
+    kind: exchange
+    start_s: 0
+    end_s: 4
+    region: [0.0, 0.05, 0.35, 0.35]
+    note: "0:02 hai người phía sau bên trái trao đổi"
+  - id: invigilator-walk
+    kind: none
+    start_s: 28
+    end_s: 46
+    note: "0:43 giám thị đi lại, không được sinh sự kiện (vùng thay đổi theo đường đi, chỉ để ghi chú)"
+  - id: front-right-turn
+    kind: exchange
+    start_s: 44
+    end_s: 50
+    region: [0.70, 0.45, 0.90, 0.70]
+    note: "0:46 người trước bên phải quay sang người bên cạnh"
+  - id: red-shirt-head-turn
+    kind: exchange
+    start_s: 49
+    end_s: 57
+    region: [0.75, 0.50, 0.90, 0.70]
+    note: "0:51 anh áo đỏ quay đầu sang bên"
+  - id: wall-pair
+    kind: exchange
+    start_s: 49
+    end_s: 55
+    region: [0.64, 0.15, 0.78, 0.33]
+    note: "0:51 hai chị cạnh tường phải chụm đầu"

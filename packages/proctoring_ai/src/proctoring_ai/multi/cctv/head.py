@@ -53,6 +53,17 @@ def head_yaw_index(kps: Keypoints | None) -> float | None:
     return (nose[0] - (lx + rx) / 2) / abs(lx - rx)
 
 
+def head_lift(kps: Keypoints | None, frame_aspect: float = 1.0) -> float | None:
+    """How far the nose sits above the shoulder line, in shoulder widths (pixel units). Near zero or
+    negative when the head is bent over the desk; ``frame_aspect`` is the frame's width / height."""
+
+    nose, pair = point(kps, NOSE, FACE_MIN_CONF), shoulders(kps)
+    if nose is None or pair is None:
+        return None
+    (lx, ly), (rx, ry) = pair
+    return ((ly + ry) / 2 - nose[1]) / (abs(lx - rx) * frame_aspect)
+
+
 def facing(kps: Keypoints | None) -> str:
     """``front`` when the face is seen, ``back`` when only shoulders are, else ``unknown``."""
 
@@ -104,4 +115,4 @@ class RollingBaseline:
         return 0.0 if centre is None else float(median(abs(value - centre) for _, value in self._samples))
 
 
-__all__ = ["RollingBaseline", "distance", "facing", "head_point", "head_yaw_index", "point", "shoulders"]
+__all__ = ["RollingBaseline", "distance", "facing", "head_lift", "head_point", "head_yaw_index", "point", "shoulders"]

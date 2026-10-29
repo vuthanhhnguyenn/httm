@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import platform
 import sys
 from pathlib import Path
@@ -52,6 +53,7 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--phone-every", type=int, default=3, help="cctv: tìm điện thoại mỗi N frame")
     parser.add_argument("--tile-every", type=int, default=4,
                         help="cctv: soi kỹ hàng xa (2 ô phóng to) mỗi N frame; 0 để tắt")
+    parser.add_argument("--debug", action="store_true", help="cctv: ghi debug.jsonl (hướng đầu, khoảng cách từng cặp)")
     parser.add_argument("--no-seat-map", action="store_true", help="cctv: theo dõi từng người thay vì bản đồ ghế")
     return parser.parse_args(argv)
 
@@ -103,11 +105,11 @@ async def run(args: argparse.Namespace) -> int:
                                                     timeout_ms=timeout, seat_map=not args.no_seat_map,
                                                     tile_every=args.tile_every)
         if args.no_seat_map:
-            rules = CctvSeatRules()
+            rules = CctvSeatRules(debug=args.debug)
         else:
             from proctoring_ai.multi.cctv.seat_map import SeatMapRoles
 
-            rules = CctvSeatRules(roles=SeatMapRoles(pipeline.tracker))
+            rules = CctvSeatRules(roles=SeatMapRoles(pipeline.tracker), debug=args.debug)
     else:
         print("AI:", health, flush=True)
         pipeline = factory.build_multi_pipeline(raw_config, max_subjects=args.max_subjects,
@@ -134,6 +136,9 @@ async def run(args: argparse.Namespace) -> int:
                                         exam_mode=args.exam_mode, run_config=run_config, rules=rules)
     finally:
         factory.close()
+    if rules is not None and getattr(rules, "debug_rows", None) is not None:
+        with (args.out / "debug.jsonl").open("w", encoding="utf-8") as handle:
+            handle.writelines(json.dumps(row) + "\n" for row in rules.debug_rows)
     timing = result.timing
     print(f"Xong {timing['frames']} frame, AI FPS {timing['ai_fps']}, độ trễ p95 {timing['latency_ms']['p95']} ms, "
           f"bỏ {timing['dropped_frames']} frame, "

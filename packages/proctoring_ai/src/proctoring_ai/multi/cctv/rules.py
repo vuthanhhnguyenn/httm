@@ -18,7 +18,7 @@ from proctoring_core.types import EventType
 
 from ..pipeline import MultiFrameResult
 from ..tracker import Seat
-from .head import RollingBaseline, distance, facing, head_point, head_yaw_index, point
+from .head import RollingBaseline, distance, facing, head_lift, head_point, head_yaw_index, point
 from .pose_detector import LEFT_WRIST, RIGHT_WRIST
 from .roles import CANDIDATE, SeatRoleClassifier
 
@@ -66,8 +66,9 @@ def _inside(p: tuple[float, float], box: Box) -> bool:
 class CctvSeatRules:
     """Same interface as the webcam ``_SeatRules`` so ``run_multi_replay`` can drive either."""
 
-    def __init__(self, config: CctvRuleConfig | None = None, roles: Any | None = None) -> None:
-        """``roles``: per-track ``SeatRoleClassifier`` (default) or a seat map's ``SeatMapRoles``."""
+    def __init__(self, config: CctvRuleConfig | None = None, roles: Any | None = None, *, debug: bool = False) -> None:
+        """``roles``: per-track ``SeatRoleClassifier`` (default) or a seat map's ``SeatMapRoles``.
+        ``debug`` keeps one row per candidate and frame in ``debug_rows`` for offline diagnosis."""
 
         self.config = config or CctvRuleConfig()
         self.roles: Any = roles or SeatRoleClassifier()
@@ -81,6 +82,8 @@ class CctvSeatRules:
         self._open: dict[UUID, dict[str, str]] = {}
         self._role_of: dict[UUID, str] = {}
         self.opened_by_type: dict[str, int] = {}
+        self._heads: dict[UUID, tuple[float, float]] = {}
+        self.debug_rows: list[dict[str, Any]] | None = [] if debug else None
 
     # -- latch bookkeeping -------------------------------------------------------------
     def _record(self, action: str, seat_id: UUID, event_type: str, latch: _Latch, offset: int,
@@ -90,6 +93,8 @@ class CctvSeatRules:
                 "monotonic_ms": monotonic_ms, "scene": "cctv", **latch.details, **extra}
         labels = self._open.setdefault(seat_id, {})
         if action == "opened":
+            if (head := self._heads.get(seat_id)) is not None:
+                item["head"] = [round(head[0], 3), round(head[1], 3)]
             labels[str(latch.event_id)] = event_type
             self.opened_by_type[event_type] = self.opened_by_type.get(event_type, 0) + 1
         else:
@@ -153,6 +158,8 @@ class CctvSeatRules:
         if self._last_ms is not None and ms > self._last_ms:
             self._frame_steps.append(ms - self._last_ms)
         self._last_ms = ms
+        size = frame.get("frame_size") or (1, 1)
+        aspect = size[0] / size[1] if size[1] else 1.0
         out: list[tuple[UUID, dict[str, Any]]] = []
         seats = {seat.seat_id: seat for seat in result.tracker.analyzed}
         for seat in (*result.tracker.analyzed, *result.tracker.missing):
@@ -161,6 +168,7 @@ class CctvSeatRules:
             self._role_of[seat_id] = self.roles.update(seat_id, seat.bbox, ms, result.poses.get(seat_id))
         candidates = {seat_id: seat for seat_id, seat in seats.items() if self._role_of[seat_id] == CANDIDATE}
         heads = {seat_id: head_point(result.poses.get(seat_id), seat.bbox) for seat_id, seat in candidates.items()}
+        self._heads.update(heads)
         phones = [box for item in result.objects if str(item.get("class", "")).casefold() == "cell phone"
                   and float(item.get("confidence", 0.0)) >= cfg.phone_min_confidence
                   and (box := Box.parse(item.get("bbox"))) is not None]
@@ -180,6 +188,12 @@ class CctvSeatRules:
             threshold = max(cfg.yaw_threshold, cfg.yaw_spread_factor * baseline.spread(ms))
             if yaw is not None:
                 baseline.add(yaw, ms)
+            if self.debug_rows is not None:
+                self.debug_rows.append({
+                    "t": offset, "seat": seat.runtime_track_id, "head": [round(v, 3) for v in heads[seat_id]],
+                    "yaw": None if yaw is None else round(yaw, 3),
+                    "ref": None if reference is None else round(reference, 3), "thr": round(threshold, 3),
+                    "lift": None if (lift := head_lift(kps, aspect)) is None else round(lift, 3), "view": view})
             if yaw is not None and reference is not None and abs(yaw - reference) > threshold:
                 side = 1 if yaw > reference else -1
                 turned.add(seat_id)
@@ -231,6 +245,10 @@ class CctvSeatRules:
                 baseline = self._pair_distance.setdefault((first, second), RollingBaseline())
                 reference = baseline.value(ms)
                 baseline.add(gap, ms)
+                if self.debug_rows is not None:
+                    self.debug_rows.append({"t": offset, "pair": [a.runtime_track_id, b.runtime_track_id],
+                                            "gap": round(gap / width, 3),
+                                            "ref": None if reference is None else round(reference / width, 3)})
                 # Across rows, a head bent over the desk drops towards the row in front; only a front-row
                 # candidate who turns round makes it a real exchange.
                 front = first if heads[first][1] > heads[second][1] else second
