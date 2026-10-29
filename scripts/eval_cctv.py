@@ -16,7 +16,7 @@ import yaml
 SLACK_S = 2.0  # sự kiện mở sớm/muộn hơn nhãn tối đa ngần này vẫn tính là khớp
 
 
-def _inside(head: list[float] | None, region: list[float], margin: float = 0.03) -> bool:
+def _inside(head: list[float] | None, region: list[float], margin: float = 0.02) -> bool:
     if head is None:
         return False
     x0, y0, x1, y1 = region

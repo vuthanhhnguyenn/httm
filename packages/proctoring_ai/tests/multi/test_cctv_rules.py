@@ -83,13 +83,13 @@ def test_turn_around_after_face_was_seen() -> None:
 
 def test_heads_together_opens_for_both_seats() -> None:
     rules, a, b = CctvSeatRules(), seat(0.3, 1), seat(0.42, 2)
-    play(rules, [a, b], calm, 0, 10_000)
+    play(rules, [a, b], calm, 0, 15_000)  # candidates from 3 s, usual head place known after 10 s
 
     def lean(s: Seat, ms: int):
         cx = s.bbox.x + 0.05
         return person(cx=cx + (0.05 if s is a else -0.05), top=s.bbox.y)
 
-    together = opened(play(rules, [a, b], lean, 10_000, 12_000), "HEADS_TOGETHER")
+    together = opened(play(rules, [a, b], lean, 15_000, 17_000), "HEADS_TOGETHER")
     assert sorted(e["seat_id"] for e in together) == sorted([str(a.seat_id), str(b.seat_id)])
 
 
@@ -196,7 +196,7 @@ def test_front_row_turning_back_to_lean_in_is_heads_together() -> None:
         return person(cx=s.bbox.x + 0.05, top=s.bbox.y + 0.05)
 
     together = opened(play(rules, [front, behind], lean_back, 10_000, 13_000), "HEADS_TOGETHER")
-    assert len(together) == 2
+    assert [e["seat_id"] for e in together] == [str(front.seat_id)]  # the one sitting still is not flagged
 
 
 class _AllSeated:
@@ -244,10 +244,50 @@ def test_nose_offset_while_bent_over_the_desk_is_not_a_turn() -> None:
 
 def test_front_row_leaning_back_into_row_behind_is_heads_together() -> None:
     rules, front, behind = _rows()
-    play(rules, [front, behind], calm, 0, 10_000)
+    play(rules, [front, behind], calm, 0, 15_000)  # candidates from 3 s, usual head place known after 10 s
 
     def lean_back(s: Seat, ms: int):  # face still to the camera, head pulled back towards the row behind
         return person(cx=s.bbox.x + 0.05, top=s.bbox.y - (0.08 if s is front else 0.0))
 
-    together = opened(play(rules, [front, behind], lean_back, 10_000, 13_000), "HEADS_TOGETHER")
-    assert len(together) == 2
+    together = opened(play(rules, [front, behind], lean_back, 15_000, 18_000), "HEADS_TOGETHER")
+    assert [e["seat_id"] for e in together] == [str(front.seat_id)]  # the one sitting still is not flagged
+
+
+def test_only_the_neighbour_who_leans_in_is_flagged() -> None:
+    rules, a, b = CctvSeatRules(), seat(0.3, 1), seat(0.42, 2)
+    play(rules, [a, b], calm, 0, 15_000)  # candidates from 3 s, usual head place known after 10 s
+
+    def lean(s: Seat, ms: int):
+        return person(cx=s.bbox.x + 0.05 + (0.08 if s is a else 0.0), top=s.bbox.y)
+
+    together = opened(play(rules, [a, b], lean, 15_000, 17_000), "HEADS_TOGETHER")
+    assert [e["seat_id"] for e in together] == [str(a.seat_id)]
+    assert together[0]["neighbor_seat_id"] == str(b.seat_id)
+
+
+def test_lean_needs_ten_seconds_of_usual_posture_first() -> None:
+    # A seat learned a few seconds ago while its candidate was bent over the paper: sitting up is not a lean.
+    rules, front, behind = _rows()
+    play(rules, [front, behind], calm, 0, 9_000)  # candidates from 3 s: 6 s of usual posture so far
+
+    def sit_up(s: Seat, ms: int):
+        return person(cx=s.bbox.x + 0.05, top=s.bbox.y - (0.08 if s is front else 0.0))
+
+    assert opened(play(rules, [front, behind], sit_up, 9_000, 12_000), "HEADS_TOGETHER") == []
+
+
+def test_sitting_up_after_writing_is_not_leaning_back() -> None:
+    # The usual head place is learned from upright frames only, so straightening up from the paper
+    # does not count as a lean towards the row behind.
+    rules, front, behind = CctvSeatRules(), seat(0.3, 1, top=0.4), seat(0.31, 2, top=0.3)
+
+    def writing(s: Seat, ms: int):
+        upright = s is behind or (ms // 1_000) % 5 == 0  # the front candidate looks up one second in five
+        return person(cx=s.bbox.x + 0.05, top=s.bbox.y, bent=not upright)
+
+    play(rules, [front, behind], writing, 0, 15_000)
+
+    def upright(s: Seat, ms: int):
+        return person(cx=s.bbox.x + 0.05, top=s.bbox.y)
+
+    assert opened(play(rules, [front, behind], upright, 15_000, 18_000), "HEADS_TOGETHER") == []

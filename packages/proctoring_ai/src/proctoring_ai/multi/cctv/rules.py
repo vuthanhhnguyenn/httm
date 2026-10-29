@@ -37,6 +37,7 @@ class CctvRuleConfig:
     yaw_spread_factor: float = 2.5
     min_head_lift: float = 0.1
     lean_widths: float = 0.45
+    home_min_ms: int = 10_000
     neighbor_gap_widths: float = 2.5
     pair_gap_widths: float = 2.5
     neighbor_rows_heights: float = 1.2
@@ -174,11 +175,14 @@ class CctvSeatRules:
         self._heads.update(heads)
         homes: dict[UUID, tuple[float, float]] = {}
         for seat_id, head in heads.items():
-            home_x, home_y = self._home.setdefault(seat_id, (RollingBaseline(), RollingBaseline()))
+            home_x, home_y = self._home.setdefault(seat_id, (RollingBaseline(min_span_ms=cfg.home_min_ms),
+                                                             RollingBaseline(min_span_ms=cfg.home_min_ms)))
             if (x := home_x.value(ms)) is not None and (y := home_y.value(ms)) is not None:
                 homes[seat_id] = (x, y)
-            home_x.add(head[0], ms)
-            home_y.add(head[1], ms)
+            # Learned from upright frames only: straightening up from the paper is not a lean.
+            if (lift := head_lift(result.poses.get(seat_id), aspect)) is not None and lift >= cfg.min_head_lift:
+                home_x.add(head[0], ms)
+                home_y.add(head[1], ms)
         phones = [box for item in result.objects if str(item.get("class", "")).casefold() == "cell phone"
                   and float(item.get("confidence", 0.0)) >= cfg.phone_min_confidence
                   and (box := Box.parse(item.get("bbox"))) is not None]
@@ -266,14 +270,16 @@ class CctvSeatRules:
                 # candidate who turns round or leans back makes it a real exchange.
                 front = first if heads[first][1] > heads[second][1] else second
                 across = abs(heads[first][1] - heads[second][1]) >= cfg.same_row_widths * width
+                # Only the candidate who reached over is flagged; the neighbour sitting still is not.
                 if across:
                     partner = second if front == first else first
-                    reached = front in turned or self._leaned(front, partner, heads, homes, width)
+                    movers = [front] if front in turned or self._leaned(front, partner, heads, homes, width) else []
                 else:
-                    reached = (self._leaned(first, second, heads, homes, width)
-                               or self._leaned(second, first, heads, homes, width))
-                if reference is not None and gap < cfg.together_ratio * reference and reached:
-                    for seat_id, partner in ((first, second), (second, first)):
+                    movers = [seat_id for seat_id, partner in ((first, second), (second, first))
+                              if self._leaned(seat_id, partner, heads, homes, width)]
+                if reference is not None and gap < cfg.together_ratio * reference:
+                    for seat_id in movers:
+                        partner = second if seat_id == first else first
                         active[(EventType.HEADS_TOGETHER.value, str(seat_id), str(partner))] = (
                             cfg.together_hold_ms, {"neighbor_seat_id": str(partner)})
 

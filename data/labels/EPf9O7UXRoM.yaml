@@ -33,3 +33,21 @@ labels:
     end_s: 57
     region: [0.64, 0.15, 0.78, 0.33]
     note: "0:51 hai chị cạnh tường phải chụm đầu; xem lại video: chị hàng trước ngả ra sau từ 0:44, giơ giấy lúc 0:53"
+  - id: blue-scarf-head-turn
+    kind: exchange
+    start_s: 34
+    end_s: 48
+    region: [0.15, 0.33, 0.22, 0.45]
+    note: "A: #10 chị khăn xanh ngẩng lên nhìn sang ngang hai lần; chỉ báo chị khăn xanh (Nguyên 2026-10-29)"
+  - id: black-shirt-head-turn
+    kind: exchange
+    start_s: 43
+    end_s: 48
+    region: [0.23, 0.25, 0.29, 0.31]
+    note: "B: #6 chị áo đen ngẩng lên nhìn về phía sau; chỉ báo chị áo đen, không báo chị áo hồng phía sau"
+  - id: back-left-pair-57s
+    kind: none
+    start_s: 55
+    end_s: 60
+    region: [0.13, 0.12, 0.20, 0.22]
+    note: "C: hai người phía sau bên trái lúc 0:57, Nguyên: không báo"
