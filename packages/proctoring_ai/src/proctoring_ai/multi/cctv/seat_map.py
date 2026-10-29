@@ -23,10 +23,12 @@ from .head import Keypoints, distance, head_point
 from .roles import CANDIDATE, PENDING, WALKER, is_standing
 
 
-def looks_standing(box: Box, kps: Keypoints | None, *, max_aspect: float = 2.2) -> bool:
-    """Standing bodies are tall and narrow; seated ones are cut by the desk."""
+def looks_standing(box: Box, kps: Keypoints | None, *, max_aspect: float = 2.2, min_aspect: float = 1.7) -> bool:
+    """Standing bodies are tall and narrow; seated ones are cut by the desk. Close to a high camera a
+    seated person's thighs point down the image, so low knees alone count only on a narrow box."""
 
-    return box.height / max(box.width, 1e-6) > max_aspect or is_standing(kps)
+    aspect = box.height / max(box.width, 1e-6)
+    return aspect > max_aspect or (aspect > min_aspect and is_standing(kps))
 
 
 @dataclass(slots=True)

@@ -126,3 +126,12 @@ def test_seated_person_fidgeting_is_pending_not_walker() -> None:
     # Head drifts 1.4 widths sideways and back every 2 s while seated: no seat yet, but no walker.
     feed(tracker, [[body(0.3 + 0.007 * (i % 20 if (i // 20) % 2 == 0 else 20 - i % 20))] for i in range(60)])
     assert set(tracker.roles.values()) <= {"pending", "candidate"}
+
+
+def test_seated_person_close_to_camera_is_a_seat_not_walker() -> None:
+    # Near the camera the thighs point down the image, so the knees sit well below the hips,
+    # but the box is wide (aspect 1.5): that is a seated person, not someone standing.
+    tracker = SeatMapTracker()
+    near = body(0.8, top=0.5, width=0.2, height=0.3) | {"keypoints": person(cx=0.8, top=0.5, standing=True)}
+    feed(tracker, [[near]] * 40)
+    assert len(tracker.seats) == 1 and set(tracker.roles.values()) == {"candidate"}
