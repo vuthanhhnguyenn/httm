@@ -44,6 +44,11 @@ class MediaPipeFaceLandmarker:
             self._pose_estimator.begin_calibration()
         return self._pose_estimator.calibration_status
 
+    def reject_last_face(self) -> None:
+        """The last face belonged to someone else: keep it out of the neutral-pose suggestion."""
+
+        self._pose_estimator.discard_history()
+
     @property
     def health(self) -> dict[str, Any]:
         if self._landmarker is not None:

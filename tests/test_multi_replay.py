@@ -130,18 +130,22 @@ class YawFace:
     def auto_calibrate(self) -> str:
         return self.calibration
 
+    def reject_last_face(self) -> None:
+        return None
+
     def close(self) -> None:
         return None
 
 
 def multi_pipeline(people: Callable[[int], list[dict[str, Any]]], yaws: list[Callable[[int], float]], *,
-                   calibration: str = "calibrated", on_detect: Callable[[], None] | None = None) -> MultiSubjectPipeline:
+                   calibration: str = "calibrated", on_detect: Callable[[], None] | None = None,
+                   frame_budget_ms: float = 10_000) -> MultiSubjectPipeline:
     queue = list(yaws)
     return MultiSubjectPipeline(
         detector=ScriptedDetector(people, on_detect), tracker=MultiSubjectTracker(),
         cropper=SubjectCropper(min_side=64),
         faces=PerSubjectFaceAnalyzer(lambda: YawFace(queue.pop(0) if queue else (lambda _ms: 0.0), calibration)),
-        focus_analyzers=FocusAnalyzers(None, None), scheduler=FocusScheduler(frame_budget_ms=10_000))
+        focus_analyzers=FocusAnalyzers(None, None), scheduler=FocusScheduler(frame_budget_ms=frame_budget_ms))
 
 
 def two_people(_index: int) -> list[dict[str, Any]]:
@@ -192,6 +196,8 @@ async def test_expired_seat_closes_its_open_events(tmp_path: Path) -> None:
     assert [e["action"] for e in missing][0] == "opened"
     closed = [e for e in missing if e["action"] == "closed"]
     assert closed and closed[0]["video_offset_ms"] < 13_900
+    assert closed[0]["close_reason"] == "SEAT_EXPIRED"
+    assert closed[0]["seat_last_seen_ms"] < 1_000
 
 
 async def test_short_video_never_calibrates_and_reports_status(tmp_path: Path) -> None:
@@ -246,3 +252,55 @@ def test_cli_refuses_existing_out_dir_without_overwrite(tmp_path: Path) -> None:
     (tmp_path / "old.txt").write_text("x", encoding="utf-8")
     assert module.main([str(tmp_path / "video.mp4"), "--out", str(tmp_path)]) == 2
     assert module.main([str(tmp_path / "missing.mp4"), "--out", str(tmp_path / "new")]) == 1
+
+
+async def test_neighbor_look_survives_seat_rotation(tmp_path: Path) -> None:
+    # Every frame over budget: the stable neighbour is analysed only every ~300 ms.
+    pipeline = multi_pipeline(two_people, [lambda _ms: 30.0, lambda _ms: 0.0], frame_budget_ms=-1.0)
+    await run(pipeline, 30, tmp_path, write_video=False)
+    opened = [e for e in read_events(tmp_path) if e["type"] == "LOOK_AT_NEIGHBOR" and e["action"] == "opened"]
+    assert [e["runtime_track_id"] for e in opened] == [1]
+
+
+async def test_realtime_annotated_video_keeps_source_timeline(tmp_path: Path) -> None:
+    import cv2
+
+    clock = {"t": 0.0}
+
+    def burn() -> None:
+        clock["t"] += 0.1
+
+    async def fake_sleep(seconds: float) -> None:
+        clock["t"] += max(0.0, seconds)
+
+    pipeline = multi_pipeline(two_people, [lambda _ms: 0.0, lambda _ms: 0.0], on_detect=burn)
+    config, policy = _config()
+    result = await run_multi_replay(ListSource(30, step_ms=33), pipeline, policy=policy, raw_config=config,
+                                    out_dir=tmp_path, mode="realtime", video_fps=30.0,
+                                    clock=lambda: clock["t"], sleep=fake_sleep)
+    assert result.timing["dropped_frames"] > 0
+    capture = cv2.VideoCapture(str(tmp_path / "annotated.mp4"))
+    written = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
+    capture.release()
+    assert abs(written - 30) <= 3
+
+
+def test_cli_records_analyzer_health_in_timing(tmp_path: Path) -> None:
+    import importlib.util
+
+    import cv2
+
+    video = tmp_path / "blank.mp4"
+    writer = cv2.VideoWriter(str(video), cv2.VideoWriter_fourcc(*"mp4v"), 10, (64, 48))
+    for _ in range(5):
+        writer.write(np.zeros((48, 64, 3), np.uint8))
+    writer.release()
+    spec = importlib.util.spec_from_file_location("analyze_video_multi", ROOT / "scripts" / "analyze_video_multi.py")
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    out = tmp_path / "out"
+    assert module.main([str(video), "--out", str(out), "--no-video", "--no-focus"]) == 0
+    timing = json.loads((out / "timing.json").read_text(encoding="utf-8"))
+    assert set(timing["config"]["analyzers"]) >= {"object_detector", "face"}
+    assert "status" in timing["config"]["analyzers"]["face"]

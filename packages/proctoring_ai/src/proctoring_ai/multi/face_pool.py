@@ -26,6 +26,8 @@ class FaceAnalyzerLike(Protocol):
 
     def auto_calibrate(self) -> str: ...
 
+    def reject_last_face(self) -> None: ...
+
     def close(self) -> None: ...
 
 
@@ -75,20 +77,24 @@ class PerSubjectFaceAnalyzer:
         except Exception:
             raw = {"status": "error", "faces": []}
         latency = (perf_counter() - started) * 1000
-        calibration = instance.auto_calibrate()
         if self.motion_gate is not None:
             self.motion_gate.record(seat_id, crop.image, monotonic_ms)
         status = str(raw.get("status", "error"))
         faces = raw.get("faces") or []
+        if status == "ready" and faces:
+            face = crop.transform.map_face(faces[0])
+            bbox = face.get("bbox")
+            if seat_box is not None and isinstance(bbox, Mapping):
+                centre = (bbox["x"] + bbox["width"] / 2, bbox["y"] + bbox["height"] / 2)
+                if not _inside(centre, seat_box):
+                    # The candidate seated behind: never attribute it, nor let it set this seat's baseline.
+                    instance.reject_last_face()
+                    previous = self._last.get(seat_id)
+                    return FaceResult("mismatch", None, False, latency,
+                                      previous.calibration_status if previous else "uncalibrated")
+        calibration = instance.auto_calibrate()
         if status != "ready" or not faces:
             return FaceResult(status if status != "ready" else "no_detection", None, False, latency, calibration)
-        face = crop.transform.map_face(faces[0])
-        bbox = face.get("bbox")
-        if seat_box is not None and isinstance(bbox, Mapping):
-            centre = (bbox["x"] + bbox["width"] / 2, bbox["y"] + bbox["height"] / 2)
-            if not _inside(centre, seat_box):
-                # A face of the candidate seated behind this one; never attribute it to this seat.
-                return FaceResult("mismatch", None, False, latency, calibration)
         return FaceResult("ready", face, False, latency, calibration)
 
     async def analyze(self, crops: Mapping[UUID, Crop], seat_boxes: Mapping[UUID, Box], *, frame_id: int,

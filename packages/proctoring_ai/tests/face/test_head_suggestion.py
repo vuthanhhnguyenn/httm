@@ -50,3 +50,13 @@ def test_auto_calibrate_accepts_suggestion_after_3_s() -> None:
     feed(estimator, [3.0 + (index % 2) for index in range(9)], start=2125)  # … 3125 ms
     assert landmarker.auto_calibrate() == "calibrated"
     assert 3.0 <= estimator.calibration.yaw_offset <= 4.0
+
+
+def test_rejected_face_withdraws_pending_suggestion() -> None:
+    from proctoring_ai.face.landmarks import MediaPipeFaceLandmarker
+
+    landmarker = MediaPipeFaceLandmarker(None, suggest_after_ms=3000)
+    feed(landmarker._pose_estimator, [3.0 + (index % 2) for index in range(26)])  # … 3125 ms
+    assert landmarker._pose_estimator.calibration_status == "suggested"
+    landmarker.reject_last_face()  # it belonged to someone else
+    assert landmarker.auto_calibrate() == "uncalibrated"

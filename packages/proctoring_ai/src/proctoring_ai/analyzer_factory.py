@@ -48,6 +48,9 @@ class _UnavailableFace:
     def auto_calibrate(self) -> str:
         return "uncalibrated"
 
+    def reject_last_face(self) -> None:
+        return None
+
     def close(self) -> None:
         return None
 

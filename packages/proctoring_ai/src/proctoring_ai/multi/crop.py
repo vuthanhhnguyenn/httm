@@ -21,6 +21,9 @@ except ImportError:  # pragma: no cover - exercised in environments without CV w
     cv2 = None
 
 _MIN_PIXELS = 4
+# A face this many source pixels across (geometric mean of width and height) has full quality;
+# with face_min_quality 0.35 the gate sits near 28 px, below which landmarks are mostly noise.
+_FULL_QUALITY_PIXELS = 80.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,6 +64,12 @@ class CropTransform:
         if face.get("face_width") is not None:
             mapped["face_width"] = float(face["face_width"]) * self.width / self.frame_width
         mapped["frame_width"], mapped["frame_height"] = self.frame_width, self.frame_height
+        box = face.get("bbox")
+        if isinstance(box, Mapping) and float(face.get("quality", 0.0)) > 0:
+            # Quality from the face's real pixel size: an upscaled crop must not make a 20 px face
+            # look as reliable as a close one.
+            pixels = (float(box["width"]) * self.width * float(box["height"]) * self.height) ** 0.5
+            mapped["quality"] = min(1.0, pixels / _FULL_QUALITY_PIXELS)
         return mapped
 
     def map_hand(self, hand: Mapping[str, Any]) -> dict[str, Any]:

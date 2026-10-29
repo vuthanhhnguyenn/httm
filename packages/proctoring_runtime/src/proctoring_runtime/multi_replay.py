@@ -50,7 +50,9 @@ class AnnotatedVideoWriter:
         self.fps = fps
         self._writer: Any = None
 
-    def write(self, image: Any, result: MultiFrameResult, open_labels: Mapping[UUID, list[str]]) -> None:
+    def write(self, image: Any, result: MultiFrameResult, open_labels: Mapping[UUID, list[str]],
+              repeat: int = 1) -> None:
+        """``repeat`` holds the frame over skipped source frames so video time matches event offsets."""
         if cv2 is None or image is None:
             return
         height, width = image.shape[:2]
@@ -79,7 +81,8 @@ class AnnotatedVideoWriter:
             for index, label in enumerate(labels[:3]):
                 cv2.putText(canvas, label, (x0 + 2, y0 + 16 + 14 * index), cv2.FONT_HERSHEY_SIMPLEX, 0.4,
                             (0, 0, 255), 1)
-        self._writer.write(canvas)
+        for _ in range(max(1, repeat)):
+            self._writer.write(canvas)
 
     def close(self) -> None:
         if self._writer is not None:
@@ -118,11 +121,14 @@ class _SeatRules:
         return {**item, "seat_id": str(seat_id), "runtime_track_id": self.runtime_ids.get(seat_id),
                 "video_offset_ms": offset, "face_reused": reused}
 
-    def _heads(self, result: MultiFrameResult) -> list[SubjectHead]:
-        heads = []
+    def _heads(self, result: MultiFrameResult) -> tuple[list[SubjectHead], list[SubjectHead]]:
+        """Seats analysed this frame are sampled; seats skipped by rotation still count as neighbours."""
+
+        heads, neighbors = [], []
         for seat in result.tracker.analyzed:
             if seat.seat_id not in result.bundles:
-                continue  # not analysed this frame (rotation); its rule state waits for the next sample
+                neighbors.append(SubjectHead(str(seat.seat_id), seat.bbox, None, 0.0, False))
+                continue
             face = result.faces.get(seat.seat_id)
             data = face.face if face is not None else None
             heads.append(SubjectHead(
@@ -130,13 +136,14 @@ class _SeatRules:
                 float(data["yaw"]) if data is not None and "yaw" in data else None,
                 float(data.get("quality", 0.0)) if data is not None else 0.0,
                 data is not None and data.get("calibration_status") == "calibrated"))
-        return heads
+        return heads, neighbors
 
     async def step(self, result: MultiFrameResult, frame: dict[str, Any], offset: int) -> list[tuple[UUID, dict[str, Any]]]:
         for seat in (*result.tracker.analyzed, *result.tracker.missing):
             self.runtime_ids[seat.seat_id] = seat.runtime_track_id
         extra: dict[str, list[RuleSignal]] = {}
-        for signal in self.neighbor.evaluate(session_id=self.session_id, subjects=self._heads(result),
+        heads, neighbors = self._heads(result)
+        for signal in self.neighbor.evaluate(session_id=self.session_id, subjects=heads, neighbors=neighbors,
                                              monotonic_ms=result.monotonic_ms):
             extra.setdefault(str(signal.track_id), []).append(signal)
         for seat in result.tracker.missing:
@@ -154,7 +161,9 @@ class _SeatRules:
             self.neighbor.forget(str(seat.seat_id))
             expired = self.processors.pop(seat.seat_id, None)
             if expired is not None:
-                emitted += [(seat.seat_id, self._annotate(seat.seat_id, item, offset, False))
+                # Closed because the seat was given up, not because the candidate came back.
+                emitted += [(seat.seat_id, {**self._annotate(seat.seat_id, item, offset, False),
+                                            "close_reason": "SEAT_EXPIRED", "seat_last_seen_ms": seat.last_seen_ms})
                             for item in expired.finish(frame["captured_at_utc"])]
         return emitted
 
@@ -237,6 +246,7 @@ async def run_multi_replay(
 
     last_frame: dict[str, Any] | None = None
     last_offset = 0
+    written_offset: int | None = None
     await source.open()
     try:
         frame = await next_frame()
@@ -259,7 +269,9 @@ async def run_multi_replay(
                        else analysed.timing.total_ms)
             timing.add(analysed, latency_ms=latency)
             if writer is not None:
-                writer.write(frame.get("image"), analysed, rules.labels())
+                repeat = 1 if written_offset is None else round((offset - written_offset) * video_fps / 1000)
+                writer.write(frame.get("image"), analysed, rules.labels(), repeat=repeat)
+                written_offset = offset
             result.frames_analyzed += 1
             last_frame, last_offset = frame, offset
             if not overlap:

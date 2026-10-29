@@ -57,10 +57,14 @@ class NeighborLookEvaluator:
                           ("HEAD_TOWARDS_NEIGHBOR",), {**metrics, "risk_cap": self.risk_cap},
                           rule_key=EventType.LOOK_AT_NEIGHBOR.value)
 
-    def evaluate(self, *, session_id: Any, subjects: Sequence[SubjectHead], monotonic_ms: int) -> list[RuleSignal]:
+    def evaluate(self, *, session_id: Any, subjects: Sequence[SubjectHead], monotonic_ms: int,
+                 neighbors: Sequence[SubjectHead] = ()) -> list[RuleSignal]:
+        """Sample every subject; ``neighbors`` only add geometry (seats without a fresh face this frame)."""
+
         signals: list[RuleSignal] = []
+        everyone = [*subjects, *neighbors]
         for subject in subjects:
-            others = [item for item in subjects if item.track_id != subject.track_id]
+            others = [item for item in everyone if item.track_id != subject.track_id]
             neighbor: SubjectHead | None = None
             usable = (subject.calibrated and subject.yaw is not None and subject.quality >= self.min_quality)
             if usable and subject.yaw is not None and abs(subject.yaw) > self.yaw_degrees:

@@ -86,7 +86,7 @@ async def run(args: argparse.Namespace) -> int:
     run_config: dict[str, Any] = {key: (str(value) if isinstance(value, Path) else value)
                                   for key, value in vars(args).items()}
     run_config["hardware"] = _hardware()
-    run_config["detector_device"] = factory.health_details().get("object_detector", {}).get("device", "")
+    run_config["analyzers"] = factory.health_details()  # load failures and their reasons
     try:
         await source.open()
         await source.close()

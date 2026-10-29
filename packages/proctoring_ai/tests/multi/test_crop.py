@@ -74,3 +74,15 @@ def test_degenerate_box_returns_none() -> None:
     image = np.zeros(FRAME, np.uint8)
     assert SubjectCropper().crop_head(image, Box(0.5, 0.5, 0.001, 0.001)) is None
     assert SubjectCropper().crop_head(image, Box(1.2, 0.5, 0.1, 0.1)) is None
+
+
+def test_face_quality_is_recomputed_from_source_pixels() -> None:
+    # A face filling the crop scores ~1.0 in crop terms; in the source it is only 20×20 px.
+    t = CropTransform(x0=0, y0=0, width=40, height=40, frame_width=1280, frame_height=720)
+    face = t.map_face({"bbox": {"x": 0.25, "y": 0.25, "width": 0.5, "height": 0.5}, "quality": 0.95})
+    assert face["quality"] == pytest.approx(20 / 80)  # below face_min_quality 0.35
+    near = CropTransform(x0=0, y0=0, width=200, height=200, frame_width=1280, frame_height=720)
+    assert near.map_face({"bbox": {"x": 0.25, "y": 0.25, "width": 0.5, "height": 0.5},
+                          "quality": 0.5})["quality"] == 1.0
+    invalid = t.map_face({"bbox": {"x": 0.25, "y": 0.25, "width": 0.5, "height": 0.5}, "quality": 0.0})
+    assert invalid["quality"] == 0.0

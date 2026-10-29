@@ -87,3 +87,15 @@ def test_forget_closes_open_condition() -> None:
 
 def test_look_at_neighbor_has_low_risk_weight() -> None:
     assert RiskEngine.DEFAULT_WEIGHTS[EventType.LOOK_AT_NEIGHBOR] == 5.0
+
+
+def test_geometry_only_neighbors_count_without_their_own_sample() -> None:
+    evaluator = NeighborLookEvaluator(yaw_degrees=22)
+    session = uuid4()
+    last: list[RuleSignal] = []
+    for ms in range(0, 1600, 100):
+        last = evaluator.evaluate(session_id=session, monotonic_ms=ms,
+                                  subjects=[SubjectHead("a", LEFT, 30.0, 0.9, True)],
+                                  neighbors=[SubjectHead("b", RIGHT, None, 0.0, False)])
+    assert [s.state for s in last] == [SignalState.ACTIVE]
+    assert last[0].metrics["neighbor_track_id"] == "b"

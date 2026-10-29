@@ -25,6 +25,8 @@ class FakeFace:
         self.face = face if face is not None else CENTRE_FACE
         self.delay, self.error, self.calibration = delay, error, calibration
         self.calls = 0
+        self.rejected = 0
+        self.calibrate_calls = 0
         self.closed = False
         self.frames: list[dict[str, Any]] = []
 
@@ -41,7 +43,11 @@ class FakeFace:
         return {"status": "ready", "reason": None, "faces": [dict(self.face)]}
 
     def auto_calibrate(self) -> str:
+        self.calibrate_calls += 1
         return self.calibration
+
+    def reject_last_face(self) -> None:
+        self.rejected += 1
 
     def close(self) -> None:
         self.closed = True
@@ -142,3 +148,14 @@ async def test_release_closes_instance_and_frees_slot() -> None:
     pool.release(a)
     assert fakes[0].closed
     assert (await run(pool, {b: crop_at(0)}))[b].status == "ready"
+
+
+async def test_mismatch_is_rejected_before_calibration() -> None:
+    behind = {**CENTRE_FACE, "bbox": {"x": 0.9, "y": 0.0, "width": 0.1, "height": 0.1}}
+    fake = FakeFace(face=behind, calibration="calibrated")
+    pool = pool_with([fake])
+    a = uuid4()
+    narrow = Box(0.0, 40 / 480, 100 / 640, 0.6)
+    result = (await pool.analyze({a: crop_at(0)}, {a: narrow}, frame_id=1, monotonic_ms=0))[a]
+    assert fake.rejected == 1 and fake.calibrate_calls == 0
+    assert result.status == "mismatch"
