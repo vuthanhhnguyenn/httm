@@ -44,7 +44,7 @@ $rawTemplate = Join-Path $OutDir "raw\%(id)s.%(ext)s"
 $sources = Join-Path $OutDir "nguon.tsv"
 function Fetch([string]$target, [string[]]$extra) {
     Write-Host "Tải: $target"
-    uvx yt-dlp --no-playlist --ignore-errors -f "b[height<=720]/b" @extra `
+    uvx yt-dlp --no-playlist --ignore-errors -f "bv*[height<=720]/bv*/b" @extra `
         --print-to-file "%(id)s`t%(title)s`t%(webpage_url)s" $sources `
         -o $rawTemplate $target
 }
@@ -53,7 +53,12 @@ if ($Url.Count -eq 0 -or $AlsoSearch) {
     foreach ($q in $Query) { Fetch "ytsearch$($PerQuery):$q" @("--match-filter", "duration < $($MaxMinutes * 60)") }
 }
 
-Get-ChildItem (Join-Path $OutDir "raw") -File | ForEach-Object {
+$rawDir = Join-Path $OutDir "raw"
+if (-not (Test-Path $rawDir)) {
+    Write-Host "Không tải được video nào. Nếu yt-dlp báo thiếu JavaScript runtime, cài deno: winget install DenoLand.Deno"
+    exit 1
+}
+Get-ChildItem $rawDir -File | ForEach-Object {
     $clip = Join-Path $OutDir ($_.BaseName + ".mp4")
     if (-not (Test-Path $clip)) { & $Python $trimPy $_.FullName $clip $Seconds }
 }
