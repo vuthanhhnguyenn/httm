@@ -152,3 +152,10 @@ async def test_build_multi_pipeline_without_models_reports_unavailable(tmp_path:
     assert isinstance(built, MultiSubjectPipeline)
     result = await built.analyze(frame(0), session_id=uuid4())
     assert result.bundles == {}
+
+
+async def test_next_detect_does_not_move_seats_of_pending_stage() -> None:
+    p = pipeline(FakeDetector([[person(0.1)], [person(0.15)]]))
+    first = await p.detect(frame(0))
+    await p.detect(frame(1))  # overlapped: frame t+1 detected before frame t is analysed
+    assert first.tracker.analyzed[0].bbox.x == pytest.approx(0.1)

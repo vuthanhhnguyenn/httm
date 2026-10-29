@@ -8,7 +8,7 @@ the GPU, then the tracker) for frame t+1 can run while ``analyze_subjects``
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from time import perf_counter
 from typing import Any
 from uuid import UUID
@@ -21,7 +21,7 @@ from .crop import Crop, SubjectCropper
 from .face_pool import FaceResult, PerSubjectFaceAnalyzer
 from .focus import FocusScheduler
 from .focus_analyzers import FocusAnalyzers, FocusResult
-from .tracker import MultiSubjectTracker, TrackerUpdate
+from .tracker import MultiSubjectTracker, Seat, TrackerUpdate
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,6 +58,16 @@ class MultiFrameResult:
     focus: dict[UUID, FocusResult]
     objects: list[dict[str, Any]]
     timing: FrameTiming
+
+
+def _snapshot(update: TrackerUpdate) -> TrackerUpdate:
+    """Copy seats so detecting frame t+1 cannot move the boxes frame t is analysed with."""
+
+    def copy(seats: list[Seat]) -> list[Seat]:
+        return [replace(seat) for seat in seats]
+
+    return replace(update, analyzed=copy(update.analyzed), over_limit=copy(update.over_limit),
+                   missing=copy(update.missing), expired=copy(update.expired))
 
 
 class MultiSubjectPipeline:
@@ -109,7 +119,7 @@ class MultiSubjectPipeline:
             detections = self.object_tracker.update(detections, monotonic_ms)
         started = perf_counter()
         people = [item for item in detections if str(item.get("class", "")).casefold() == "person"]
-        update = self.tracker.update(people, monotonic_ms)
+        update = _snapshot(self.tracker.update(people, monotonic_ms))
         return DetectionStage(frame, detections, update, health, health.latency_ms,
                               (perf_counter() - started) * 1000, reuse)
 
@@ -133,9 +143,11 @@ class MultiSubjectPipeline:
             self.scheduler.forget(seat.seat_id)
         seats = {seat.seat_id: seat for seat in update.analyzed}
         plan = self.scheduler.plan(list(seats), monotonic_ms, last_frame_ms=self._last_total_ms)
+        # Seat order (not set order) keeps instance creation and outputs deterministic.
+        face_seats = [seat_id for seat_id in seats if seat_id in plan.face_seats]
         head_crops: dict[UUID, Crop] = {}
         if image is not None:
-            for seat_id in plan.face_seats:
+            for seat_id in face_seats:
                 crop = self.cropper.crop_head(image, seats[seat_id].bbox)
                 if crop is not None:
                     head_crops[seat_id] = crop
@@ -162,13 +174,13 @@ class MultiSubjectPipeline:
 
         (faces, face_ms), (focus, focus_ms), quality = await asyncio.gather(
             run_faces(), run_focus(), self._quality(image))
-        for seat_id in plan.face_seats:
+        for seat_id in face_seats:
             if seat_id not in faces:  # degenerate crop: analysed, nothing to see
                 faces[seat_id] = FaceResult("no_detection", None, False, 0.0, "uncalibrated")
             self.scheduler.record_face(seat_id, monotonic_ms)
         assigned = assign_objects(stage.detections, list(seats.values()))
         bundles: dict[UUID, ObservationBundle] = {}
-        for seat_id in plan.face_seats:
+        for seat_id in face_seats:
             bundles[seat_id] = build_subject_bundle(
                 frame=frame, session_id=session_id, seat=seats[seat_id], visible=True, face=faces[seat_id],
                 focus=focus.get(seat_id), objects=assigned.get(seat_id, []), image_quality=quality,
