@@ -24,6 +24,9 @@ EVENT_NAMES = {
     "LOOK_AT_NEIGHBOR": "Quay đầu về phía thí sinh bên cạnh",
     "TURN_AROUND": "Quay ra phía sau",
     "HEADS_TOGETHER": "Chụm đầu với thí sinh bên cạnh",
+    "PASSING_OBJECT": "Chuyền đồ vật với thí sinh bên cạnh",
+    "LOOK_AT_LAP": "Cúi nhìn xuống đùi lâu",
+    "UNCLASSIFIED_SUSPECT": "Đoạn nghi vấn chưa phân loại",
 }
 
 CORRELATION_NAMES = {
