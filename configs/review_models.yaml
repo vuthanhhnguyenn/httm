@@ -1,0 +1,32 @@
+# Model train sẵn cho tầng kỹ CCTV (scripts/review_suspects.py). Đường dẫn tính từ models/.
+# kind: pose (khung xương COCO 17 điểm) | objects (vật thể). class_map đổi tên lớp của model về
+# phone / paper / book; lớp không có trong class_map bị bỏ. Model thiếu file hoặc sai SHA-256 bị bỏ qua
+# và ghi lý do vào timing.json. Hai model thấy cùng một vật thì giữ kết quả tin cậy hơn.
+models:
+  - name: yolo11x-pose
+    kind: pose
+    path: pretrained/yolo11x-pose.pt
+    sha256: 013c43543b0751b8918486ba96e01ee44a59040683a07f96cc22bcc2cb7785f8
+    min_conf: 0.25
+  - name: yolo11x
+    kind: objects
+    path: pretrained/yolo11x.pt
+    sha256: 7bc158aa95c0ebfdd87f70f01653c1131b93e92522dbe15c228bcd742e773a24
+    min_conf: 0.35
+    class_map: {cell phone: phone, book: book}
+  # Tắt sau lần thử 2026-11-04 (docs/superpowers/notes/2026-11-04-yoloe-spike.md): không thấy giấy.
+  # Tạo file bằng scripts/export_yoloe_prompts.py rồi điền sha256 nếu muốn bật lại.
+  - name: yoloe-11l-seg-exam
+    kind: objects
+    path: pretrained/yoloe-11l-seg-exam.pt
+    min_conf: 0.2
+    class_map: {phone: phone, paper: paper, notebook: paper, book: book}
+    enabled: false
+  # Mẫu: detector gian lận train sẵn tải từ GitHub/HuggingFace (Ultralytics .pt). Điền path, sha256
+  # và class_map theo tên lớp của model đó, rồi bỏ dấu #.
+  # - name: proctoring-extra
+  #   kind: objects
+  #   path: pretrained/proctoring-extra.pt
+  #   sha256: <sha256 của file>
+  #   min_conf: 0.3
+  #   class_map: {mobile_phone: phone, cheat_sheet: paper, book: book}
