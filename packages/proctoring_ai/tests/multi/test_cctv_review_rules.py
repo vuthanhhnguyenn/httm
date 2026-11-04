@@ -221,3 +221,12 @@ def test_event_head_is_taken_at_event_time() -> None:
                             frames(seats, pose, 0, 3000, lambda ms: [phone(0.3, 0.42)] if ms < 600 else []))
     opened = [item for item in records if item["action"] == "opened"]
     assert opened[0]["head"][0] < 0.31
+
+
+def test_calculator_lying_on_desk_by_the_hand_is_not_phone() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    pose = lambda key, ms: wristed(person(cx=0.3, top=0.3), left=(0.3, 0.45))  # noqa: E731
+    records = review_window(window(seats, a, 0, 1000),
+                            frames(seats, pose, 0, 1000, lambda ms: [phone(0.31, 0.455)]))
+    assert "PHONE_DETECTED" not in kinds(records)

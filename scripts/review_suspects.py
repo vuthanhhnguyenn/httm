@@ -22,6 +22,7 @@ for _src in ("packages/proctoring_core/src", "packages/proctoring_ai/src", "pack
         sys.path.insert(0, str(ROOT / _src))
 
 import cv2  # noqa: E402
+import numpy as np  # noqa: E402
 from proctoring_ai.multi.cctv.crops import crop_image, crop_region  # noqa: E402
 from proctoring_ai.multi.cctv.review_rules import (  # noqa: E402
     ReviewFrame,
@@ -29,6 +30,7 @@ from proctoring_ai.multi.cctv.review_rules import (  # noqa: E402
     review_window,
 )
 from proctoring_ai.multi.cctv.suspects import SuspectWindow  # noqa: E402
+from proctoring_runtime.messages import event_name  # noqa: E402
 
 WARMUP_MS = 8000  # head baselines need a few seconds of usual posture before the window
 
@@ -48,6 +50,32 @@ def _frames(capture: Any, start_ms: int, end_ms: int, fps: float) -> list[tuple[
         out.append((int(round(position)), image))
         target = position + step
     return out
+
+
+_FONTS = ("C:/Windows/Fonts/arial.ttf", "C:/Windows/Fonts/segoeui.ttf",
+          "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/Library/Fonts/Arial Unicode.ttf")
+
+
+def put_text(image: Any, text: str, origin: tuple[int, int], size: int = 18,
+             colour: tuple[int, int, int] = (255, 255, 0)) -> Any:
+    """Vietnamese text on a BGR image (OpenCV's own fonts have no diacritics)."""
+
+    from PIL import Image, ImageDraw, ImageFont
+
+    font: Any = None
+    for path in _FONTS:
+        try:
+            font = ImageFont.truetype(path, size)
+            break
+        except OSError:
+            continue
+    canvas = Image.fromarray(image[:, :, ::-1].copy())
+    draw = ImageDraw.Draw(canvas)
+    x, y = origin
+    box = draw.textbbox((x, y), text, font=font or ImageFont.load_default())
+    draw.rectangle(box, fill=(0, 0, 0))
+    draw.text((x, y), text, fill=colour, font=font or ImageFont.load_default())
+    return np.asarray(canvas)[:, :, ::-1].copy()
 
 
 def review_seats(window: SuspectWindow, limit: int = 2) -> dict[Any, Any]:
@@ -78,10 +106,10 @@ def _draw(image: Any, window: SuspectWindow, frame: ReviewFrame | None, item: di
         for obj in frame.objects:
             box = obj.bbox
             cv2.rectangle(canvas, px(box.x, box.y), px(box.x + box.width, box.y + box.height), (255, 0, 255), 2)
-            cv2.putText(canvas, f"{obj.label} {obj.confidence:.2f}", px(box.x, box.y), cv2.FONT_HERSHEY_SIMPLEX,
-                        0.5, (255, 0, 255), 1)
-    cv2.putText(canvas, item["type"], (10, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-    return canvas
+            name = {"phone": "điện thoại", "paper": "giấy", "book": "sách/giấy"}.get(obj.label, obj.label)
+            canvas = put_text(canvas, f"{name} {obj.confidence:.2f}", (px(box.x, box.y)[0], max(0, px(box.x, box.y)[1] - 18)),
+                              size=14, colour=(255, 0, 255))
+    return put_text(canvas, f"{item['video_offset_ms'] / 1000:.1f}s  {item.get('label_vi', item['type'])}", (10, 8), size=22)
 
 
 def review(video: Path, windows: list[SuspectWindow], detectors: Any, out_dir: Path, fps: float = 10.0,
@@ -110,6 +138,9 @@ def review(video: Path, windows: list[SuspectWindow], detectors: Any, out_dir: P
                 analysed.append(ReviewFrame(offset, seats, assign_poses(seats, people),
                                             detectors.objects(crop, transform), width / height))
             found = review_window(window, analysed)
+            for item in found:
+                if "type" in item:
+                    item["label_vi"] = event_name(item["type"])
             by_offset = {frame.offset_ms: frame for frame in analysed}
             for item in found:
                 # Read the frame again rather than keeping every frame of a long window in memory.

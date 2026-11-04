@@ -33,6 +33,8 @@ class ReviewRuleConfig:
     phone_min_conf: float = 0.35
     phone_wrist_widths: float = 0.3
     phone_frames: int = 3
+    # A calculator lies on the desk by the writing hand; a phone in use is held up off the desk.
+    phone_raise_heights: float = 0.1
     phone_span_ms: int = 1000
     passing_wrist_widths: float = 0.3
     passing_hold_ms: int = 300
@@ -184,7 +186,8 @@ def review_window(window: SuspectWindow, frames: Sequence[ReviewFrame],
     for i, frame in enumerate(frames):
         wrists = _wrists(frame.poses.get(main))
         ok = any(obj.label == "phone" and obj.confidence >= cfg.phone_min_conf and _inside(obj.bbox.center, box)
-                 and (any(distance(obj.bbox.center, p) < cfg.phone_wrist_widths * width for p in wrists)
+                 and ((any(distance(obj.bbox.center, p) < cfg.phone_wrist_widths * width for p in wrists)
+                       and obj.bbox.center[1] < lines[main][i] - cfg.phone_raise_heights * box.height)
                       or obj.bbox.center[1] > lines[main][i]) for obj in frame.objects)
         hits.append((frame.offset_ms, ok))
     dense = [(t, sum(1 for s, ok in hits if ok and t - cfg.phone_span_ms < s <= t) >= cfg.phone_frames)
@@ -279,7 +282,7 @@ def _head_rules(window: SuspectWindow, frames: Sequence[ReviewFrame], seats: Map
     opened: dict[str, dict[str, Any]] = {}
     warm: dict[str, dict[str, Any]] = {}  # latched before the window began
     out: list[dict[str, Any]] = []
-    seat_objs = [Seat(seat_id, window.runtime_track_id if seat_id == window.seat_id else 0, box, box.center, 1.0,
+    seat_objs = [Seat(seat_id, (window.runtime_track_id or 0) if seat_id == window.seat_id else 0, box, box.center, 1.0,
                       0, 0, True) for seat_id, box in seats.items()]
     run: Callable[[Any], Any] = asyncio.run
     for frame in frames:

@@ -91,3 +91,16 @@ def test_busy_window_crops_main_seat_and_two_nearest() -> None:
     window = SuspectWindow(main, 1, tuple(others), 0, 1000, ("LEAN",), seats[main], seats)
     chosen = _module().review_seats(window)
     assert set(chosen) == {main, others[0], others[1]}
+
+
+def test_events_carry_vietnamese_label(tmp_path: Path) -> None:
+    video = _video(tmp_path / "clip.avi")
+    _module().review(video, [_window(0, 3000)], _Detectors(phone=True), tmp_path / "out")
+    records = [json.loads(line) for line in (tmp_path / "out" / "events.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert [item["label_vi"] for item in records if item["action"] == "opened"] == ["Phát hiện điện thoại"]
+
+
+def test_vietnamese_text_is_drawn() -> None:
+    image = np.zeros((60, 400, 3), np.uint8)
+    out = _module().put_text(image, "Cúi nhìn xuống đùi lâu", (5, 5))
+    assert out.any()
