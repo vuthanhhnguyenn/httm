@@ -67,3 +67,4 @@ def test_coverage_needs_overlap_in_time_and_region() -> None:
     result = _module().coverage(windows, labels, duration_s=60.0)
     assert result["covered"] == ["a"] and result["uncovered"] == ["b"]
     assert result["suspect_ratio"] == pytest.approx(6.0 / 60.0)
+    assert result["review_load"] == pytest.approx(9.0 / 60.0)

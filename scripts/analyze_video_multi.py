@@ -55,6 +55,8 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
                         help="cctv: soi kỹ hàng xa (2 ô phóng to) mỗi N frame; 0 để tắt")
     parser.add_argument("--debug", action="store_true", help="cctv: ghi debug.jsonl (hướng đầu, khoảng cách từng cặp)")
     parser.add_argument("--no-seat-map", action="store_true", help="cctv: theo dõi từng người thay vì bản đồ ghế")
+    parser.add_argument("--suspects", action="store_true",
+                        help="cctv: ghi suspects.jsonl (đoạn nghi vấn) cho scripts/review_suspects.py")
     return parser.parse_args(argv)
 
 
@@ -68,6 +70,26 @@ def _hardware() -> dict[str, str]:
     except ImportError:
         pass
     return info
+
+
+def _write_suspects(video: Path, out: Path, tracker: Any) -> None:
+    import cv2
+
+    capture = cv2.VideoCapture(str(video))
+    count, rate = capture.get(cv2.CAP_PROP_FRAME_COUNT) or 0, capture.get(cv2.CAP_PROP_FPS) or 0
+    capture.release()
+    duration_ms = int(1000 * count / rate) if count and rate else None
+    windows = tracker.finish(duration_ms)
+    with (out / "suspects.jsonl").open("w", encoding="utf-8") as handle:
+        handle.writelines(json.dumps(window.to_json()) + "\n" for window in windows)
+    spans = sorted((window.start_ms, window.end_ms) for window in windows)
+    covered, reach = 0, 0
+    for start, end in spans:
+        start = max(start, reach)
+        covered += max(0, end - start)
+        reach = max(reach, end)
+    share = f", chiếm {covered / duration_ms:.0%} clip" if duration_ms else ""
+    print(f"Đoạn nghi vấn: {len(windows)}{share} -> {out / 'suspects.jsonl'}")
 
 
 async def run(args: argparse.Namespace) -> int:
@@ -104,12 +126,17 @@ async def run(args: argparse.Namespace) -> int:
         pipeline: Any = factory.build_cctv_pipeline(max_subjects=80, phone_every=args.phone_every,
                                                     timeout_ms=timeout, seat_map=not args.no_seat_map,
                                                     tile_every=args.tile_every)
+        suspects: Any = None
+        if args.suspects:
+            from proctoring_ai.multi.cctv.suspects import SuspectTracker
+
+            suspects = SuspectTracker()
         if args.no_seat_map:
-            rules = CctvSeatRules(debug=args.debug)
+            rules = CctvSeatRules(debug=args.debug, suspects=suspects)
         else:
             from proctoring_ai.multi.cctv.seat_map import SeatMapRoles
 
-            rules = CctvSeatRules(roles=SeatMapRoles(pipeline.tracker), debug=args.debug)
+            rules = CctvSeatRules(roles=SeatMapRoles(pipeline.tracker), debug=args.debug, suspects=suspects)
     else:
         print("AI:", health, flush=True)
         pipeline = factory.build_multi_pipeline(raw_config, max_subjects=args.max_subjects,
@@ -139,6 +166,8 @@ async def run(args: argparse.Namespace) -> int:
     if rules is not None and getattr(rules, "debug_rows", None) is not None:
         with (args.out / "debug.jsonl").open("w", encoding="utf-8") as handle:
             handle.writelines(json.dumps(row) + "\n" for row in rules.debug_rows)
+    if rules is not None and getattr(rules, "suspects", None) is not None:
+        _write_suspects(args.video, args.out, rules.suspects)
     timing = result.timing
     print(f"Xong {timing['frames']} frame, AI FPS {timing['ai_fps']}, độ trễ p95 {timing['latency_ms']['p95']} ms, "
           f"bỏ {timing['dropped_frames']} frame, "

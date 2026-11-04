@@ -70,7 +70,9 @@ def coverage(windows: list[dict[str, Any]], labels: list[dict[str, Any]], durati
             total += end - start
         reach = max(reach, end)
     return {"covered": covered, "uncovered": [label["id"] for label in targets if label["id"] not in covered],
-            "suspect_ratio": total / duration_s if duration_s > 0 else 0.0}
+            "suspect_ratio": total / duration_s if duration_s > 0 else 0.0,
+            # Seat-seconds the deep tier must look at, per second of clip.
+            "review_load": sum(end - start for start, end in spans) / duration_s if duration_s > 0 else 0.0}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -93,7 +95,8 @@ def main(argv: list[str] | None = None) -> int:
         windows = [json.loads(line) for line in args.suspects.read_text(encoding="utf-8").splitlines() if line.strip()]
         cover = coverage(windows, labels, args.duration)
         print(f"Tầng nhanh khoanh trúng {len(cover['covered'])}/{len(cover['covered']) + len(cover['uncovered'])} "
-              f"nhãn, đoạn nghi vấn chiếm {cover['suspect_ratio']:.0%} clip; sót: {', '.join(cover['uncovered']) or '-'}")
+              f"nhãn, đoạn nghi vấn phủ {cover['suspect_ratio']:.0%} thời gian clip, tầng kỹ phải xem "
+              f"{cover['review_load']:.1f}× độ dài clip; sót: {', '.join(cover['uncovered']) or '-'}")
     for event in result["false"]:
         print(f"  {event['video_offset_ms'] / 1000:6.1f}s  #{event.get('runtime_track_id')}  {event['type']}  "
               f"đầu {event.get('head')}")

@@ -23,20 +23,20 @@ REASONS = ("HEAD_AWAY", "LEAN", "HAND_OUT", "HANDS_MEET", "HEAD_DOWN_HANDS_LOW",
 
 @dataclass(frozen=True, slots=True)
 class CctvSuspectConfig:
-    yaw_factor: float = 0.6
+    yaw_factor: float = 0.8
     yaw_threshold: float = 0.35  # CctvRuleConfig.yaw_threshold
     yaw_spread_factor: float = 2.5  # CctvRuleConfig.yaw_spread_factor
-    lean_widths: float = 0.25
+    lean_widths: float = 0.35
     hand_out_widths: float = 0.15
     hands_meet_widths: float = 0.5
     pair_gap_widths: float = 2.5
     object_min_conf: float = 0.15
     min_head_lift: float = 0.1
-    hold_ms: int = 500
+    hold_ms: int = 1000
     gap_ms: int = 500
     pad_ms: int = 2000
-    desk_default: float = 0.6
-    desk_margin: float = 0.1
+    desk_default: float = 0.8
+    desk_margin: float = 0.2
     desk_min_samples: int = 5
     baseline_min_span_ms: int = 1000
 

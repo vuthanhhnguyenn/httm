@@ -41,7 +41,7 @@ def calm(s: Seat, _ms: int):
 def test_head_away_without_lift_opens_window() -> None:
     tracker, a = SuspectTracker(), seat(0.3, 1)
     feed(tracker, [a], lambda s, ms: person(cx=0.3, top=0.3, bent=True,
-                                            nose_dx=0.3 if ms >= 1500 else 0.0), 0, 2500)
+                                            nose_dx=0.3 if ms >= 1500 else 0.0), 0, 3000)
     windows = tracker.finish(None)
     assert len(windows) == 1 and windows[0].seat_id == a.seat_id
     assert "HEAD_AWAY" in windows[0].reasons
@@ -50,7 +50,7 @@ def test_head_away_without_lift_opens_window() -> None:
 def test_condition_shorter_than_hold_is_ignored() -> None:
     tracker, a = SuspectTracker(), seat(0.3, 1)
     feed(tracker, [a], lambda s, ms: person(cx=0.3, top=0.3, bent=True,
-                                            nose_dx=0.3 if 1500 <= ms < 1800 else 0.0), 0, 3000)
+                                            nose_dx=0.3 if 1500 <= ms < 2300 else 0.0), 0, 3500)
     assert tracker.finish(None) == []
 
 
@@ -61,7 +61,7 @@ def test_hands_meet_across_rows() -> None:
         wrist = (0.55, 0.5) if s is back else (0.55, 0.52)
         return with_wrists(person(cx=0.5, top=s.bbox.y), left=wrist)
 
-    feed(tracker, [back, front], pose, 0, 1000)
+    feed(tracker, [back, front], pose, 0, 1500)
     windows = {w.seat_id: w for w in tracker.finish(None)}
     assert set(windows) == {back.seat_id, front.seat_id}
     assert all("HANDS_MEET" in w.reasons for w in windows.values())
@@ -76,7 +76,7 @@ def test_head_down_hands_low_uses_desk_line() -> None:
         y = 0.41 if ms < 5000 else 0.55
         return with_wrists(person(cx=0.3, top=0.3, bent=True), left=(0.28, y), right=(0.32, y))
 
-    feed(tracker, [a], pose, 0, 6000)
+    feed(tracker, [a], pose, 0, 6500)
     windows = tracker.finish(None)
     assert [w.reasons for w in windows] == [("HEAD_DOWN_HANDS_LOW",)]
     assert windows[0].start_ms >= 5000 - CctvSuspectConfig().pad_ms
@@ -85,7 +85,7 @@ def test_head_down_hands_low_uses_desk_line() -> None:
 def test_object_hint_low_confidence_phone_in_seat() -> None:
     tracker, a = SuspectTracker(), seat(0.3, 1)
     phone = {"class": "cell phone", "confidence": 0.2, "bbox": {"x": 0.29, "y": 0.4, "width": 0.02, "height": 0.02}}
-    feed(tracker, [a], calm, 0, 1000, objects=[phone])
+    feed(tracker, [a], calm, 0, 1500, objects=[phone])
     assert [w.reasons for w in tracker.finish(None)] == [("OBJECT_HINT",)]
 
 
