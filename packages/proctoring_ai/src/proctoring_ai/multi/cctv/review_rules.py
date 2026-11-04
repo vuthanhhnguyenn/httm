@@ -18,7 +18,7 @@ from proctoring_core.types import EventType
 
 from ..pipeline import FrameTiming, MultiFrameResult
 from ..tracker import Seat, TrackerUpdate
-from .head import Keypoints, distance, head_lift, head_point, point
+from .head import Keypoints, distance, head_lift, head_point, point, shoulders
 from .pose_detector import LEFT_WRIST, RIGHT_WRIST
 from .review_detectors import ReviewObject
 from .roles import CANDIDATE
@@ -54,6 +54,21 @@ class ReviewFrame:
     frame_aspect: float = 16 / 9
 
 
+def _person_head(item: Mapping[str, Any]) -> tuple[float, float] | None:
+    """The person's own head place: face points, else the shoulder midpoint, else the top of their box.
+    Never the seat's box: a faceless person would otherwise look like they sit in every seat."""
+
+    kps = item["keypoints"]
+    face = [p for index in (0, 1, 2, 3, 4) if (p := point(kps, index))]
+    if face:
+        return sum(p[0] for p in face) / len(face), sum(p[1] for p in face) / len(face)
+    if (pair := shoulders(kps)) is not None:
+        return (pair[0][0] + pair[1][0]) / 2, (pair[0][1] + pair[1][1]) / 2
+    if (box := Box.parse(item.get("bbox"))) is not None:
+        return box.x + box.width / 2, box.y + 0.12 * box.height
+    return None
+
+
 def assign_poses(seats: Mapping[UUID, Box], people: Sequence[Mapping[str, Any]]) -> dict[UUID, Keypoints]:
     """Each seat takes the person whose head is inside its box and nearest its usual head place."""
 
@@ -65,7 +80,9 @@ def assign_poses(seats: Mapping[UUID, Box], people: Sequence[Mapping[str, Any]])
         for index, item in enumerate(people):
             if index in taken:
                 continue
-            head = head_point(item["keypoints"], box)
+            head = _person_head(item)
+            if head is None:
+                continue
             inside = box.x <= head[0] <= box.x + box.width and box.y <= head[1] <= box.y + box.height
             if inside and (d := distance(head, target)) < best_d:
                 best, best_d = index, d
@@ -116,16 +133,21 @@ def review_window(window: SuspectWindow, frames: Sequence[ReviewFrame],
     frames = sorted(frames, key=lambda item: item.offset_ms)
     main, seats = window.seat_id, dict(window.seats) or {window.seat_id: window.bbox}
     records: list[dict[str, Any]] = []
-    heads: dict[UUID, tuple[float, float]] = {}
+    heads: dict[UUID, list[tuple[int, tuple[float, float]]]] = {seat_id: [] for seat_id in seats}
+
+    def head_at(seat_id: UUID, t: int) -> tuple[float, float] | None:
+        track = heads.get(seat_id) or []
+        return min(track, key=lambda item: abs(item[0] - t))[1] if track else None
 
     def emit(kind: EventType, seat_id: UUID, opened: int, closed: int, **details: Any) -> None:
-        if opened < window.start_ms or opened > window.end_ms:
+        if closed < window.start_ms or opened > window.end_ms:
             return
+        opened = max(opened, window.start_ms)  # began during warm-up, still going when the window starts
         event_id = str(uuid4())
         base = {"id": event_id, "type": kind.value, "seat_id": str(seat_id), "scene": "cctv", "stage": "review",
                 "runtime_track_id": window.runtime_track_id if seat_id == main else None,
                 "reasons": list(window.reasons), **details}
-        head = heads.get(seat_id)
+        head = head_at(seat_id, opened)
         records.append({"action": "opened", "video_offset_ms": opened,
                         **({"head": [round(head[0], 3), round(head[1], 3)]} if head else {}), **base})
         records.append({"action": "closed", "video_offset_ms": max(opened, closed),
@@ -152,7 +174,7 @@ def review_window(window: SuspectWindow, frames: Sequence[ReviewFrame],
             lines[seat_id].append(line)
             down[seat_id].append(is_down)
             if kps is not None:
-                heads[seat_id] = head_point(kps, box)
+                heads[seat_id].append((frame.offset_ms, head_point(kps, box)))
 
     box = seats[main]
     width = box.width
@@ -179,7 +201,7 @@ def review_window(window: SuspectWindow, frames: Sequence[ReviewFrame],
                 for f in frames]
         runs = _runs(meet, cfg.passing_hold_ms, cfg.gap_ms)
         if not runs:
-            runs = _transfers(frames, main, other, seats, cfg)
+            runs = _transfers(frames, main, other, seats, cfg, window.start_ms)
         for _since, opened, last in runs:
             emit(EventType.PASSING_OBJECT, main, opened, last, neighbor_seat_id=str(other))
             emit(EventType.PASSING_OBJECT, other, opened, last, neighbor_seat_id=str(main))
@@ -206,7 +228,9 @@ def review_window(window: SuspectWindow, frames: Sequence[ReviewFrame],
     records += _head_rules(window, frames, seats, cfg)
 
     if not any(item["action"] == "opened" for item in records):
-        if len(set(window.reasons) - {"RULE_EVENT"}) >= 2:
+        # Two different fast-tier reasons, or a fast-tier rule event the big model did not repeat: keep it
+        # for the invigilator rather than lose an event phase 2d already had.
+        if len(set(window.reasons)) >= 2 or "RULE_EVENT" in window.reasons:
             emit(EventType.UNCLASSIFIED_SUSPECT, main, window.start_ms, window.end_ms)
         else:
             records.append({"action": "dismissed", "seat_id": str(main), "start_ms": window.start_ms,
@@ -215,26 +239,36 @@ def review_window(window: SuspectWindow, frames: Sequence[ReviewFrame],
 
 
 def _transfers(frames: Sequence[ReviewFrame], a: UUID, b: UUID, seats: Mapping[UUID, Box],
-               cfg: ReviewRuleConfig) -> list[tuple[int, int, int]]:
+               cfg: ReviewRuleConfig, window_start: int = 0) -> list[tuple[int, int, int]]:
     """An object seen only in seat ``a`` and, within ``passing_transfer_ms``, only in seat ``b`` (or back)."""
+
+    reach = cfg.passing_wrist_widths * (seats[a].width + seats[b].width) / 2
 
     def where(frame: ReviewFrame, label: str) -> set[UUID]:
         return {key for key in (a, b) for obj in frame.objects if obj.label == label
                 and _inside(obj.bbox.center, seats[key])}
+
+    def held(frame: ReviewFrame, label: str, key: UUID) -> bool:
+        """Somebody's hand is on the object: papers lying on two desks flicker without anyone moving."""
+
+        wrists = _wrists(frame.poses.get(a)) + _wrists(frame.poses.get(b))
+        return any(obj.label == label and _inside(obj.bbox.center, seats[key])
+                   and any(distance(obj.bbox.center, p) < reach for p in wrists) for obj in frame.objects)
 
     out: list[tuple[int, int, int]] = []
     for label in ("paper", "book", "phone"):
         last_only: dict[UUID, int] = {}
         for frame in frames:
             here = where(frame, label)
-            if len(here) == 1:
+            if len(here) == 1 and held(frame, label, next(iter(here))):
                 (holder,) = here
                 giver = b if holder == a else a
                 if giver in last_only and frame.offset_ms - last_only[giver] <= cfg.passing_transfer_ms:
                     out.append((last_only[giver], frame.offset_ms, frame.offset_ms))
                     last_only.clear()
                 last_only[holder] = frame.offset_ms
-    return out[:1]
+    inside = [item for item in out if item[1] >= window_start]
+    return inside[:1]
 
 
 def _head_rules(window: SuspectWindow, frames: Sequence[ReviewFrame], seats: Mapping[UUID, Box],
@@ -243,6 +277,7 @@ def _head_rules(window: SuspectWindow, frames: Sequence[ReviewFrame], seats: Map
     keep = {EventType.LOOK_AT_NEIGHBOR.value, EventType.HEAD_TURN_LEFT.value, EventType.HEAD_TURN_RIGHT.value,
             EventType.TURN_AROUND.value, EventType.HEADS_TOGETHER.value}
     opened: dict[str, dict[str, Any]] = {}
+    warm: dict[str, dict[str, Any]] = {}  # latched before the window began
     out: list[dict[str, Any]] = []
     seat_objs = [Seat(seat_id, window.runtime_track_id if seat_id == window.seat_id else 0, box, box.center, 1.0,
                       0, 0, True) for seat_id, box in seats.items()]
@@ -252,10 +287,20 @@ def _head_rules(window: SuspectWindow, frames: Sequence[ReviewFrame], seats: Map
         result = MultiFrameResult(frame.offset_ms // 100, frame.offset_ms, update, {}, {}, {}, [], _TIMING,
                                   {key: list(map(list, kps)) for key, kps in frame.poses.items()})
         size = (round(1000 * frame.frame_aspect), 1000)
+        if frame.offset_ms >= window.start_ms and warm:
+            for key, item in warm.items():  # still open when the window starts
+                item.update(stage="review", reasons=list(window.reasons), video_offset_ms=frame.offset_ms)
+                opened[key] = item
+                out.append(item)
+            warm.clear()
         for _seat, item in run(rules.step(result, {"frame_size": size}, frame.offset_ms)):
             if item["type"] not in keep or item["seat_id"] != str(window.seat_id):
                 continue
-            if item["action"] == "opened" and window.start_ms <= item["video_offset_ms"] <= window.end_ms:
+            if item["action"] == "opened" and item["video_offset_ms"] < window.start_ms:
+                warm[str(item["id"])] = item
+            elif item["action"] == "closed" and str(item["id"]) in warm:
+                warm.pop(str(item["id"]))
+            elif item["action"] == "opened" and window.start_ms <= item["video_offset_ms"] <= window.end_ms:
                 item.update(stage="review", reasons=list(window.reasons))
                 opened[str(item["id"])] = item
                 out.append(item)

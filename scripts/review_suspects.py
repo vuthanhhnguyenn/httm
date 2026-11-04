@@ -47,6 +47,16 @@ def _frames(capture: Any, start_ms: int, end_ms: int, fps: float) -> list[tuple[
     return out
 
 
+def review_seats(window: SuspectWindow, limit: int = 2) -> dict[Any, Any]:
+    """The window's seat and its ``limit`` nearest neighbours: a crop over a whole row would shrink, not enlarge."""
+
+    seats = dict(window.seats) or {window.seat_id: window.bbox}
+    main = seats.get(window.seat_id, window.bbox)
+    others = sorted((key for key in seats if key != window.seat_id),
+                    key=lambda key: (seats[key].center[0] - main.center[0]) ** 2 + (seats[key].center[1] - main.center[1]) ** 2)
+    return {window.seat_id: main, **{key: seats[key] for key in others[:limit]}}
+
+
 def _draw(image: Any, window: SuspectWindow, frame: ReviewFrame | None, item: dict[str, Any]) -> Any:
     canvas = image.copy()
     height, width = canvas.shape[:2]
@@ -87,25 +97,27 @@ def review(video: Path, windows: list[SuspectWindow], detectors: Any, out_dir: P
         for window in windows:
             began = time.perf_counter()
             end = window.end_ms if duration_ms is None else min(window.end_ms, duration_ms)
-            seats = dict(window.seats) or {window.seat_id: window.bbox}
+            seats = review_seats(window)
             region = crop_region(list(seats.values()))
             analysed: list[ReviewFrame] = []
-            images: dict[int, Any] = {}
             for offset, image in _frames(capture, window.start_ms - warmup_ms, end, fps):
                 crop, transform = crop_image(image, region)
                 height, width = image.shape[:2]
                 people = detectors.pose(crop, transform)
                 analysed.append(ReviewFrame(offset, seats, assign_poses(seats, people),
                                             detectors.objects(crop, transform), width / height))
-                images[offset] = image
             found = review_window(window, analysed)
             by_offset = {frame.offset_ms: frame for frame in analysed}
             for item in found:
-                if item["action"] == "opened" and images:
-                    nearest = min(images, key=lambda t: abs(t - item["video_offset_ms"]))
-                    name = f"evidence/{item['id']}.jpg"
-                    cv2.imwrite(str(out_dir / name), _draw(images[nearest], window, by_offset.get(nearest), item))
-                    item["evidence"] = name
+                # Read the frame again rather than keeping every frame of a long window in memory.
+                if item["action"] == "opened" and by_offset:
+                    nearest = min(by_offset, key=lambda t: abs(t - item["video_offset_ms"]))
+                    capture.set(cv2.CAP_PROP_POS_MSEC, nearest)
+                    ok, image = capture.read()
+                    if ok:
+                        name = f"evidence/{item['id']}.jpg"
+                        cv2.imwrite(str(out_dir / name), _draw(image, window, by_offset[nearest], item))
+                        item["evidence"] = name
             records += found
             seconds.append(time.perf_counter() - began)
     finally:
@@ -139,6 +151,9 @@ def main(argv: list[str] | None = None) -> int:
     detectors = ReviewDetectors(load_specs(args.models, ROOT / "models"), device=args.device)
     for name, status in detectors.status.items():
         print(f"Model {name}: {status}")
+    if not any(spec.kind == "pose" and detectors.status.get(spec.name) == "ok"
+               for spec in load_specs(args.models, ROOT / "models")):
+        print("Không có model khung xương nào dùng được; tầng kỹ sẽ loại gần hết các đoạn.", file=sys.stderr)
     timing = review(args.video, windows, detectors, args.out, fps=args.fps, warmup_ms=args.warmup_ms)
     print(f"Xem {timing['windows']} đoạn, mỗi đoạn {timing['seconds_per_window']['p50']} s (tối đa "
           f"{timing['seconds_per_window']['max']} s); sự kiện: {timing['events_opened']}, loại {timing['dismissed']}")

@@ -77,3 +77,17 @@ def test_phone_window_produces_event_and_evidence(tmp_path: Path) -> None:
     opened = [item for item in records if item["action"] == "opened"]
     assert [item["type"] for item in opened] == ["PHONE_DETECTED"]
     assert (tmp_path / "out" / opened[0]["evidence"]).is_file()
+
+
+def test_busy_window_crops_main_seat_and_two_nearest() -> None:
+    main = uuid4()
+    seats = {main: Box(0.45, 0.3, 0.1, 0.2)}
+    others = [uuid4() for _ in range(9)]
+    for index, key in enumerate(others):
+        seats[key] = Box(0.05 + 0.1 * index if index < 4 else 0.6 + 0.1 * (index - 4) % 0.4, 0.3 + 0.2 * (index % 2),
+                         0.1, 0.2)
+    seats[others[0]] = Box(0.56, 0.3, 0.1, 0.2)
+    seats[others[1]] = Box(0.34, 0.3, 0.1, 0.2)
+    window = SuspectWindow(main, 1, tuple(others), 0, 1000, ("LEAN",), seats[main], seats)
+    chosen = _module().review_seats(window)
+    assert set(chosen) == {main, others[0], others[1]}

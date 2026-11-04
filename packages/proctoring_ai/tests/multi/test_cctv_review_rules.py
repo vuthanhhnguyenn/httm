@@ -85,8 +85,12 @@ def test_passing_by_object_transfer() -> None:
             return [paper(0.5)]
         return []
 
-    records = review_window(window(seats, a, 0, 3000),
-                            frames(seats, lambda key, ms: person(cx=seats[key].center[0], top=0.3), 0, 3000, objects))
+    def pose(key, ms):
+        cx = seats[key].center[0]
+        holding = (key == a and 800 <= ms <= 1000) or (key == b and 2500 <= ms <= 2700)
+        return wristed(person(cx=cx, top=0.3), left=(cx, 0.415) if holding else None)
+
+    records = review_window(window(seats, a, 0, 3000), frames(seats, pose, 0, 3000, objects))
     assert sorted(kinds(records)) == ["PASSING_OBJECT", "PASSING_OBJECT"]
 
 
@@ -134,7 +138,7 @@ def test_unclassified_needs_two_reasons() -> None:
     a = uuid4()
     seats = {a: box(0.3)}
     calm = lambda key, ms: person(cx=0.3, top=0.3)  # noqa: E731
-    records = review_window(window(seats, a, 0, 1000, ("HEAD_AWAY", "LEAN", "RULE_EVENT")), frames(seats, calm, 0, 1000))
+    records = review_window(window(seats, a, 0, 1000, ("HEAD_AWAY", "LEAN")), frames(seats, calm, 0, 1000))
     assert kinds(records) == ["UNCLASSIFIED_SUSPECT"]
 
 
@@ -142,9 +146,9 @@ def test_nothing_matched_gives_dismissed() -> None:
     a = uuid4()
     seats = {a: box(0.3)}
     calm = lambda key, ms: person(cx=0.3, top=0.3)  # noqa: E731
-    records = review_window(window(seats, a, 0, 1000, ("LEAN", "RULE_EVENT")), frames(seats, calm, 0, 1000))
+    records = review_window(window(seats, a, 0, 1000, ("LEAN",)), frames(seats, calm, 0, 1000))
     assert records == [{"action": "dismissed", "seat_id": str(a), "start_ms": 0, "end_ms": 1000,
-                        "reasons": ["LEAN", "RULE_EVENT"], "stage": "review"}]
+                        "reasons": ["LEAN"], "stage": "review"}]
 
 
 def test_assign_poses_picks_head_inside_seat() -> None:
@@ -154,3 +158,66 @@ def test_assign_poses_picks_head_inside_seat() -> None:
               {"keypoints": person(cx=0.9, top=0.3)}]
     assigned = assign_poses(seats, people)
     assert assigned[a] is people[1]["keypoints"] and assigned[b] is people[0]["keypoints"]
+
+
+def test_faceless_neighbour_does_not_take_the_seat() -> None:
+    a, b = uuid4(), uuid4()
+    seats = {a: box(0.3), b: box(0.42)}
+    own = person(cx=0.3, top=0.29)  # face visible, head a little high in the box
+    neighbour = person(cx=0.42, top=0.3, face=False)
+    people = [{"keypoints": neighbour, "bbox": {"x": 0.37, "y": 0.3, "width": 0.1, "height": 0.2}},
+              {"keypoints": own, "bbox": {"x": 0.25, "y": 0.26, "width": 0.1, "height": 0.2}}]
+    assigned = assign_poses(seats, people)
+    assert assigned[a] is own and assigned[b] is neighbour
+
+
+def test_paper_flicker_between_desks_is_not_passing() -> None:
+    a, b = uuid4(), uuid4()
+    seats = {a: box(0.3), b: box(0.42)}
+    paper = lambda x: ReviewObject("book", 0.5, Box(x - 0.02, 0.44, 0.04, 0.03), "x")  # noqa: E731
+    records = review_window(window(seats, a, 0, 3000),
+                            frames(seats, lambda key, ms: person(cx=seats[key].center[0], top=0.3), 0, 3000,
+                                   lambda ms: [paper(0.3 if (ms // 200) % 2 else 0.42)]))
+    assert "PASSING_OBJECT" not in kinds(records)
+
+
+def test_behaviour_that_began_in_warmup_is_reported_at_window_start() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    lap = lambda key, ms: wristed(person(cx=0.3, top=0.3, bent=True), left=(0.28, 0.55), right=(0.32, 0.55))  # noqa: E731
+    records = review_window(window(seats, a, 4000, 6000, ("HEAD_DOWN_HANDS_LOW",)), frames(seats, lap, 0, 6000))
+    lap_events = [item for item in records if item["action"] == "opened" and item["type"] == "LOOK_AT_LAP"]
+    assert [item["video_offset_ms"] for item in lap_events] == [4000]
+
+
+def test_turn_latched_in_warmup_is_reported_at_window_start() -> None:
+    a, b = uuid4(), uuid4()
+    seats = {a: box(0.3), b: box(0.45)}
+
+    def pose(key, ms):
+        return person(cx=seats[key].center[0], top=0.3, nose_dx=0.6 if key == a and ms >= 6000 else 0.0)
+
+    records = review_window(window(seats, a, 8500, 10_000, ("HEAD_AWAY",)), frames(seats, pose, 0, 10_000))
+    assert kinds(records) == ["LOOK_AT_NEIGHBOR"] and records[0]["video_offset_ms"] == 8500
+
+
+def test_fast_tier_rule_event_counts_as_a_reason() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    calm = lambda key, ms: person(cx=0.3, top=0.3)  # noqa: E731
+    records = review_window(window(seats, a, 0, 1000, ("LEAN", "RULE_EVENT")), frames(seats, calm, 0, 1000))
+    assert kinds(records) == ["UNCLASSIFIED_SUSPECT"]
+
+
+def test_event_head_is_taken_at_event_time() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+
+    def pose(key, ms):
+        kps = wristed(person(cx=0.3 if ms < 1500 else 0.33, top=0.3), left=(0.3, 0.42))
+        return kps
+
+    records = review_window(window(seats, a, 0, 3000),
+                            frames(seats, pose, 0, 3000, lambda ms: [phone(0.3, 0.42)] if ms < 600 else []))
+    opened = [item for item in records if item["action"] == "opened"]
+    assert opened[0]["head"][0] < 0.31
