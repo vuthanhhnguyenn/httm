@@ -22,7 +22,6 @@ for _src in ("packages/proctoring_core/src", "packages/proctoring_ai/src", "pack
         sys.path.insert(0, str(ROOT / _src))
 
 import cv2  # noqa: E402
-
 from proctoring_ai.multi.cctv.crops import crop_image, crop_region  # noqa: E402
 from proctoring_ai.multi.cctv.review_rules import ReviewFrame, assign_poses, review_window  # noqa: E402
 from proctoring_ai.multi.cctv.suspects import SuspectWindow  # noqa: E402

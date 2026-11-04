@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from typing import Any
 
 import cv2
-
 from proctoring_core.observations import Box
 
 

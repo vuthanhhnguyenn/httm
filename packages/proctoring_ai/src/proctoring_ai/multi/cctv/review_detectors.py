@@ -15,7 +15,6 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-
 from proctoring_core.observations import Box
 
 from .crops import CropTransform
