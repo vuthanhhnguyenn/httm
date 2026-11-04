@@ -189,7 +189,10 @@ def review_window(window: SuspectWindow, frames: Sequence[ReviewFrame],
         # box, so "below the desk" inside the box is still the desk; a phone in the lap is LOOK_AT_LAP's job.
         papers = [obj.bbox.y for obj in frame.objects if obj.label in ("book", "paper") and _inside(obj.bbox.center, box)]
         desk_top = min([lines[main][i], *papers])
+        # Above the candidate's own head is the desk of the row in front, seen past their head.
+        own_head = head_point(frame.poses[main], box) if frame.poses.get(main) is not None else None
         ok = any(obj.label == "phone" and obj.confidence >= cfg.phone_min_conf and _inside(obj.bbox.center, box)
+                 and (own_head is None or obj.bbox.center[1] > own_head[1])
                  and any(distance(obj.bbox.center, p) < cfg.phone_wrist_widths * width for p in wrists)
                  and obj.bbox.center[1] < desk_top - cfg.phone_raise_heights * box.height for obj in frame.objects)
         hits.append((frame.offset_ms, ok))

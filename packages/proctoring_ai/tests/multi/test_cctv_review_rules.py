@@ -240,3 +240,12 @@ def test_calculator_next_to_exam_paper_is_not_phone() -> None:
     records = review_window(window(seats, a, 0, 1000),
                             frames(seats, pose, 0, 1000, lambda ms: [phone(0.31, 0.49), paper]))
     assert "PHONE_DETECTED" not in kinds(records)
+
+
+def test_object_above_the_head_on_the_desk_in_front_is_not_phone() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    pose = lambda key, ms: wristed(person(cx=0.3, top=0.3), left=(0.3, 0.33))  # noqa: E731
+    records = review_window(window(seats, a, 0, 1000),
+                            frames(seats, pose, 0, 1000, lambda ms: [phone(0.31, 0.31)]))
+    assert "PHONE_DETECTED" not in kinds(records)
