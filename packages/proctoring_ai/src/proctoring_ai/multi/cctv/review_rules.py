@@ -185,10 +185,13 @@ def review_window(window: SuspectWindow, frames: Sequence[ReviewFrame],
     hits = []
     for i, frame in enumerate(frames):
         wrists = _wrists(frame.poses.get(main))
+        # The desk top is where the exam paper lies. A high camera sees the desk at the bottom of the seat
+        # box, so "below the desk" inside the box is still the desk; a phone in the lap is LOOK_AT_LAP's job.
+        papers = [obj.bbox.y for obj in frame.objects if obj.label in ("book", "paper") and _inside(obj.bbox.center, box)]
+        desk_top = min([lines[main][i], *papers])
         ok = any(obj.label == "phone" and obj.confidence >= cfg.phone_min_conf and _inside(obj.bbox.center, box)
-                 and ((any(distance(obj.bbox.center, p) < cfg.phone_wrist_widths * width for p in wrists)
-                       and obj.bbox.center[1] < lines[main][i] - cfg.phone_raise_heights * box.height)
-                      or obj.bbox.center[1] > lines[main][i]) for obj in frame.objects)
+                 and any(distance(obj.bbox.center, p) < cfg.phone_wrist_widths * width for p in wrists)
+                 and obj.bbox.center[1] < desk_top - cfg.phone_raise_heights * box.height for obj in frame.objects)
         hits.append((frame.offset_ms, ok))
     dense = [(t, sum(1 for s, ok in hits if ok and t - cfg.phone_span_ms < s <= t) >= cfg.phone_frames)
              for t, _ in hits]
