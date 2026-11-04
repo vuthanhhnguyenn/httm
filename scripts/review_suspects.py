@@ -23,7 +23,11 @@ for _src in ("packages/proctoring_core/src", "packages/proctoring_ai/src", "pack
 
 import cv2  # noqa: E402
 from proctoring_ai.multi.cctv.crops import crop_image, crop_region  # noqa: E402
-from proctoring_ai.multi.cctv.review_rules import ReviewFrame, assign_poses, review_window  # noqa: E402
+from proctoring_ai.multi.cctv.review_rules import (  # noqa: E402
+    ReviewFrame,
+    assign_poses,
+    review_window,
+)
 from proctoring_ai.multi.cctv.suspects import SuspectWindow  # noqa: E402
 
 WARMUP_MS = 8000  # head baselines need a few seconds of usual posture before the window
