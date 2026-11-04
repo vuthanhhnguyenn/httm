@@ -76,7 +76,12 @@ Script mới `scripts/review_suspects.py <video> <suspects.jsonl> --out <dir>`. 
    - **Khung xương**: `yolo11x-pose` (Ultralytics, cùng nguồn và license AGPL với model đang dùng).
    - **Vật thể COCO**: `yolo11x` cho `cell phone`, `book`.
    - **Giấy/tài liệu**: YOLOE (Ultralytics, open-vocabulary, gợi ý bằng chữ) với các lớp
-     `paper`, `note`, `phone`. Dùng được hay không do bước thử ở mục 6 quyết định.
+     `phone`, `paper`, `notebook`, `book`. Dùng được hay không do bước thử ở mục 6 quyết định.
+   - **Detector train sẵn cắm thêm** (Nguyên 2026-11-04: dùng càng nhiều model train sẵn càng tốt):
+     `configs/review_models.yaml` liệt kê các model; mỗi mục có đường dẫn, SHA-256 và bảng đổi lớp về
+     `phone`/`paper`/`book`. Thêm một detector gian lận tải từ GitHub/HuggingFace chỉ cần thêm một mục,
+     không sửa code. Model thiếu hoặc sai SHA thì bỏ qua và ghi lý do. Kết quả các model được gộp
+     (trùng chỗ thì giữ cái tin cậy cao hơn).
 4. Áp luật theo hành vi (tọa độ đưa về khung hình gốc):
 
 | Sự kiện | Luật (giữ ≥ thời gian) |
