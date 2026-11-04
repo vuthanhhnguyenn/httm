@@ -130,6 +130,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--models", type=Path, default=ROOT / "configs" / "review_models.yaml")
     parser.add_argument("--fps", type=float, default=10.0)
     parser.add_argument("--device", default=None, help="vd. 0 cho GPU NVIDIA đầu tiên")
+    parser.add_argument("--warmup-ms", type=int, default=WARMUP_MS, help="đọc thêm trước mỗi đoạn để có mốc tư thế")
     args = parser.parse_args(argv)
     from proctoring_ai.multi.cctv.review_detectors import ReviewDetectors, load_specs
 
@@ -138,7 +139,7 @@ def main(argv: list[str] | None = None) -> int:
     detectors = ReviewDetectors(load_specs(args.models, ROOT / "models"), device=args.device)
     for name, status in detectors.status.items():
         print(f"Model {name}: {status}")
-    timing = review(args.video, windows, detectors, args.out, fps=args.fps)
+    timing = review(args.video, windows, detectors, args.out, fps=args.fps, warmup_ms=args.warmup_ms)
     print(f"Xem {timing['windows']} đoạn, mỗi đoạn {timing['seconds_per_window']['p50']} s (tối đa "
           f"{timing['seconds_per_window']['max']} s); sự kiện: {timing['events_opened']}, loại {timing['dismissed']}")
     print(f"Kết quả: {args.out}")
