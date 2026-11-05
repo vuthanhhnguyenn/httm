@@ -32,6 +32,9 @@ class RiskEngine:
         EventType.LOOK_AT_NEIGHBOR: 5.0,
         EventType.TURN_AROUND: 8.0,
         EventType.HEADS_TOGETHER: 8.0,
+        EventType.PASSING_OBJECT: 10.0,
+        EventType.LOOK_AT_LAP: 6.0,
+        EventType.UNCLASSIFIED_SUSPECT: 0.0,
     }
 
     def __init__(self, *, weights: dict[EventType, float] | None = None, decay_per_second: float = 1.5,

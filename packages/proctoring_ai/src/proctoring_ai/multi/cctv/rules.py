@@ -69,9 +69,11 @@ def _inside(p: tuple[float, float], box: Box) -> bool:
 class CctvSeatRules:
     """Same interface as the webcam ``_SeatRules`` so ``run_multi_replay`` can drive either."""
 
-    def __init__(self, config: CctvRuleConfig | None = None, roles: Any | None = None, *, debug: bool = False) -> None:
+    def __init__(self, config: CctvRuleConfig | None = None, roles: Any | None = None, *, debug: bool = False,
+                 suspects: Any | None = None) -> None:
         """``roles``: per-track ``SeatRoleClassifier`` (default) or a seat map's ``SeatMapRoles``.
-        ``debug`` keeps one row per candidate and frame in ``debug_rows`` for offline diagnosis."""
+        ``debug`` keeps one row per candidate and frame in ``debug_rows`` for offline diagnosis.
+        ``suspects``: a ``SuspectTracker`` fed every frame (fast tier of phase 2e)."""
 
         self.config = config or CctvRuleConfig()
         self.roles: Any = roles or SeatRoleClassifier()
@@ -88,6 +90,7 @@ class CctvSeatRules:
         self._heads: dict[UUID, tuple[float, float]] = {}
         self._home: dict[UUID, tuple[RollingBaseline, RollingBaseline]] = {}
         self.debug_rows: list[dict[str, Any]] | None = [] if debug else None
+        self.suspects = suspects
 
     # -- latch bookkeeping -------------------------------------------------------------
     def _record(self, action: str, seat_id: UUID, event_type: str, latch: _Latch, offset: int,
@@ -291,6 +294,9 @@ class CctvSeatRules:
                 out += self._feed(key, hold, key in active, ms, offset, details)
         for seat in result.tracker.expired:
             out += self._drop(seat.seat_id, offset, ms, reason="SEAT_EXPIRED")
+        if self.suspects is not None:
+            fired = {seat_id for seat_id, item in out if item.get("action") == "opened"}
+            self.suspects.observe(candidates, result.poses, result.objects, offset, ms, aspect, fired)
         return out
 
     def _leaned(self, mover: UUID, partner: UUID, heads: Mapping[UUID, tuple[float, float]],

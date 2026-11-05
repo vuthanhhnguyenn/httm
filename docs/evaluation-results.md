@@ -68,3 +68,16 @@ rộng (clip 1 chỉ ~1). Ngưỡng cũ coi gần như mọi người là đang 
 Sửa: ngưỡng "đứng" so với dáng trung vị của mọi người trong khung hình; khung nhỏ hơn một nửa chiều cao
 quen của ghế (một mảnh người: đầu, tay) không được chiếm ghế; đầu cúi thấp chỉ thấy đỉnh đầu, không thấy tai,
 không còn tính là `TURN_AROUND`. Clip 1 giữ nguyên kết quả ở cả `--fps 5` và `--fps 10`.
+
+## Phase 2e: hai tầng (2026-11-04, cloud CPU, clip `EPf9O7UXRoM`)
+
+| Tầng | Kết quả |
+|---|---|
+| Nhanh (`--suspects`, `--fps 5`) | sự kiện như phase 2d (5/6, 0 sai); 30 đoạn nghi vấn khoanh trúng **6/6** nhãn (cả 0:02); đoạn nghi vấn chiếm 26 % thời gian-ghế, tầng kỹ phải xem 5,6× độ dài clip |
+| Kỹ (`review_suspects.py --fps 5 --warmup-ms 6000`, yolo11x-pose + yolo11x) | bắt **6/6** nhãn; 39 sự kiện, 29 ngoài nhãn; 11 đoạn bị loại; CPU 113 s/đoạn (p50) |
+
+- Nhãn clip 1 chỉ có hành vi `look`, nên các sự kiện điện thoại / chuyền đồ / cúi nhìn đùi / tài liệu đều
+  bị tính là "ngoài nhãn" dù có thể đúng. Xem ảnh `phase2e/clip1/su-kien-tang-ky.jpg` (project files).
+- Báo nhầm thấy rõ: máy tính bỏ túi bị gọi là điện thoại (31,6 s); `PASSING_OBJECT` lặp cho cùng một cặp
+  ở hàng sau (17–22 s); `LOOK_AT_LAP` khi đang cúi viết bình thường. Cần Nguyên xác nhận rồi chỉnh ngưỡng,
+  và cần clip dàn dựng để đo (a), (b), (d).
