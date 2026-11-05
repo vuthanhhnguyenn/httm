@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -219,6 +219,7 @@ async def run_multi_replay(
     exam_mode: ExamMode | str = ExamMode.COMPUTER,
     run_config: Mapping[str, Any] | None = None,
     rules: Any | None = None,
+    side_tasks: Sequence[Any] = (),
     clock: Callable[[], float] = time.perf_counter,
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
 ) -> MultiReplayResult:
@@ -257,6 +258,17 @@ async def run_multi_replay(
             events_file.write(json.dumps(item, ensure_ascii=False, default=str) + "\n")
             result.events.append(item)
 
+    def record_items(items: list[tuple[dict[str, Any], Any]]) -> None:
+        """Side-task records (e.g. the live CCTV deep tier), each with its own evidence frame."""
+
+        for item, image in items:
+            if item.get("action") == "opened" and "id" in item:
+                item["evidence_status"] = _save_evidence(out_dir / "evidence", item, image)
+                if item["evidence_status"] == "saved":
+                    item["evidence"] = f"evidence/{item['id']}.jpg"
+            events_file.write(json.dumps(item, ensure_ascii=False, default=str) + "\n")
+            result.events.append(item)
+
     last_frame: dict[str, Any] | None = None
     last_offset = 0
     written_offset: int | None = None
@@ -276,6 +288,8 @@ async def run_multi_replay(
             analysed = await pipeline.analyze_subjects(stage, session_id=session)
             offset = int(frame.get("video_offset_ms", frame["captured_at_monotonic_ms"]))
             record(await rules.step(analysed, frame, offset), frame.get("image"))
+            for task in side_tasks:
+                record_items(task.on_frame(frame, offset))
             for seat_id in rules.focus_seats():
                 pipeline.mark_focus(seat_id, analysed.monotonic_ms)
             latency = ((clock() - started) * 1000 - offset if mode == "realtime"
@@ -295,6 +309,8 @@ async def run_multi_replay(
             frame = following
         if last_frame is not None:
             record(rules.finish(last_frame, last_offset), None)
+        for task in side_tasks:
+            record_items(task.finish(last_offset))
     finally:
         await source.close()
         events_file.close()
@@ -302,6 +318,8 @@ async def run_multi_replay(
             writer.close()
         pipeline.close()
     extra = rules.summary() if hasattr(rules, "summary") else {}
+    for task in side_tasks:
+        extra = {**extra, **(task.summary() if hasattr(task, "summary") else {})}
     result.timing = {**timing.summary(wall_s=clock() - started), **extra, "config": dict(run_config or {})}
     (out_dir / "timing.json").write_text(json.dumps(result.timing, ensure_ascii=False, indent=2, default=str),
                                          encoding="utf-8")

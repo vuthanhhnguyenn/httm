@@ -330,3 +330,35 @@ async def test_cctv_mode_turn_around_without_face_rules(tmp_path: Path) -> None:
     assert not any(kind in {"FACE_NOT_VISIBLE", "PERSON_MISSING", "LOOK_DOWN"} for kind, _ in types)
     assert result.timing["roles"]["candidate"] == 2 and result.timing["events_opened"] == {"TURN_AROUND": 1}
     assert (tmp_path / "annotated.mp4").stat().st_size > 0
+
+
+class _SideTask:
+    def __init__(self) -> None:
+        self.frames: list[int] = []
+        self.finished_at: int | None = None
+
+    def on_frame(self, frame: dict[str, Any], offset_ms: int) -> list[tuple[dict[str, Any], Any]]:
+        self.frames.append(offset_ms)
+        if offset_ms != 500:
+            return []
+        return [({"action": "opened", "id": "live-1", "type": "PHONE_DETECTED", "stage": "review",
+                  "video_offset_ms": 500}, frame["image"])]
+
+    def finish(self, offset_ms: int) -> list[tuple[dict[str, Any], Any]]:
+        self.finished_at = offset_ms
+        return [({"action": "opened", "id": "live-2", "type": "REVIEW_SKIPPED", "stage": "review",
+                  "video_offset_ms": 900}, None)]
+
+    def summary(self) -> dict[str, Any]:
+        return {"review_windows": 2}
+
+
+async def test_side_task_records_written(tmp_path: Path) -> None:
+    task = _SideTask()
+    pipeline = multi_pipeline(two_people, [lambda _ms: 0.0, lambda _ms: 0.0])
+    await run(pipeline, 10, tmp_path, side_tasks=[task])
+    assert task.frames == list(range(0, 1000, 100)) and task.finished_at == 900
+    live = [e for e in read_events(tmp_path) if e.get("stage") == "review"]
+    assert [(e["id"], e["evidence_status"]) for e in live] == [("live-1", "saved"), ("live-2", "failed")]
+    assert (tmp_path / "evidence" / "live-1.jpg").is_file()
+    assert json.loads((tmp_path / "timing.json").read_text(encoding="utf-8"))["review_windows"] == 2

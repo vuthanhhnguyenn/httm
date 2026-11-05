@@ -56,6 +56,11 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--debug", action="store_true", help="cctv: ghi debug.jsonl (hướng đầu, khoảng cách từng cặp)")
     parser.add_argument("--phone-device", choices=("auto", "cuda", "intel:gpu", "cpu"), default=None,
                         help="cctv: thiết bị cho máy dò điện thoại (intel:gpu = OpenVINO trên card Intel)")
+    parser.add_argument("--review-live", action="store_true",
+                        help="cctv: chạy tầng kỹ ngay trong lúc phân tích (kèm --suspects), kết quả có stage=review")
+    parser.add_argument("--review-models", type=Path, default=ROOT / "configs" / "review_models.yaml")
+    parser.add_argument("--ring-jpeg", action="store_true",
+                        help="cctv --review-live: giữ 20 s khung gần nhất dạng JPEG (~20 MB thay vì ~280 MB)")
     parser.add_argument("--no-seat-map", action="store_true", help="cctv: theo dõi từng người thay vì bản đồ ghế")
     parser.add_argument("--suspects", action="store_true",
                         help="cctv: ghi suspects.jsonl (đoạn nghi vấn) cho scripts/review_suspects.py")
@@ -131,7 +136,7 @@ async def run(args: argparse.Namespace) -> int:
                                                     timeout_ms=timeout, seat_map=not args.no_seat_map,
                                                     tile_every=args.tile_every)
         suspects: Any = None
-        if args.suspects:
+        if args.suspects or args.review_live:
             from proctoring_ai.multi.cctv.suspects import SuspectTracker
 
             suspects = SuspectTracker()
@@ -163,17 +168,38 @@ async def run(args: argparse.Namespace) -> int:
 
     # Decoding the next frames overlaps the AI on the current one.
     source = PrefetchFrameSource(VideoFileFrameSource(args.video, analysis_rate_hz=rate), max_queue=8)
+    side_tasks: list[Any] = []
+    live: Any = None
+    if cctv and args.review_live:
+        from proctoring_ai.multi.cctv.frame_ring import FrameRing
+        from proctoring_ai.multi.cctv.review_detectors import ReviewDetectors, load_specs
+        from proctoring_ai.multi.cctv.review_worker import LiveReview, ReviewWorker
+
+        detectors = ReviewDetectors(load_specs(args.review_models, ROOT / "models"))
+        for name, status in detectors.status.items():
+            print(f"Tầng kỹ - model {name}: {status} ({detectors.devices.get(name) or 'auto'}"
+                  f"{'; ' + detectors.reasons[name] if name in detectors.reasons else ''})", flush=True)
+        ring = FrameRing(span_ms=20000, fps=5.0, jpeg_quality=90 if args.ring_jpeg else None)
+        live = LiveReview(rules.suspects, ReviewWorker(detectors, ring, video_path=args.video), ring)
+        side_tasks.append(live)
     try:
         result = await run_multi_replay(source, pipeline, policy=settings.raw_policy, raw_config=raw_config,
                                         out_dir=args.out, mode=args.mode, overlap=not args.no_overlap,
                                         write_video=not args.no_video, video_fps=video_fps,
-                                        exam_mode=args.exam_mode, run_config=run_config, rules=rules)
+                                        exam_mode=args.exam_mode, run_config=run_config, rules=rules,
+                                        side_tasks=side_tasks)
     finally:
         factory.close()
     if rules is not None and getattr(rules, "debug_rows", None) is not None:
         with (args.out / "debug.jsonl").open("w", encoding="utf-8") as handle:
             handle.writelines(json.dumps(row) + "\n" for row in rules.debug_rows)
-    if rules is not None and getattr(rules, "suspects", None) is not None:
+    if live is not None:
+        with (args.out / "suspects.jsonl").open("w", encoding="utf-8") as handle:
+            handle.writelines(json.dumps(window.to_json()) + "\n" for window in live.windows)
+        lat = result.timing.get("review_latency_ms", {})
+        print(f"Tầng kỹ: {result.timing.get('review_windows')} đoạn, bỏ qua {result.timing.get('review_skipped')}, "
+              f"độ trễ p50 {lat.get('p50')} ms, p95 {lat.get('p95')} ms")
+    elif rules is not None and getattr(rules, "suspects", None) is not None:
         _write_suspects(args.video, args.out, rules.suspects)
     timing = result.timing
     print(f"Xong {timing['frames']} frame, AI FPS {timing['ai_fps']}, độ trễ p95 {timing['latency_ms']['p95']} ms, "

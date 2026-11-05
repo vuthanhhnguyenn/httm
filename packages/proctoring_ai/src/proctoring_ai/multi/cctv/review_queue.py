@@ -53,11 +53,17 @@ class ReviewQueue:
         return (0 if "RULE_EVENT" in window.reasons else 1, -len(set(window.reasons)), order)
 
     def pop(self) -> SuspectWindow | None:
+        item = self.pop_timed()
+        return item[1] if item is not None else None
+
+    def pop_timed(self) -> tuple[int, SuspectWindow] | None:
+        """(wall ms when first pushed, window) of the most suspicious waiting window."""
+
         if not self._waiting:
             return None
         best = min(self._waiting, key=self._rank)
         self._waiting.remove(best)
-        return best[2]
+        return best[0], best[2]
 
     def expired(self, now_wall_ms: int) -> list[SuspectWindow]:
         late = [item for item in self._waiting if now_wall_ms - item[0] > self.deadline_ms]
