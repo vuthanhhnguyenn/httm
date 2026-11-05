@@ -1,0 +1,209 @@
+from __future__ import annotations
+
+import asyncio
+
+import pytest
+from cctv_kps import person
+from proctoring_ai.multi.cctv.seat_map import SeatMapRoles, SeatMapTracker
+from proctoring_ai.multi.cctv.tiling import (
+    TiledPoseDetector,
+    map_from_tile,
+    merge_people,
+    tiles_for,
+)
+
+np = pytest.importorskip("numpy")
+
+
+def body(cx: float, top: float = 0.3, *, conf: float = 0.9, height: float = 0.2, width: float = 0.1,
+         **kwargs) -> dict:
+    return {"class": "person", "confidence": conf, "keypoints": person(cx=cx, top=top, **kwargs),
+            "bbox": {"x": cx - width / 2, "y": top, "width": width, "height": height}}
+
+
+def feed(tracker: SeatMapTracker, frames, start: int = 0, step: int = 100):
+    update = None
+    for index, people in enumerate(frames):
+        update = tracker.update(people, start + index * step)
+    return update
+
+
+def test_duplicate_boxes_of_one_head_merge_to_the_most_confident() -> None:
+    big, small = body(0.5, conf=0.6, height=0.4), body(0.5, conf=0.8)
+    assert merge_people([big, small, body(0.7, conf=0.5)]) == [small, body(0.7, conf=0.5)]
+
+
+def test_tiles_cover_top_with_overlap_and_map_back() -> None:
+    left, right = tiles_for(cols=2, top=0.6, overlap=0.2)
+    assert left[0] == 0.0 and right[2] == 1.0 and left[2] > right[0] and left[3] == 0.6
+    mapped = map_from_tile(body(0.5, top=0.5), (0.5, 0.0, 1.0, 0.6))
+    assert mapped["bbox"]["x"] == pytest.approx(0.5 + 0.45 * 0.5)
+    assert mapped["keypoints"][0][1] == pytest.approx(0.53 * 0.6)
+
+
+def test_tiled_detector_adds_far_people_and_reuses_them_between_passes() -> None:
+    class Fake:
+        def __init__(self) -> None:
+            self.sizes: list[tuple[int, int]] = []
+
+        async def detect(self, frame: dict) -> list[dict]:
+            self.sizes.append(frame["frame_size"])
+            return [body(0.5)] if frame["frame_size"] != (100, 100) else [body(0.2, top=0.7)]
+
+    fake = Fake()
+    tiled = TiledPoseDetector(fake, every=2, cols=2, top=0.6)
+    frame = {"image": np.zeros((100, 100, 3), np.uint8), "frame_size": (100, 100)}
+    first = asyncio.run(tiled.detect(frame))
+    second = asyncio.run(tiled.detect(frame))
+    assert len(fake.sizes) == 4  # full + 2 tiles, then full only
+    assert len(first) == 3 and len(second) == 3
+
+
+def test_still_seated_person_becomes_a_seat_with_stable_number() -> None:
+    tracker = SeatMapTracker()
+    update = feed(tracker, [[body(0.3), body(0.6)]] * 35)
+    assert len(tracker.seats) == 2 and set(tracker.roles.values()) == {"candidate"}
+    numbers = sorted(seat.runtime_track_id for seat in update.analyzed)
+    feed(tracker, [[body(0.6)]] * 10, start=3_500)  # first candidate missed for a second
+    update = feed(tracker, [[body(0.3), body(0.6)]] * 2, start=4_500)
+    assert sorted(seat.runtime_track_id for seat in update.analyzed) == numbers
+
+
+def test_walking_person_never_becomes_a_seat_and_is_walker() -> None:
+    tracker = SeatMapTracker()
+    feed(tracker, [[body(0.05 + 0.02 * i, height=0.2)] for i in range(40)])
+    assert tracker.seats == {} and list(tracker.roles.values()) == ["walker"]
+
+
+def test_invigilator_standing_still_is_not_a_seat() -> None:
+    tracker = SeatMapTracker()
+    feed(tracker, [[body(0.5, top=0.05, height=0.3, width=0.08)]] * 60)  # tall, narrow
+    assert tracker.seats == {} and list(tracker.roles.values()) == ["walker"]
+
+
+def test_empty_seat_after_long_occupancy_is_left_and_rules_report_it() -> None:
+    tracker = SeatMapTracker()
+    roles = SeatMapRoles(tracker)
+    feed(tracker, [[body(0.3), body(0.6)]] * 150)  # 15 s seated
+    seat_id = next(s for s, e in tracker.seats.items() if e.head[0] < 0.4)
+    feed(tracker, [[body(0.6)]] * 40, start=15_000)
+    assert not roles.left_seat(seat_id, 18_000)
+    assert roles.left_seat(seat_id, 18_900 + 1_200)
+
+
+def test_brief_miss_in_far_row_is_not_leaving() -> None:
+    tracker = SeatMapTracker()
+    feed(tracker, [[body(0.3)] if i % 3 else [] for i in range(150)])  # detector flickers
+    seat_id = next(iter(tracker.seats))
+    feed(tracker, [[]] * 20, start=15_000)
+    assert not tracker.left_seat(seat_id, 17_000)
+
+
+def test_person_leaning_near_seat_is_not_leaving() -> None:
+    tracker = SeatMapTracker()
+    feed(tracker, [[body(0.3), body(0.6)]] * 150)
+    seat_id = next(s for s, e in tracker.seats.items() if e.head[0] < 0.4)
+    # Leans far enough to drop out of the seat radius but stays at the desk.
+    feed(tracker, [[body(0.39, height=0.45, width=0.1), body(0.6)]] * 80, start=15_000)
+    assert not tracker.left_seat(seat_id, 23_000)
+
+
+def test_candidate_leaning_to_neighbour_keeps_seat_number() -> None:
+    tracker = SeatMapTracker()
+    feed(tracker, [[body(0.3), body(0.6)]] * 40)
+    seat_id = next(s for s, e in tracker.seats.items() if e.head[0] < 0.4)
+    number = tracker.seats[seat_id].seat.runtime_track_id
+    # Head moves 1.2 shoulder widths toward the neighbour; the body box still covers the seat.
+    leaning = body(0.3, width=0.22) | {"keypoints": person(cx=0.42, top=0.3)}
+    update = feed(tracker, [[leaning, body(0.6)]] * 20, start=4_000)
+    assert seat_id in {seat.seat_id for seat in update.analyzed}
+    assert tracker.roles[seat_id] == "candidate"
+    assert tracker.seats[seat_id].seat.runtime_track_id == number
+
+
+def test_seated_person_fidgeting_is_pending_not_walker() -> None:
+    tracker = SeatMapTracker()
+    # Head drifts 1.4 widths sideways and back every 2 s while seated: no seat yet, but no walker.
+    feed(tracker, [[body(0.3 + 0.007 * (i % 20 if (i // 20) % 2 == 0 else 20 - i % 20))] for i in range(60)])
+    assert set(tracker.roles.values()) <= {"pending", "candidate"}
+
+
+def test_seated_person_close_to_camera_is_a_seat_not_walker() -> None:
+    # Near the camera the thighs point down the image, so the knees sit well below the hips,
+    # but the box is still fairly wide (aspect 1.8): that is a seated person, not someone standing.
+    tracker = SeatMapTracker()
+    near = body(0.8, top=0.5, width=0.2, height=0.36) | {"keypoints": person(cx=0.8, top=0.5, standing=True)}
+    feed(tracker, [[near]] * 40)
+    assert len(tracker.seats) == 1 and set(tracker.roles.values()) == {"candidate"}
+
+
+def test_standing_person_cut_by_the_frame_top_is_not_a_seat() -> None:
+    # An invigilator at the back is cut off by the top of the image, so the box looks short.
+    tracker = SeatMapTracker()
+    cut = body(0.45, top=0.0, width=0.07, height=0.1) | {"keypoints": person(cx=0.45, top=0.0, standing=True)}
+    feed(tracker, [[cut]] * 60)
+    assert tracker.seats == {}
+
+
+def test_box_shape_is_judged_in_pixels_on_a_wide_frame() -> None:
+    # 0.11 x 0.33 of a 1280x720 frame is 141 x 238 px (aspect 1.7): a seated person, though the
+    # normalised numbers alone (aspect 3) would look like someone standing.
+    tracker = SeatMapTracker()
+    seated = body(0.84, top=0.56, width=0.11, height=0.33)
+    for index in range(40):
+        tracker.update([seated], index * 100, frame_size=(1280, 720))
+    assert len(tracker.seats) == 1 and set(tracker.roles.values()) == {"candidate"}
+
+
+def test_person_cut_by_the_top_of_the_frame_never_becomes_a_seat() -> None:
+    # An invigilator standing at the back wall: legs hidden by the back row, box starts at the frame top.
+    tracker = SeatMapTracker()
+    feed(tracker, [[body(0.45, top=0.0, width=0.06, height=0.12)]] * 60)
+    assert tracker.seats == {}
+
+
+def test_person_much_taller_than_the_seated_row_is_not_a_seat() -> None:
+    tracker = SeatMapTracker()
+    feed(tracker, [[body(0.2), body(0.4)]] * 40)
+    feed(tracker, [[body(0.2), body(0.4), body(0.7, top=0.22, width=0.2, height=0.36)]] * 60, start=4_000)
+    assert len(tracker.seats) == 2
+
+
+def test_tall_passer_by_over_a_seat_does_not_take_it() -> None:
+    tracker = SeatMapTracker()
+    feed(tracker, [[body(0.3), body(0.6)]] * 40)
+    seat_id = next(s for s, e in tracker.seats.items() if e.head[0] < 0.4)
+    # The invigilator walks past: head near the seat's head, but the box is twice the seated height.
+    update = feed(tracker, [[body(0.31, top=0.28, width=0.3, height=0.45), body(0.6)]] * 5, start=4_000)
+    assert seat_id not in {seat.seat_id for seat in update.analyzed}
+
+
+def stool_room(extra: list[dict] | None = None) -> list[dict]:
+    # Candidates on high stools at tall desks: legs in view, every box about 3 times taller than wide.
+    return [body(cx, top=0.4, width=0.06, height=0.18, standing=True) for cx in (0.15, 0.35, 0.55, 0.75)] + (extra or [])
+
+
+def test_seated_people_on_high_stools_become_seats() -> None:
+    tracker = SeatMapTracker()
+    feed(tracker, [stool_room()] * 40)
+    assert len(tracker.seats) == 4 and set(tracker.roles.values()) == {"candidate"}
+
+
+def test_person_standing_in_a_high_stool_room_is_still_a_walker() -> None:
+    tracker = SeatMapTracker()
+    standing = body(0.9, top=0.2, width=0.05, height=0.32, standing=True)
+    feed(tracker, [stool_room([standing])] * 40)
+    assert len(tracker.seats) == 4
+    assert sorted(tracker.roles.values()) == ["candidate"] * 4 + ["walker"]
+
+
+def test_small_fragment_box_does_not_take_the_seat_from_the_candidate() -> None:
+    # The detector sometimes adds a tiny box on part of a seated body (head, hands). Closer to the seat's
+    # head than the candidate's own box, it must not win the seat or shrink the seat's usual height.
+    tracker = SeatMapTracker()
+    feed(tracker, [[body(0.5), body(0.8)]] * 40)
+    fragment = body(0.5, top=0.3, width=0.04, height=0.05)
+    update = feed(tracker, [[fragment, body(0.53), body(0.8)]] * 60, start=4_000)
+    seat = next(s for s in update.analyzed if s.runtime_track_id == 1)
+    assert seat.bbox.height == pytest.approx(0.2)
+    assert next(e for e in tracker.seats.values() if e.seat.runtime_track_id == 1).height() == pytest.approx(0.2)

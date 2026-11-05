@@ -12,6 +12,13 @@ import yaml
 
 from .face.landmarks import MediaPipeFaceLandmarker
 from .hands.hand_estimator import MediaPipeHandEstimator
+from .multi.crop import SubjectCropper
+from .multi.face_pool import PerSubjectFaceAnalyzer
+from .multi.focus import FocusScheduler
+from .multi.focus_analyzers import FocusAnalyzers
+from .multi.motion import MotionGate
+from .multi.pipeline import MultiSubjectPipeline
+from .multi.tracker import MultiSubjectTracker
 from .pipeline.observation_pipeline import ObservationPipeline
 from .pose.pose_estimator import MediaPipePoseEstimator
 from .tracking.object_tracks import ObjectEvidenceTracker
@@ -24,6 +31,28 @@ class _UnavailableDetector:
 
     async def detect(self, _frame: dict[str, Any]) -> list[dict[str, Any]]:
         raise RuntimeError(self.reason)
+
+
+class _UnavailableFace:
+    """Stand-in per-seat face analyzer when the face model failed its checks."""
+
+    def __init__(self, reason: str) -> None:
+        self.reason = reason
+
+    async def initialize(self) -> dict[str, Any]:
+        return {"status": "unavailable", "reason": self.reason}
+
+    async def analyze(self, _frame: dict[str, Any]) -> dict[str, Any]:
+        return {"status": "not_run", "reason": self.reason, "faces": []}
+
+    def auto_calibrate(self) -> str:
+        return "uncalibrated"
+
+    def reject_last_face(self) -> None:
+        return None
+
+    def close(self) -> None:
+        return None
 
 
 class AnalyzerFactory:
@@ -46,6 +75,9 @@ class AnalyzerFactory:
         self.face_analyzer: MediaPipeFaceLandmarker | None = None
         self.pose_analyzer: MediaPipePoseEstimator | None = None
         self.hand_analyzer: MediaPipeHandEstimator | None = None
+        self.pose_detector: Any | None = None
+        # Checksum-verified model files, so multi-subject sessions can open one instance per seat.
+        self._model_paths: dict[str, Path] = {}
         self._status = {
             "object_detector": ("unavailable", "MODEL_NOT_CONFIGURED"),
             "face": ("unavailable", "FACE_MODEL_NOT_CONFIGURED"),
@@ -145,9 +177,46 @@ class AnalyzerFactory:
             reason = str(result.get("reason") or "")
             attribute = {"face": "face_analyzer", "pose": "pose_analyzer", "hands": "hand_analyzer"}[key]
             setattr(self, attribute, adapter)
+            if status == "ready":
+                self._model_paths[key] = model_path
             self._status[key] = (status, reason)
         except Exception as exc:
             self._status[key] = ("unavailable", f"{type(exc).__name__}:{exc}")
+
+    async def initialize_pose_detector(self, *, image_size: int = 960, confidence: float = 0.25) -> dict[str, str]:
+        """CCTV mode only: YOLO-pose for the whole room; loaded on request so desktop start-up is unchanged."""
+
+        try:
+            model_path, entry = await asyncio.to_thread(
+                self._resolve_model, "pose_detect", licenses={"AGPL-3.0-only", "Enterprise"})
+            from .multi.cctv.pose_detector import YoloPoseDetector
+
+            self.pose_detector = YoloPoseDetector(
+                model_path, model_version=str(entry.get("version", "unknown")), model_sha256=str(entry["sha256"]),
+                confidence_threshold=confidence, image_size=image_size, device=self.detector_device)
+            await self.pose_detector.initialize()
+            self._status["pose_detector"] = ("ready", "")
+        except Exception as exc:
+            self.pose_detector = None
+            self._status["pose_detector"] = ("unavailable", f"{type(exc).__name__}:{exc}")
+        return self.health()
+
+    def build_cctv_pipeline(self, *, max_subjects: int = 60, phone_every: int = 3, timeout_ms: int = 1200,
+                            seat_map: bool = True, tile_every: int = 4) -> Any:
+        """Whole-room CCTV: pose for everyone (plus enlarged tiles of the far rows), seats learned from
+        still heads; the object detector only looks for phones."""
+
+        from .multi.cctv.pipeline import CctvPipeline
+        from .multi.cctv.seat_map import SeatMapTracker
+        from .multi.cctv.tiling import TiledPoseDetector
+
+        if self.pose_detector is None:
+            raise RuntimeError(f"pose detector unavailable: {self._status.get('pose_detector', ('', ''))[1]}")
+        detector: Any = TiledPoseDetector(self.pose_detector, every=tile_every) if tile_every > 0 else self.pose_detector
+        tracker: Any = (SeatMapTracker(max_subjects=max_subjects) if seat_map
+                        else MultiSubjectTracker(max_subjects=max_subjects))
+        return CctvPipeline(pose_detector=detector, tracker=tracker, object_detector=self.detector,
+                            phone_every=phone_every, timeout_ms=timeout_ms)
 
     def health(self) -> dict[str, str]:
         return {name: status for name, (status, _reason) in self._status.items()}
@@ -159,6 +228,8 @@ class AnalyzerFactory:
         }
         if self.detector is not None:
             details["object_detector"]["device"] = self.detector.active_device
+        if self.pose_detector is not None:
+            details["pose_detector"]["device"] = self.pose_detector.active_device
         return details
 
     def build_pipeline(self, config: dict[str, Any] | None = None) -> ObservationPipeline:
@@ -194,9 +265,50 @@ class AnalyzerFactory:
             }),
         )
 
+    def build_multi_pipeline(self, config: dict[str, Any] | None = None, *, max_subjects: int = 6,
+                             crop_size: int = 256, yolo_every: int = 1, motion_skip: bool = True,
+                             focus: bool = True) -> MultiSubjectPipeline:
+        """Several seated candidates: one face landmarker per seat, hands/pose for focus seats only."""
+
+        single = self.build_pipeline(config)
+        detection = (config or {}).get("detection", {})
+        paths = self._model_paths
+
+        def landmarker_factory(key: str, adapter: Any, **extra: Any) -> Callable[[], Any] | None:
+            path = paths.get(key)
+            if path is None:
+                return None
+            options = {**self.analyzer_options.get(key, {}), **extra}
+            return lambda: adapter(path, **options)
+
+        face_factory = landmarker_factory("face", MediaPipeFaceLandmarker, suggest_after_ms=3000)
+        if face_factory is None:
+            reason = self._status["face"][1] or "FACE_MODEL_UNAVAILABLE"
+            face_factory = lambda: _UnavailableFace(reason)  # noqa: E731
+        hand_factory = landmarker_factory("hands", MediaPipeHandEstimator) if focus else None
+        pose_factory = landmarker_factory("pose", MediaPipePoseEstimator) if focus else None
+        return MultiSubjectPipeline(
+            detector=single.detector,
+            tracker=MultiSubjectTracker(max_subjects=max_subjects),
+            cropper=SubjectCropper(min_side=crop_size),
+            faces=PerSubjectFaceAnalyzer(face_factory, max_instances=max_subjects,
+                                         motion_gate=MotionGate() if motion_skip else None),
+            focus_analyzers=FocusAnalyzers(hand_factory, pose_factory,
+                                           hands_interval_ms=int(detection.get("hands_interval_ms", 200)),
+                                           pose_interval_ms=int(detection.get("pose_interval_ms", 250))),
+            scheduler=FocusScheduler(),
+            image_quality=single.image_quality,
+            object_tracker=single.object_tracker,
+            person_confidence_threshold=single.person_confidence_threshold,
+            yolo_every=yolo_every,
+            timeout_ms=single.timeout_ms,
+        )
+
     def close(self) -> None:
         if self.detector is not None:
             self.detector.close()
+        if self.pose_detector is not None:
+            self.pose_detector.close()
         for analyzer in (self.face_analyzer, self.pose_analyzer, self.hand_analyzer):
             if analyzer is not None:
                 analyzer.close()

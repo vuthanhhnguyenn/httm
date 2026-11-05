@@ -29,6 +29,9 @@ class RiskEngine:
         EventType.POSSIBLE_TALKING: 4.0,
         EventType.GAZE_OFF_SCREEN: 6.0,
         EventType.GAZE_SIDEWAYS: 5.0,
+        EventType.LOOK_AT_NEIGHBOR: 5.0,
+        EventType.TURN_AROUND: 8.0,
+        EventType.HEADS_TOGETHER: 8.0,
     }
 
     def __init__(self, *, weights: dict[EventType, float] | None = None, decay_per_second: float = 1.5,
