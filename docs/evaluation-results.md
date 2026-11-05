@@ -106,3 +106,16 @@ số dưới đây là cùng một cache chạy qua các bộ luật khác nhau 
   khúc sau dùng lại khung khúc trước (không tốn thêm lần chạy model). Gấp khoảng 3–4 lần số khung spec dự
   tính, nên trên M1200 có thể phải hạ model (l/m) mới đạt "trong 1 phút" — cần đo bằng `phase2f/do-m1200.ps1`.
 - CPU cloud (2 model x): 246 s/đoạn p50 khi xem mọi khung 5/giây; chỉ để so sánh, không phải số trên máy thi.
+
+### Phase 2f, clip 2 (`LUy81HI7wS0`, chưa có nhãn)
+
+Tầng nhanh: 29 đoạn nghi vấn (83 % clip). Cache tầng kỹ 5 khung/giây chạy qua các bộ luật:
+
+| Luật | Sự kiện tầng kỹ (trừ UNCLASSIFIED) |
+|---|---|
+| `main` | 5: LOOK_AT_NEIGHBOR 12,0 / 17,2 / 20,0 s, HEADS_TOGETHER 87,2 s, TURN_AROUND 89,2 s |
+| nhánh này, offline | 4 (17,2 và 20,0 s cùng ghế được gộp) |
+| nhánh này, live (khúc 10 s) | 6: thêm HEAD_TURN_RIGHT 54,6 s và TURN_AROUND 87,0 s (cùng người với HEADS_TOGETHER) |
+
+Bản live thêm 2 sự kiện quay đầu vì mốc hướng đầu của từng khúc 10 s ngắn hơn cả đoạn. Ảnh để chấm:
+`phase2f/clip2/su-kien.jpg` (project files).
