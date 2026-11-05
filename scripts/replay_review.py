@@ -28,7 +28,7 @@ from proctoring_ai.multi.cctv.suspects import SuspectWindow  # noqa: E402
 
 
 def replay(suspects: Path, cache: Path, *, config: ReviewRuleConfig | None = None,
-           max_frames: int | None = None) -> list[dict[str, Any]]:
+           max_frames: int | None = None, allow_missing: bool = False) -> list[dict[str, Any]]:
     windows = [SuspectWindow.from_json(json.loads(line))
                for line in suspects.read_text(encoding="utf-8").splitlines() if line.strip()]
     frames = load_cache(cache)
@@ -37,6 +37,8 @@ def replay(suspects: Path, cache: Path, *, config: ReviewRuleConfig | None = Non
     for window in windows:
         analysed = frames.get(window_key(window))
         if analysed is None:
+            if allow_missing:
+                continue
             raise KeyError(f"cache không có đoạn {window_key(window)}")
         if max_frames is not None:
             keep = set(select_offsets(window, [frame.offset_ms for frame in analysed], max_frames=max_frames))
@@ -51,9 +53,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("cache", type=Path)
     parser.add_argument("labels", type=Path)
     parser.add_argument("--max-frames", type=int, default=None, help="số khung tối đa mỗi đoạn")
+    parser.add_argument("--allow-missing", action="store_true", help="bỏ qua đoạn chưa có trong cache")
     parser.add_argument("--events", type=Path, default=None, help="ghi sự kiện ra file JSONL")
     args = parser.parse_args(argv)
-    records = replay(args.suspects, args.cache, max_frames=args.max_frames)
+    records = replay(args.suspects, args.cache, max_frames=args.max_frames, allow_missing=args.allow_missing)
     if args.events is not None:
         args.events.write_text("".join(json.dumps(item, ensure_ascii=False, default=str) + "\n" for item in records),
                                encoding="utf-8")

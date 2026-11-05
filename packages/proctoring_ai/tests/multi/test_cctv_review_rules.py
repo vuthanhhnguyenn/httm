@@ -65,7 +65,7 @@ def test_passing_by_wrists_reports_only_the_window_seat_when_nobody_reaches_over
     def pose(key, ms):
         if key == a:
             return wristed(person(cx=0.3, top=0.3), left=(0.36, 0.42))
-        return wristed(person(cx=0.42, top=0.3), left=(0.365, 0.42))
+        return wristed(person(cx=0.42, top=0.3), left=(0.375, 0.42))
 
     records = review_window(window(seats, a, 0, 500, ("HANDS_MEET",)), frames(seats, pose, 0, 500))
     passing = [item for item in records if item["action"] == "opened" and item["type"] == "PASSING_OBJECT"]
@@ -373,14 +373,14 @@ def test_far_row_wrist_inside_other_seat_reported() -> None:
 
 def test_near_row_hands_meet_reported() -> None:
     a, b, seats = _pair(0.25)
-    pose = _meeting(a, (0.355, 0.42), (0.36, 0.42))
+    pose = _meeting(a, (0.35, 0.42), (0.36, 0.42))
     records = review_window(window(seats, a, 0, 1000, ("HANDS_MEET",)), frames(seats, pose, 0, 1000))
     assert "PASSING_OBJECT" in kinds(records)
 
 
 def test_low_conf_wrist_ignored() -> None:
     a, b, seats = _pair(0.25)
-    pose = _meeting(a, (0.355, 0.42), (0.36, 0.42), conf=0.45)
+    pose = _meeting(a, (0.35, 0.42), (0.36, 0.42), conf=0.45)
     records = review_window(window(seats, a, 0, 1000, ("HANDS_MEET",)), frames(seats, pose, 0, 1000))
     assert "PASSING_OBJECT" not in kinds(records)
 
@@ -411,3 +411,28 @@ def test_hands_hidden_is_lap() -> None:
     records = review_window(window(seats, a, 0, 4000, ("HEAD_DOWN_HANDS_LOW",)),
                             frames(seats, _lap(None, None), 0, 4000))
     assert "LOOK_AT_LAP" in kinds(records)
+
+
+def test_passing_ignores_one_arm_given_to_both_people() -> None:
+    a, b = uuid4(), uuid4()
+    seats = {a: box(0.3), b: box(0.42)}
+
+    def pose(key, ms):
+        cx = 0.3 if key == a else 0.42
+        return wristed(person(cx=cx, top=0.3), left=(0.36, 0.42))  # the very same spot
+
+    records = review_window(window(seats, a, 0, 500, ("HANDS_MEET",)), frames(seats, pose, 0, 500))
+    assert "PASSING_OBJECT" not in kinds(records)
+
+
+def test_passing_ignores_long_side_by_side_hands_without_object() -> None:
+    a, b = uuid4(), uuid4()
+    seats = {a: box(0.3), b: box(0.42)}
+
+    def pose(key, ms):
+        if key == a:
+            return wristed(person(cx=0.3, top=0.3), left=(0.36, 0.42))
+        return wristed(person(cx=0.42, top=0.3), left=(0.375, 0.42))
+
+    records = review_window(window(seats, a, 0, 5000, ("HANDS_MEET",)), frames(seats, pose, 0, 5000))
+    assert "PASSING_OBJECT" not in kinds(records)

@@ -51,16 +51,21 @@ class ReviewRuleConfig:
     object_track_iou: float = 0.3  # same object in consecutive sightings
     object_wrist_widths: float = 0.6  # "in the hand": centre this close to a wrist, in seat widths
     object_move_widths: float = 0.5  # or it travelled this far, in its own widths
-    calculator_on_paper: bool = False
+    calculator_on_paper: bool = False  # a "phone" on the seat's own paper is a calculator (set if 31.6 stays)
     # Hands meeting is judged against the people's size, not the frame: far rows are tiny and their
     # keypoints jitter by more than a hand's width.
     passing_wrist_heights: float = 0.15  # wrists closer than this x the smaller seat box height
     passing_wrist_conf: float = 0.5
     far_row_height: float = 0.12  # seat boxes lower than this (frame heights) are far rows
-    far_row_inside_frames: int = 2
+    far_row_inside_frames: int = 2  # far rows also need a wrist inside the other seat this often
+    # Two people's wrists on the very same spot is one arm the pose model gave to both, not two hands.
+    same_arm_heights: float = 0.03
+    # A handover takes about a second; hands side by side for longer, with nothing between them, are two
+    # neighbours resting on a shared desk edge.
+    passing_max_ms: int = 3000
     # LOOK_AT_LAP: no hand of the candidate on the desk. A writer always has one hand on the paper; a hand
     # the camera cannot see is under the desk, so hidden hands count as low (phase 1 lap rule needed one seen).
-    lap_needs_both_wrists: bool = True  # far rows also need a wrist inside the other seat this often  # a "phone" on the seat's own paper is a calculator (set if 31.6 stays)
+    lap_needs_both_wrists: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -230,7 +235,8 @@ def review_window(window: SuspectWindow, frames: Sequence[ReviewFrame],
         if other == main:
             continue
         meet = _hands_meet(frames, main, other, seats, cfg)
-        runs = _runs(meet, cfg.passing_hold_ms, cfg.gap_ms)
+        runs = [run for run in _runs(meet, cfg.passing_hold_ms, cfg.gap_ms)
+                if run[2] - run[0] <= cfg.passing_max_ms or _object_between(frames, main, other, run, cfg)]
         if not runs:
             runs = _transfers(frames, main, other, seats, cfg, window.start_ms)
         for _since, opened, last in runs:
@@ -282,9 +288,10 @@ def _hands_meet(frames: Sequence[ReviewFrame], a: UUID, b: UUID, seats: Mapping[
                  if any(_inside(p, seats[b]) for p in _wrists(f.poses.get(a), cfg.passing_wrist_conf))
                  or any(_inside(q, seats[a]) for q in _wrists(f.poses.get(b), cfg.passing_wrist_conf)))
     out: list[tuple[int, bool]] = []
+    same_arm = cfg.same_arm_heights * height
     for f in frames:
         pairs = [(p, q) for p in _wrists(f.poses.get(a), cfg.passing_wrist_conf)
-                 for q in _wrists(f.poses.get(b), cfg.passing_wrist_conf) if distance(p, q) < reach]
+                 for q in _wrists(f.poses.get(b), cfg.passing_wrist_conf) if same_arm <= distance(p, q) < reach]
         ok = bool(pairs)
         if ok and far:
             between = any(distance(obj.bbox.center, ((p[0] + q[0]) / 2, (p[1] + q[1]) / 2)) < reach
@@ -292,6 +299,19 @@ def _hands_meet(frames: Sequence[ReviewFrame], a: UUID, b: UUID, seats: Mapping[
             ok = between or inside >= cfg.far_row_inside_frames
         out.append((f.offset_ms, ok))
     return out
+
+
+def _object_between(frames: Sequence[ReviewFrame], a: UUID, b: UUID, run: tuple[int, int, int],
+                    cfg: ReviewRuleConfig) -> bool:
+    for f in frames:
+        if not run[0] <= f.offset_ms <= run[2]:
+            continue
+        for p in _wrists(f.poses.get(a), cfg.passing_wrist_conf):
+            for q in _wrists(f.poses.get(b), cfg.passing_wrist_conf):
+                middle = ((p[0] + q[0]) / 2, (p[1] + q[1]) / 2)
+                if any(distance(obj.bbox.center, middle) < distance(p, q) for obj in f.objects):
+                    return True
+    return False
 
 
 def _alive(frames: Sequence[ReviewFrame], main: UUID, box: Box, cfg: ReviewRuleConfig) -> set[int]:
