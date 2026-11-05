@@ -125,7 +125,8 @@ def review(video: Path, windows: list[SuspectWindow], detectors: Any, out_dir: P
     records: list[dict[str, Any]] = []
     seconds: list[float] = []
     try:
-        for window in windows:
+        for index, window in enumerate(windows, 1):
+            print(f"Đoạn {index}/{len(windows)}: {window.start_ms / 1000:.1f}-{window.end_ms / 1000:.1f} s", flush=True)
             began = time.perf_counter()
             end = window.end_ms if duration_ms is None else min(window.end_ms, duration_ms)
             seats = review_seats(window)
