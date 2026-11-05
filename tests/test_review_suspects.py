@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "packages/proctoring_ai/tests/multi"))
 
 from cctv_kps import person  # noqa: E402
+from proctoring_ai.multi.cctv.review_core import review_seats  # noqa: E402
 from proctoring_ai.multi.cctv.review_detectors import ReviewObject  # noqa: E402
 from proctoring_ai.multi.cctv.suspects import SuspectWindow  # noqa: E402
 from proctoring_core.observations import Box  # noqa: E402
@@ -46,6 +47,12 @@ class _Detectors:
 
     def objects(self, _crop, _transform):
         return [ReviewObject("phone", 0.6, Box(0.29, 0.41, 0.02, 0.02), "fake")] if self.phone else []
+
+    def pose_many(self, crops, transforms):
+        return [self.pose(crop, transform) for crop, transform in zip(crops, transforms, strict=True)]
+
+    def objects_many(self, crops, transforms):
+        return [self.objects(crop, transform) for crop, transform in zip(crops, transforms, strict=True)]
 
 
 def _window(start: int, end: int) -> SuspectWindow:
@@ -89,7 +96,7 @@ def test_busy_window_crops_main_seat_and_two_nearest() -> None:
     seats[others[0]] = Box(0.56, 0.3, 0.1, 0.2)
     seats[others[1]] = Box(0.34, 0.3, 0.1, 0.2)
     window = SuspectWindow(main, 1, tuple(others), 0, 1000, ("LEAN",), seats[main], seats)
-    chosen = _module().review_seats(window)
+    chosen = review_seats(window)
     assert set(chosen) == {main, others[0], others[1]}
 
 

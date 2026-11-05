@@ -78,3 +78,49 @@ def test_load_specs_skips_disabled(tmp_path: Path) -> None:
                       encoding="utf-8")
     specs = load_specs(config, tmp_path)
     assert [spec.name for spec in specs] == ["a"] and specs[0].path == tmp_path / "a.pt"
+
+
+class _BatchModel:
+    """Answers one result per image; records each call's batch size and device."""
+
+    def __init__(self, names, rows, *, oom_above: int | None = None, oom_on_cuda: bool = False):
+        self.names, self.rows, self.calls = names, rows, []
+        self.oom_above, self.oom_on_cuda = oom_above, oom_on_cuda
+
+    def predict(self, **kwargs):
+        source = kwargs["source"]
+        images = source if isinstance(source, list) else [source]
+        device = kwargs.get("device")
+        if (self.oom_above is not None and len(images) > self.oom_above) or (self.oom_on_cuda and device != "cpu"):
+            raise RuntimeError("CUDA out of memory. Tried to allocate 20.00 MiB")
+        self.calls.append((len(images), device))
+        return [_Result(self.names, self.rows) for _ in images]
+
+
+def _crops(n):
+    return [np.zeros((100, 100, 3), np.uint8)] * n, [CropTransform(0, 0, 1.0, (100, 100))] * n
+
+
+def test_one_predict_per_model_per_batch(tmp_path: Path) -> None:
+    model = _BatchModel({0: "cell phone"}, [[10, 10, 50, 50, 0.9, 0]])
+    detectors = ReviewDetectors([_spec(tmp_path, "coco", {"cell phone": "phone"})], loader=lambda _p: model)
+    found = detectors.objects_many(*_crops(10))
+    assert [size for size, _ in model.calls] == [8, 2]
+    assert len(found) == 10 and all(len(items) == 1 for items in found)
+
+
+def test_oom_halves_batch(tmp_path: Path) -> None:
+    model = _BatchModel({0: "cell phone"}, [[10, 10, 50, 50, 0.9, 0]], oom_above=2)
+    detectors = ReviewDetectors([_spec(tmp_path, "coco", {"cell phone": "phone"})], loader=lambda _p: model)
+    found = detectors.objects_many(*_crops(5))
+    assert len(found) == 5 and max(size for size, _ in model.calls) <= 2
+    assert detectors.status["coco"] == "ok"
+
+
+def test_oom_at_batch_one_moves_model_to_cpu(tmp_path: Path) -> None:
+    model = _BatchModel({0: "cell phone"}, [[10, 10, 50, 50, 0.9, 0]], oom_on_cuda=True)
+    detectors = ReviewDetectors([_spec(tmp_path, "coco", {"cell phone": "phone"})], device="cuda:0",
+                                loader=lambda _p: model)
+    found = detectors.objects_many(*_crops(3))
+    assert len(found) == 3 and all(device == "cpu" for _, device in model.calls)
+    assert detectors.devices["coco"] == "cpu" and "hết VRAM" in detectors.reasons["coco"]

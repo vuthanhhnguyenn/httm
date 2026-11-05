@@ -23,12 +23,10 @@ for _src in ("packages/proctoring_core/src", "packages/proctoring_ai/src", "pack
 
 import cv2  # noqa: E402
 import numpy as np  # noqa: E402
-from proctoring_ai.multi.cctv.crops import crop_image, crop_region  # noqa: E402
 from proctoring_ai.multi.cctv.review_cache import save_window  # noqa: E402
+from proctoring_ai.multi.cctv.review_core import analyse_window  # noqa: E402
 from proctoring_ai.multi.cctv.review_rules import (  # noqa: E402
     ReviewFrame,
-    assign_poses,
-    review_window,
 )
 from proctoring_ai.multi.cctv.suspects import SuspectWindow  # noqa: E402
 from proctoring_runtime.messages import event_name  # noqa: E402
@@ -79,16 +77,6 @@ def put_text(image: Any, text: str, origin: tuple[int, int], size: int = 18,
     return np.asarray(canvas)[:, :, ::-1].copy()
 
 
-def review_seats(window: SuspectWindow, limit: int = 2) -> dict[Any, Any]:
-    """The window's seat and its ``limit`` nearest neighbours: a crop over a whole row would shrink, not enlarge."""
-
-    seats = dict(window.seats) or {window.seat_id: window.bbox}
-    main = seats.get(window.seat_id, window.bbox)
-    others = sorted((key for key in seats if key != window.seat_id),
-                    key=lambda key: (seats[key].center[0] - main.center[0]) ** 2 + (seats[key].center[1] - main.center[1]) ** 2)
-    return {window.seat_id: main, **{key: seats[key] for key in others[:limit]}}
-
-
 def _draw(image: Any, window: SuspectWindow, frame: ReviewFrame | None, item: dict[str, Any]) -> Any:
     canvas = image.copy()
     height, width = canvas.shape[:2]
@@ -129,18 +117,10 @@ def review(video: Path, windows: list[SuspectWindow], detectors: Any, out_dir: P
         for window in windows:
             began = time.perf_counter()
             end = window.end_ms if duration_ms is None else min(window.end_ms, duration_ms)
-            seats = review_seats(window)
-            region = crop_region(list(seats.values()))
-            analysed: list[ReviewFrame] = []
-            for offset, image in _frames(capture, window.start_ms - warmup_ms, end, fps):
-                crop, transform = crop_image(image, region)
-                height, width = image.shape[:2]
-                people = detectors.pose(crop, transform)
-                analysed.append(ReviewFrame(offset, seats, assign_poses(seats, people),
-                                            detectors.objects(crop, transform), width / height))
+            images = _frames(capture, window.start_ms - warmup_ms, end, fps)
+            found, analysed = analyse_window(window, images, detectors)
             if cache_path is not None:
                 save_window(cache_path, window, analysed)
-            found = review_window(window, analysed)
             for item in found:
                 if "type" in item:
                     item["label_vi"] = event_name(item["type"])
