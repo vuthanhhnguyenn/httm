@@ -9,6 +9,7 @@ waits longer than ``deadline_ms`` becomes ``REVIEW_SKIPPED`` so the invigilator 
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from collections.abc import Callable, Sequence
@@ -25,6 +26,8 @@ from .review_dedupe import ReviewDeduper
 from .review_frames import select_offsets
 from .review_queue import ReviewQueue, skipped_record
 from .suspects import SuspectWindow
+
+_log = logging.getLogger(__name__)
 
 Record = tuple[dict[str, Any], Any]  # (event record, frame for its evidence picture or None)
 
@@ -87,6 +90,8 @@ class ReviewWorker:
         self._windows = self._skipped = 0
         self._lock = threading.Condition()
         self._closing = False
+        self._current: SuspectWindow | None = None
+        self._abandoned: SuspectWindow | None = None
         self._thread: threading.Thread | None = None
         if start:
             self._thread = threading.Thread(target=self._run, name="cctv-review", daemon=True)
@@ -124,6 +129,21 @@ class ReviewWorker:
         if popped is None:
             return False
         waited_from, window = popped  # latency counts the wait in the queue too
+        with self._lock:
+            self._current = window
+        try:
+            self._review(waited_from, window)
+        except Exception as exc:  # noqa: BLE001 - one bad window must not stop the deep tier for the exam
+            _log.warning("tầng kỹ lỗi ở đoạn %s %s-%s: %s", window.seat_id, window.start_ms, window.end_ms, exc)
+            with self._lock:
+                if self._abandoned is not window:
+                    self._skip(window, "error")
+        finally:
+            with self._lock:
+                self._current = None
+        return True
+
+    def _review(self, waited_from: int, window: SuspectWindow) -> None:
         cfg = self.config
         context = self.history.before(window)
         warmup_ms = 0 if context else cfg.warmup_ms  # the previous piece already is the warm-up
@@ -133,7 +153,7 @@ class ReviewWorker:
         if needs_file and self.video_path is None and (oldest is None or window.start_ms < oldest):
             with self._lock:
                 self._skip(window, "frames_gone")
-            return True
+            return
         if needs_file and self.video_path is not None:
             dense = list(range(max(0, window.start_ms - warmup_ms), window.end_ms + 1, 200))
             offsets = select_offsets(window, dense, per_s=cfg.per_s, warmup_frames=warmup_frames,
@@ -143,6 +163,10 @@ class ReviewWorker:
             offsets = select_offsets(window, self.ring.offsets(), per_s=cfg.per_s, warmup_frames=warmup_frames,
                                      warmup_ms=warmup_ms, max_frames=cfg.max_frames)
             images = [found for t in offsets if (found := self.ring.get(t)) is not None]
+        if not any(window.start_ms <= t <= window.end_ms for t, _ in images):
+            with self._lock:  # decoded nothing, or the ring dropped the frames meanwhile: say so
+                self._skip(window, "frames_gone")
+            return
         records, frames = analyse_window(window, images, self.detectors, context=context)
         self.history.add(window, frames)
         by_offset = dict(images)
@@ -154,10 +178,11 @@ class ReviewWorker:
                 image = _evidence(by_offset[nearest], window, item)
             out.append((item, image))
         with self._lock:
+            if self._abandoned is window:  # close() already reported it as skipped
+                return
             self._done += out
             self._windows += 1
             self._latency_ms.append(self._now_ms() - waited_from)
-        return True
 
     def _run(self) -> None:
         while True:
@@ -181,7 +206,10 @@ class ReviewWorker:
             while self.step():
                 pass
         with self._lock:
-            for window in self.queue.drain_all():  # thread timed out
+            if self._current is not None:  # thread timed out in the middle of a window
+                self._abandoned = self._current
+                self._skip(self._current, "shutdown")
+            for window in self.queue.drain_all():
                 self._skip(window, "shutdown")
         return self.drain()
 

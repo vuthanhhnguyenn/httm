@@ -98,3 +98,14 @@ def test_analyse_window_rules_see_context_but_returns_new_frames_only():
     records, frames = analyse_window(window, images, _Detectors(kps), context=_bent_frames(seat, box, 4000, 10000))
     assert [f.offset_ms for f in frames] == [t for t, _ in images]
     assert "LOOK_AT_LAP" in [r["type"] for r in records if r["action"] == "opened"]
+
+
+def test_history_not_used_across_a_hole():
+    # Seat reviewed at 0-10 s, next window at 25 s: old frames are no warm-up for it (review finding).
+    from proctoring_ai.multi.cctv.review_core import ReviewHistory
+
+    seat = uuid4()
+    box = Box(0.45, 0.3, 0.1, 0.2)
+    history = ReviewHistory(keep_ms=20000)
+    history.add(SuspectWindow(seat, 1, (), 0, 10000, ("LEAN",), box, {seat: box}), _bent_frames(seat, box, 0, 10000))
+    assert history.before(SuspectWindow(seat, 1, (), 25000, 35000, ("LEAN",), box, {seat: box})) == []

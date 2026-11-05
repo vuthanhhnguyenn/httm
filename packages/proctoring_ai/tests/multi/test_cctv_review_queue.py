@@ -61,3 +61,11 @@ def test_a_seat_pieces_in_time_order():
     queue.push(win(seat, 0, 9800, ("LEAN",)), 0)
     queue.push(win(seat, 10000, 20000, ("LEAN", "HEAD_AWAY", "RULE_EVENT")), 1)
     assert [queue.pop().start_ms, queue.pop().start_ms] == [0, 10000]
+
+
+def test_touching_pieces_not_merged():
+    queue = ReviewQueue()
+    seat = uuid4()
+    queue.push(win(seat, 3000, 13000), 0)
+    queue.push(win(seat, 13000, 23000), 1)
+    assert len(queue) == 2

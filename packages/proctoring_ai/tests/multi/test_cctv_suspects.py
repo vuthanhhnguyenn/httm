@@ -163,3 +163,13 @@ def test_poll_splits_long_open_span_at_10s() -> None:
     feed(tracker, [a], calm, 14000, 30000, rule_events=lambda ms: [a.seat_id] if ms < 16000 else [])
     rest = tracker.poll(30000) + tracker.finish(None)
     assert len(rest) == 1 and rest[0].start_ms == first.end_ms
+
+
+def test_poll_settled_long_span_handed_out_once() -> None:
+    # First poll after a long span already settled: one window, never its pieces again (review finding).
+    tracker, a = SuspectTracker(), seat(0.3, 1)
+    feed(tracker, [a], calm, 0, 30000, rule_events=lambda ms: [a.seat_id] if 5000 <= ms < 28000 else [])
+    feed(tracker, [a], calm, 30000, 80000)
+    got = tracker.poll(80000, max_open_ms=10000) + tracker.poll(90000, max_open_ms=10000) + tracker.finish(None)
+    covered = sorted((w.start_ms, w.end_ms) for w in got)
+    assert all(b[0] >= a_[1] for a_, b in zip(covered, covered[1:], strict=False)), covered

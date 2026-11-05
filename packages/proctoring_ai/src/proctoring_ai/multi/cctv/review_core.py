@@ -32,14 +32,16 @@ class ReviewHistory:
     that started 2 s before the cut is cut in two and missed. Those frames cost no model time.
     """
 
-    def __init__(self, keep_ms: int = 20000) -> None:
-        self.keep_ms = keep_ms
+    def __init__(self, keep_ms: int = 20000, max_gap_ms: int = 1000) -> None:
+        self.keep_ms, self.max_gap_ms = keep_ms, max_gap_ms
         self._frames: dict[Any, list[ReviewFrame]] = {}
 
     def before(self, window: SuspectWindow) -> list[ReviewFrame]:
         seats = set(review_seats(window))
-        return [frame for frame in self._frames.get(window.seat_id, [])
-                if window.start_ms - self.keep_ms <= frame.offset_ms < window.start_ms and set(frame.seats) == seats]
+        found = [frame for frame in self._frames.get(window.seat_id, [])
+                 if window.start_ms - self.keep_ms <= frame.offset_ms < window.start_ms and set(frame.seats) == seats]
+        # Only a piece that runs straight on: across a hole the old frames are no warm-up.
+        return found if found and window.start_ms - found[-1].offset_ms <= self.max_gap_ms else []
 
     def add(self, window: SuspectWindow, frames: Sequence[ReviewFrame]) -> None:
         kept = {frame.offset_ms: frame for frame in self._frames.get(window.seat_id, [])}

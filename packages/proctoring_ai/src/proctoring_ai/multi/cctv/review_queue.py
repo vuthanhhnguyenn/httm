@@ -41,7 +41,7 @@ class ReviewQueue:
 
     def push(self, window: SuspectWindow, now_wall_ms: int) -> None:
         for i, (pushed, order, other) in enumerate(self._waiting):
-            if other.seat_id == window.seat_id and window.start_ms <= other.end_ms and other.start_ms <= window.end_ms:
+            if other.seat_id == window.seat_id and window.start_ms < other.end_ms and other.start_ms < window.end_ms:
                 self._waiting[i] = (pushed, order, merge_windows(other, window))
                 return
         self._waiting.append((now_wall_ms, next(self._order), window))
@@ -81,7 +81,7 @@ class ReviewQueue:
 
 
 def skipped_record(window: SuspectWindow, reason: str) -> dict[str, Any]:
-    """``reason``: "deadline" | "frames_gone" | "shutdown"."""
+    """``reason``: "deadline" | "frames_gone" | "shutdown" | "error"."""
 
     head = window.bbox.x + window.bbox.width / 2, window.bbox.y + 0.25 * window.bbox.height
     return {"action": "opened", "id": str(uuid4()), "type": EventType.REVIEW_SKIPPED.value,

@@ -136,3 +136,53 @@ def test_live_density_defaults():
     # Clip 1 replay (phase 2f): 3 frames a second and a dense 6 s warm-up keep 9/9; 12 frames a window found 0/9.
     cfg = ReviewWorkerConfig()
     assert cfg.per_s == 3.0 and cfg.warmup_frames == 18 and cfg.max_frames == 48
+
+
+def skips(records):
+    return [item.get("skip_reason") for item, _ in records if item["type"] == "REVIEW_SKIPPED"]
+
+
+class _Broken(_Detectors):
+    def pose_many(self, crops, transforms):
+        raise RuntimeError("driver lost")
+
+
+def test_model_error_skips_window_and_worker_keeps_going():
+    worker = ReviewWorker(_Broken(), ring_with(), video_path=None)
+    worker.submit([window(8000, 10000)])
+    for _ in range(100):  # the thread must still be alive and expire / review later windows
+        if worker.stats()["review_skipped"]:
+            break
+        import time
+        time.sleep(0.02)
+    worker.detectors = _Detectors()
+    worker.submit([window(12000, 14000)])
+    records = worker.close(flush=True)
+    assert skips(records) == ["error"]
+    assert opened(records).count("PHONE_DETECTED") == 1
+
+
+def test_window_without_frames_inside_is_skipped():
+    worker = ReviewWorker(_Detectors(), ring_with(0, 20000), video_path=None, start=False)
+    worker.submit([window(25000, 27000)])  # only warm-up frames exist
+    worker.step()
+    assert skips(worker.drain()) == ["frames_gone"]
+
+
+def test_close_timeout_reports_window_under_review():
+    import threading
+
+    gate = threading.Event()
+
+    class _Slow(_Detectors):
+        def pose_many(self, crops, transforms):
+            gate.wait(5)
+            return super().pose_many(crops, transforms)
+
+    worker = ReviewWorker(_Slow(), ring_with(), video_path=None)
+    worker.submit([window(8000, 10000)])
+    import time
+    time.sleep(0.2)
+    records = worker.close(flush=True, timeout_s=0.2)
+    gate.set()
+    assert skips(records) == ["shutdown"]

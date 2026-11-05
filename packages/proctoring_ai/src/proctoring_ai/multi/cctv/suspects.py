@@ -268,8 +268,12 @@ class SuspectTracker:
                 if span.end <= done:
                     continue
                 if offset_ms - (span.end - cfg.pad_ms) > settle:
-                    out.append(self._window(seat_id, span, start, span.end))
-                    done = span.end
+                    # Settled: the rest in max_open_ms pieces, each handed out once.
+                    while start < span.end:
+                        end = span.end if span.end - start <= max_open_ms else start + max_open_ms
+                        out.append(self._window(seat_id, span, start, end))
+                        start = done = end
+                    continue
                 while offset_ms - start >= max_open_ms and start + max_open_ms < span.end:
                     out.append(self._window(seat_id, span, start, start + max_open_ms))
                     start = done = start + max_open_ms
