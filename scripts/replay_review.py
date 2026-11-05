@@ -20,6 +20,7 @@ for _src in ("packages/proctoring_core/src", "packages/proctoring_ai/src"):
         sys.path.insert(0, str(ROOT / _src))
 
 from proctoring_ai.multi.cctv.review_cache import load_cache, window_key  # noqa: E402
+from proctoring_ai.multi.cctv.review_dedupe import ReviewDeduper  # noqa: E402
 from proctoring_ai.multi.cctv.review_frames import select_offsets  # noqa: E402
 from proctoring_ai.multi.cctv.review_rules import ReviewRuleConfig, review_window  # noqa: E402
 from proctoring_ai.multi.cctv.review_score import load_verdicts, score_review  # noqa: E402
@@ -31,6 +32,7 @@ def replay(suspects: Path, cache: Path, *, config: ReviewRuleConfig | None = Non
     windows = [SuspectWindow.from_json(json.loads(line))
                for line in suspects.read_text(encoding="utf-8").splitlines() if line.strip()]
     frames = load_cache(cache)
+    dedupe = ReviewDeduper()
     records: list[dict[str, Any]] = []
     for window in windows:
         analysed = frames.get(window_key(window))
@@ -39,7 +41,7 @@ def replay(suspects: Path, cache: Path, *, config: ReviewRuleConfig | None = Non
         if max_frames is not None:
             keep = set(select_offsets(window, [frame.offset_ms for frame in analysed], max_frames=max_frames))
             analysed = [frame for frame in analysed if frame.offset_ms in keep]
-        records += review_window(window, analysed, config)
+        records += dedupe.admit(review_window(window, analysed, config))
     return records
 
 

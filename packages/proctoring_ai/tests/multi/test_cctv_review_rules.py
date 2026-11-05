@@ -58,7 +58,7 @@ def test_phone_two_frames_only_dismissed() -> None:
     assert [item["action"] for item in records] == ["dismissed"]
 
 
-def test_passing_by_wrists_reports_both_seats() -> None:
+def test_passing_by_wrists_reports_only_the_window_seat_when_nobody_reaches_over() -> None:
     a, b = uuid4(), uuid4()
     seats = {a: box(0.3), b: box(0.42)}
 
@@ -69,8 +69,7 @@ def test_passing_by_wrists_reports_both_seats() -> None:
 
     records = review_window(window(seats, a, 0, 500, ("HANDS_MEET",)), frames(seats, pose, 0, 500))
     passing = [item for item in records if item["action"] == "opened" and item["type"] == "PASSING_OBJECT"]
-    assert {item["seat_id"] for item in passing} == {str(a), str(b)}
-    assert {item["neighbor_seat_id"] for item in passing} == {str(a), str(b)}
+    assert [(item["seat_id"], item["neighbor_seat_id"]) for item in passing] == [(str(a), str(b))]
 
 
 def test_passing_by_object_transfer() -> None:
@@ -91,7 +90,7 @@ def test_passing_by_object_transfer() -> None:
         return wristed(person(cx=cx, top=0.3), left=(cx, 0.415) if holding else None)
 
     records = review_window(window(seats, a, 0, 3000), frames(seats, pose, 0, 3000, objects))
-    assert sorted(kinds(records)) == ["PASSING_OBJECT", "PASSING_OBJECT"]
+    assert kinds(records) == ["PASSING_OBJECT"]
 
 
 def test_document_below_desk_line_opens() -> None:
@@ -264,3 +263,32 @@ def test_sparse_frames_keep_lap_hold():
     sparse = [f for f in frames(seats, pose, 0, 10000) if f.offset_ms % 333 < 100]
     records = review_window(window(seats, main, 6000, 10000, ("HEAD_DOWN_HANDS_LOW",)), sparse)
     assert "LOOK_AT_LAP" in kinds(records)
+
+
+def test_passing_only_reacher() -> None:
+    """Nguyên (phase 2d): only the candidate who reaches over is flagged, not the neighbour."""
+
+    a, b = uuid4(), uuid4()
+    seats = {a: box(0.3), b: box(0.42)}  # midline x = 0.36
+
+    def pose(key, ms):
+        if key == a:
+            return wristed(person(cx=0.3, top=0.3), left=(0.31, 0.42))
+        return wristed(person(cx=0.42, top=0.3), left=(0.33, 0.42))  # b's hand is over a's desk
+
+    records = review_window(window(seats, a, 0, 500, ("HANDS_MEET",)), frames(seats, pose, 0, 500))
+    passing = [item for item in records if item["action"] == "opened" and item["type"] == "PASSING_OBJECT"]
+    assert [(item["seat_id"], item["neighbor_seat_id"]) for item in passing] == [(str(b), str(a))]
+
+
+def test_passing_both_reach_farther_wins() -> None:
+    a, b = uuid4(), uuid4()
+    seats = {a: box(0.3), b: box(0.42)}
+
+    def pose(key, ms):
+        if key == a:
+            return wristed(person(cx=0.3, top=0.3), left=(0.37, 0.42))  # 0.01 over the midline
+        return wristed(person(cx=0.42, top=0.3), left=(0.34, 0.42))  # 0.02 over
+
+    records = review_window(window(seats, a, 0, 500, ("HANDS_MEET",)), frames(seats, pose, 0, 500))
+    assert [item["seat_id"] for item in records if item["action"] == "opened"] == [str(b)]

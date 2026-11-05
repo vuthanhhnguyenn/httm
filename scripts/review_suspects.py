@@ -25,6 +25,7 @@ import cv2  # noqa: E402
 import numpy as np  # noqa: E402
 from proctoring_ai.multi.cctv.review_cache import save_window  # noqa: E402
 from proctoring_ai.multi.cctv.review_core import analyse_window  # noqa: E402
+from proctoring_ai.multi.cctv.review_dedupe import ReviewDeduper  # noqa: E402
 from proctoring_ai.multi.cctv.review_frames import select_offsets  # noqa: E402
 from proctoring_ai.multi.cctv.review_rules import (  # noqa: E402
     ReviewFrame,
@@ -115,6 +116,7 @@ def review(video: Path, windows: list[SuspectWindow], detectors: Any, out_dir: P
     duration_ms = int(1000 * count / rate) if count and rate else None
     records: list[dict[str, Any]] = []
     seconds: list[float] = []
+    dedupe = ReviewDeduper()
     try:
         for window in windows:
             began = time.perf_counter()
@@ -126,6 +128,7 @@ def review(video: Path, windows: list[SuspectWindow], detectors: Any, out_dir: P
             found, analysed = analyse_window(window, images, detectors)
             if cache_path is not None:
                 save_window(cache_path, window, analysed)
+            found = dedupe.admit(found)
             for item in found:
                 if "type" in item:
                     item["label_vi"] = event_name(item["type"])

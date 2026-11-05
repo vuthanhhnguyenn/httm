@@ -218,8 +218,10 @@ def review_window(window: SuspectWindow, frames: Sequence[ReviewFrame],
         if not runs:
             runs = _transfers(frames, main, other, seats, cfg, window.start_ms)
         for _since, opened, last in runs:
-            emit(EventType.PASSING_OBJECT, main, opened, last, neighbor_seat_id=str(other))
-            emit(EventType.PASSING_OBJECT, other, opened, last, neighbor_seat_id=str(main))
+            # Only the candidate who reaches over is flagged (Nguyên, phase 2d), not the neighbour.
+            reacher = _reacher(frames, main, other, seats, opened - cfg.passing_hold_ms, last)
+            neighbour = other if reacher == main else main
+            emit(EventType.PASSING_OBJECT, reacher, opened, last, neighbor_seat_id=str(neighbour))
 
     # (d) paper or book below the desk or held up at the face.
     document = []
@@ -251,6 +253,23 @@ def review_window(window: SuspectWindow, frames: Sequence[ReviewFrame],
             records.append({"action": "dismissed", "seat_id": str(main), "start_ms": window.start_ms,
                             "end_ms": window.end_ms, "reasons": list(window.reasons), "stage": "review"})
     return records
+
+
+def _reacher(frames: Sequence[ReviewFrame], a: UUID, b: UUID, seats: Mapping[UUID, Box], start: int,
+             end: int) -> UUID:
+    """The seat whose wrist got farthest past the midline between the two seats during [start, end];
+    ``a`` (the window's seat) when nobody crossed it."""
+
+    ax, bx = seats[a].center[0], seats[b].center[0]
+    mid = (ax + bx) / 2
+    toward = 1.0 if bx >= ax else -1.0  # direction from a to b along x
+
+    def reach(seat_id: UUID, sign: float) -> float:
+        return max([sign * (p[0] - mid) for f in frames if start <= f.offset_ms <= end
+                    for p in _wrists(f.poses.get(seat_id))], default=0.0)
+
+    reach_a, reach_b = reach(a, toward), reach(b, -toward)
+    return b if reach_b > max(0.0, reach_a) else a
 
 
 def _transfers(frames: Sequence[ReviewFrame], a: UUID, b: UUID, seats: Mapping[UUID, Box],
