@@ -167,7 +167,7 @@ async def run(args: argparse.Namespace) -> int:
     from proctoring_ai.capture.prefetch_source import PrefetchFrameSource
 
     # Decoding the next frames overlaps the AI on the current one.
-    source = PrefetchFrameSource(VideoFileFrameSource(args.video, analysis_rate_hz=rate), max_queue=8)
+    prefetched = PrefetchFrameSource(VideoFileFrameSource(args.video, analysis_rate_hz=rate), max_queue=8)
     side_tasks: list[Any] = []
     live: Any = None
     if cctv and args.review_live:
@@ -183,7 +183,7 @@ async def run(args: argparse.Namespace) -> int:
         live = LiveReview(rules.suspects, ReviewWorker(detectors, ring, video_path=args.video), ring)
         side_tasks.append(live)
     try:
-        result = await run_multi_replay(source, pipeline, policy=settings.raw_policy, raw_config=raw_config,
+        result = await run_multi_replay(prefetched, pipeline, policy=settings.raw_policy, raw_config=raw_config,
                                         out_dir=args.out, mode=args.mode, overlap=not args.no_overlap,
                                         write_video=not args.no_video, video_fps=video_fps,
                                         exam_mode=args.exam_mode, run_config=run_config, rules=rules,
