@@ -64,12 +64,14 @@ class SuspectWindow:
     bbox: Box
     # Every seat the deep tier must look at (this one and its neighbours), with its box.
     seats: Mapping[UUID, Box] = field(default_factory=dict)
+    # When the most fast-tier reasons held at once (earliest on a tie): the deep tier always looks there.
+    peak_ms: int | None = None
 
     def to_json(self) -> dict[str, Any]:
         return {"seat_id": str(self.seat_id), "runtime_track_id": self.runtime_track_id,
                 "neighbor_ids": [str(item) for item in self.neighbor_ids], "start_ms": self.start_ms,
                 "end_ms": self.end_ms, "reasons": list(self.reasons), "bbox": _box_json(self.bbox),
-                "seats": {str(key): _box_json(box) for key, box in self.seats.items()}}
+                "seats": {str(key): _box_json(box) for key, box in self.seats.items()}, "peak_ms": self.peak_ms}
 
     @classmethod
     def from_json(cls, item: Mapping[str, Any]) -> SuspectWindow:
@@ -79,7 +81,8 @@ class SuspectWindow:
         return cls(UUID(item["seat_id"]), item.get("runtime_track_id"),
                    tuple(UUID(value) for value in item.get("neighbor_ids", ())), int(item["start_ms"]),
                    int(item["end_ms"]), tuple(item.get("reasons", ())), box(item["bbox"]),
-                   {UUID(key): box(value) for key, value in item.get("seats", {}).items()})
+                   {UUID(key): box(value) for key, value in item.get("seats", {}).items()},
+                   None if item.get("peak_ms") is None else int(item["peak_ms"]))
 
 
 class DeskLine:

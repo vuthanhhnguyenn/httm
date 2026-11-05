@@ -27,6 +27,7 @@ EVENT_NAMES = {
     "PASSING_OBJECT": "Chuyền đồ vật với thí sinh bên cạnh",
     "LOOK_AT_LAP": "Cúi nhìn xuống đùi lâu",
     "UNCLASSIFIED_SUSPECT": "Đoạn nghi vấn chưa phân loại",
+    "REVIEW_SKIPPED": "Chưa kiểm tra kỹ",
 }
 
 CORRELATION_NAMES = {
