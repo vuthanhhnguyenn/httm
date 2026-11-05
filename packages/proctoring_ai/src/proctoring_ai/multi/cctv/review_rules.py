@@ -20,7 +20,7 @@ from ..pipeline import FrameTiming, MultiFrameResult
 from ..tracker import Seat, TrackerUpdate
 from .head import Keypoints, distance, head_lift, head_point, point, shoulders
 from .pose_detector import LEFT_WRIST, RIGHT_WRIST
-from .review_detectors import ReviewObject
+from .review_detectors import ReviewObject, _iou
 from .roles import CANDIDATE
 from .rules import CctvRuleConfig, CctvSeatRules
 from .suspects import CctvSuspectConfig, DeskLine, SuspectWindow
@@ -45,6 +45,13 @@ class ReviewRuleConfig:
     min_head_lift: float = 0.1
     gap_ms: int = 300
     home_min_ms: int = 5000  # the warm-up before a window is shorter than the fast tier's 10 s
+    # Phase 2f: a phone or paper only counts while somebody handles it. Things lying still on the desk all
+    # window long (calculator, exam paper) are desk items, not cheating.
+    object_min_frames: int = 2  # one detection alone is noise
+    object_track_iou: float = 0.3  # same object in consecutive sightings
+    object_wrist_widths: float = 0.6  # "in the hand": centre this close to a wrist, in seat widths
+    object_move_widths: float = 0.5  # or it travelled this far, in its own widths
+    calculator_on_paper: bool = False  # a "phone" on the seat's own paper is a calculator (set if 31.6 stays)
 
 
 @dataclass(frozen=True, slots=True)
@@ -184,6 +191,7 @@ def review_window(window: SuspectWindow, frames: Sequence[ReviewFrame],
 
     box = seats[main]
     width = box.width
+    alive = _alive(frames, main, box, cfg)
 
     # (a) phone close to a wrist or below the desk, in enough frames within a second.
     hits = []
@@ -195,7 +203,9 @@ def review_window(window: SuspectWindow, frames: Sequence[ReviewFrame],
         desk_top = min([lines[main][i], *papers])
         # Above the candidate's own head is the desk of the row in front, seen past their head.
         own_head = head_point(frame.poses[main], box) if frame.poses.get(main) is not None else None
-        ok = any(obj.label == "phone" and obj.confidence >= cfg.phone_min_conf and _inside(obj.bbox.center, box)
+        ok = any(obj.label == "phone" and id(obj) in alive and obj.confidence >= cfg.phone_min_conf
+                 and _inside(obj.bbox.center, box)
+                 and not (cfg.calculator_on_paper and _on_paper(obj, frame, box))
                  and (own_head is None or obj.bbox.center[1] > own_head[1])
                  and any(distance(obj.bbox.center, p) < cfg.phone_wrist_widths * width for p in wrists)
                  and obj.bbox.center[1] < desk_top - cfg.phone_raise_heights * box.height for obj in frame.objects)
@@ -227,7 +237,7 @@ def review_window(window: SuspectWindow, frames: Sequence[ReviewFrame],
     document = []
     for i, frame in enumerate(frames):
         head = head_point(frame.poses.get(main), box) if frame.poses.get(main) is not None else None
-        ok = any(obj.label in ("paper", "book") and _inside(obj.bbox.center, box)
+        ok = any(obj.label in ("paper", "book") and id(obj) in alive and _inside(obj.bbox.center, box)
                  and (obj.bbox.center[1] > lines[main][i]
                       or (head is not None and distance(obj.bbox.center, head) < cfg.document_face_widths * width))
                  for obj in frame.objects)
@@ -253,6 +263,46 @@ def review_window(window: SuspectWindow, frames: Sequence[ReviewFrame],
             records.append({"action": "dismissed", "seat_id": str(main), "start_ms": window.start_ms,
                             "end_ms": window.end_ms, "reasons": list(window.reasons), "stage": "review"})
     return records
+
+
+def _alive(frames: Sequence[ReviewFrame], main: UUID, box: Box, cfg: ReviewRuleConfig) -> set[int]:
+    """``id()`` of the objects in the seat that somebody handles: the same object (linked frame to frame by
+    IoU) seen in ``object_min_frames`` frames, and near the candidate's wrist once or moved meanwhile."""
+
+    tracks: list[list[tuple[ReviewObject, list[tuple[float, float]]]]] = []
+    for frame in frames:
+        wrists = _wrists(frame.poses.get(main))
+        for obj in frame.objects:
+            if not _inside(obj.bbox.center, box):
+                continue
+            match = next((track for track in tracks if track[-1][0].label == obj.label
+                          and _iou(track[-1][0].bbox, obj.bbox) > cfg.object_track_iou), None)
+            if match is None:
+                tracks.append([(obj, wrists)])
+            else:
+                match.append((obj, wrists))
+    out: set[int] = set()
+    for track in tracks:
+        if len(track) < cfg.object_min_frames:
+            continue
+        held = any(distance(obj.bbox.center, p) <= cfg.object_wrist_widths * box.width
+                   for obj, wrists in track for p in wrists)
+        first, last = track[0][0].bbox, track[-1][0].bbox
+        moved = distance(first.center, last.center) > cfg.object_move_widths * max(first.width, 1e-6)
+        if held or moved:
+            out |= {id(obj) for obj, _ in track}
+    return out
+
+
+def _on_paper(obj: ReviewObject, frame: ReviewFrame, box: Box) -> bool:
+    for paper in frame.objects:
+        if paper.label not in ("book", "paper") or not _inside(paper.bbox.center, box):
+            continue
+        b = paper.bbox
+        grown = Box(b.x - 0.1 * b.width, b.y - 0.1 * b.height, 1.2 * b.width, 1.2 * b.height)
+        if _inside(obj.bbox.center, grown):
+            return True
+    return False
 
 
 def _reacher(frames: Sequence[ReviewFrame], a: UUID, b: UUID, seats: Mapping[UUID, Box], start: int,

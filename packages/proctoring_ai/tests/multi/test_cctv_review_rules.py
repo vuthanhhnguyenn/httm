@@ -97,8 +97,8 @@ def test_document_below_desk_line_opens() -> None:
     a = uuid4()
     seats = {a: box(0.3)}
     book = ReviewObject("book", 0.5, Box(0.28, 0.46, 0.04, 0.02), "yolo11x")
-    records = review_window(window(seats, a, 0, 1500),
-                            frames(seats, lambda key, ms: person(cx=0.3, top=0.3), 0, 1500, lambda ms: [book]))
+    holding = lambda key, ms: wristed(person(cx=0.3, top=0.3), left=(0.3, 0.47))  # noqa: E731
+    records = review_window(window(seats, a, 0, 1500), frames(seats, holding, 0, 1500, lambda ms: [book]))
     assert kinds(records) == ["DOCUMENT_DETECTED"]
 
 
@@ -292,3 +292,52 @@ def test_passing_both_reach_farther_wins() -> None:
 
     records = review_window(window(seats, a, 0, 500, ("HANDS_MEET",)), frames(seats, pose, 0, 500))
     assert [item["seat_id"] for item in records if item["action"] == "opened"] == [str(b)]
+
+
+def test_still_phone_far_from_wrist_ignored() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    pose = lambda key, ms: wristed(person(cx=0.3, top=0.3), left=(0.26, 0.42))  # noqa: E731
+    still = phone(0.34, 0.42)  # 0.08 = 0.8 seat widths from the wrist, never moves
+    records = review_window(window(seats, a, 0, 1200), frames(seats, pose, 0, 1200, lambda ms: [still]))
+    assert "PHONE_DETECTED" not in kinds(records)
+
+
+def test_held_phone_reported() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    pose = lambda key, ms: wristed(person(cx=0.3, top=0.3), left=(0.3, 0.42))  # noqa: E731
+    records = review_window(window(seats, a, 0, 1000),
+                            frames(seats, pose, 0, 1000, lambda ms: [phone(0.303, 0.42)] if ms in (300, 500, 700) else []))
+    assert kinds(records) == ["PHONE_DETECTED"]
+
+
+def test_single_frame_object_ignored() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    book = ReviewObject("book", 0.5, Box(0.28, 0.46, 0.04, 0.02), "yolo11x")
+    holding = lambda key, ms: wristed(person(cx=0.3, top=0.3), left=(0.3, 0.47))  # noqa: E731
+    records = review_window(window(seats, a, 0, 1500, ("LEAN",)),
+                            frames(seats, holding, 0, 1500, lambda ms: [book] if ms == 700 else []))
+    assert "DOCUMENT_DETECTED" not in kinds(records)
+
+
+def test_moving_book_reported() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+
+    def book(ms):  # slides 0.03 (0.75 of its width) under the desk, nobody's wrist near it
+        return [ReviewObject("book", 0.5, Box(0.26 + 0.03 * ms / 1500, 0.46, 0.04, 0.02), "yolo11x")]
+
+    records = review_window(window(seats, a, 0, 1500),
+                            frames(seats, lambda key, ms: person(cx=0.3, top=0.3), 0, 1500, book))
+    assert kinds(records) == ["DOCUMENT_DETECTED"]
+
+
+def test_still_book_under_desk_without_hand_ignored() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    book = ReviewObject("book", 0.5, Box(0.28, 0.46, 0.04, 0.02), "yolo11x")
+    records = review_window(window(seats, a, 0, 1500, ("LEAN",)),
+                            frames(seats, lambda key, ms: person(cx=0.3, top=0.3), 0, 1500, lambda ms: [book]))
+    assert "DOCUMENT_DETECTED" not in kinds(records)
