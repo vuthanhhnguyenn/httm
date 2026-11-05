@@ -383,3 +383,31 @@ def test_low_conf_wrist_ignored() -> None:
     pose = _meeting(a, (0.355, 0.42), (0.36, 0.42), conf=0.45)
     records = review_window(window(seats, a, 0, 1000, ("HANDS_MEET",)), frames(seats, pose, 0, 1000))
     assert "PASSING_OBJECT" not in kinds(records)
+
+
+def _lap(left, right):
+    return lambda key, ms: wristed(person(cx=0.3, top=0.3, bent=True), left=left, right=right)
+
+
+def test_writer_one_hand_on_desk_not_lap() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    pose = _lap((0.28, 0.42), (0.32, 0.55))  # writing hand on the desk, the other in the lap
+    records = review_window(window(seats, a, 0, 4000, ("HEAD_DOWN_HANDS_LOW",)), frames(seats, pose, 0, 4000))
+    assert "LOOK_AT_LAP" not in kinds(records)
+
+
+def test_both_hands_below_desk_is_lap() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    records = review_window(window(seats, a, 0, 4000, ("HEAD_DOWN_HANDS_LOW",)),
+                            frames(seats, _lap((0.28, 0.55), (0.32, 0.55)), 0, 4000))
+    assert "LOOK_AT_LAP" in kinds(records)
+
+
+def test_hands_hidden_is_lap() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    records = review_window(window(seats, a, 0, 4000, ("HEAD_DOWN_HANDS_LOW",)),
+                            frames(seats, _lap(None, None), 0, 4000))
+    assert "LOOK_AT_LAP" in kinds(records)

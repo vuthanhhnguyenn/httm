@@ -57,7 +57,10 @@ class ReviewRuleConfig:
     passing_wrist_heights: float = 0.15  # wrists closer than this x the smaller seat box height
     passing_wrist_conf: float = 0.5
     far_row_height: float = 0.12  # seat boxes lower than this (frame heights) are far rows
-    far_row_inside_frames: int = 2  # far rows also need a wrist inside the other seat this often  # a "phone" on the seat's own paper is a calculator (set if 31.6 stays)
+    far_row_inside_frames: int = 2
+    # LOOK_AT_LAP: no hand of the candidate on the desk. A writer always has one hand on the paper; a hand
+    # the camera cannot see is under the desk, so hidden hands count as low (phase 1 lap rule needed one seen).
+    lap_needs_both_wrists: bool = True  # far rows also need a wrist inside the other seat this often  # a "phone" on the seat's own paper is a calculator (set if 31.6 stays)
 
 
 @dataclass(frozen=True, slots=True)
@@ -251,7 +254,9 @@ def review_window(window: SuspectWindow, frames: Sequence[ReviewFrame],
     lap = []
     for i, frame in enumerate(frames):
         wrists = _wrists(frame.poses.get(main))
-        lap.append((frame.offset_ms, down[main][i] and bool(wrists) and all(p[1] > lines[main][i] for p in wrists)))
+        low = all(p[1] > lines[main][i] for p in wrists)
+        seen = bool(wrists) or cfg.lap_needs_both_wrists
+        lap.append((frame.offset_ms, down[main][i] and seen and low))
     flag(EventType.LOOK_AT_LAP, main, lap, cfg.lap_hold_ms)
 
     # (c) head turns: the fast tier's own rules on the big model's keypoints.
