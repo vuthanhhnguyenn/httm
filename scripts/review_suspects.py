@@ -24,6 +24,7 @@ for _src in ("packages/proctoring_core/src", "packages/proctoring_ai/src", "pack
 import cv2  # noqa: E402
 import numpy as np  # noqa: E402
 from proctoring_ai.multi.cctv.crops import crop_image, crop_region  # noqa: E402
+from proctoring_ai.multi.cctv.review_cache import save_window  # noqa: E402
 from proctoring_ai.multi.cctv.review_rules import (  # noqa: E402
     ReviewFrame,
     assign_poses,
@@ -113,7 +114,7 @@ def _draw(image: Any, window: SuspectWindow, frame: ReviewFrame | None, item: di
 
 
 def review(video: Path, windows: list[SuspectWindow], detectors: Any, out_dir: Path, fps: float = 10.0,
-           warmup_ms: int = WARMUP_MS) -> dict[str, Any]:
+           warmup_ms: int = WARMUP_MS, cache_path: Path | None = None) -> dict[str, Any]:
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "evidence").mkdir(exist_ok=True)
     capture = cv2.VideoCapture(str(video))
@@ -137,6 +138,8 @@ def review(video: Path, windows: list[SuspectWindow], detectors: Any, out_dir: P
                 people = detectors.pose(crop, transform)
                 analysed.append(ReviewFrame(offset, seats, assign_poses(seats, people),
                                             detectors.objects(crop, transform), width / height))
+            if cache_path is not None:
+                save_window(cache_path, window, analysed)
             found = review_window(window, analysed)
             for item in found:
                 if "type" in item:
@@ -177,6 +180,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--fps", type=float, default=10.0)
     parser.add_argument("--device", default=None, help="vd. 0 cho GPU NVIDIA đầu tiên")
     parser.add_argument("--warmup-ms", type=int, default=WARMUP_MS, help="đọc thêm trước mỗi đoạn để có mốc tư thế")
+    parser.add_argument("--cache-dir", type=Path, default=None,
+                        help="ghi đầu ra model của từng đoạn vào <thư mục>/cache.json.gz để chạy lại luật bằng replay_review.py")
     args = parser.parse_args(argv)
     from proctoring_ai.multi.cctv.review_detectors import ReviewDetectors, load_specs
 
@@ -188,7 +193,13 @@ def main(argv: list[str] | None = None) -> int:
     if not any(spec.kind == "pose" and detectors.status.get(spec.name) == "ok"
                for spec in load_specs(args.models, ROOT / "models")):
         print("Không có model khung xương nào dùng được; tầng kỹ sẽ loại gần hết các đoạn.", file=sys.stderr)
-    timing = review(args.video, windows, detectors, args.out, fps=args.fps, warmup_ms=args.warmup_ms)
+    cache_path = None
+    if args.cache_dir is not None:
+        args.cache_dir.mkdir(parents=True, exist_ok=True)
+        cache_path = args.cache_dir / "cache.json.gz"
+        cache_path.unlink(missing_ok=True)
+    timing = review(args.video, windows, detectors, args.out, fps=args.fps, warmup_ms=args.warmup_ms,
+                    cache_path=cache_path)
     print(f"Xem {timing['windows']} đoạn, mỗi đoạn {timing['seconds_per_window']['p50']} s (tối đa "
           f"{timing['seconds_per_window']['max']} s); sự kiện: {timing['events_opened']}, loại {timing['dismissed']}")
     print(f"Kết quả: {args.out}")
