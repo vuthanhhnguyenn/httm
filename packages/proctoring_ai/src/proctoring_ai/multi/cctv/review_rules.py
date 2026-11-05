@@ -133,6 +133,10 @@ def review_window(window: SuspectWindow, frames: Sequence[ReviewFrame],
                   config: ReviewRuleConfig | None = None) -> list[dict[str, Any]]:
     cfg = config or ReviewRuleConfig()
     frames = sorted(frames, key=lambda item: item.offset_ms)
+    # The live deep tier sees ~3 frames a second: a gap between two frames is not a break in what they show.
+    spacing = sorted(b.offset_ms - a.offset_ms for a, b in zip(frames, frames[1:], strict=False))
+    if spacing and (gap := int(1.5 * spacing[len(spacing) // 2])) > cfg.gap_ms:
+        cfg = replace(cfg, gap_ms=gap)
     main, seats = window.seat_id, dict(window.seats) or {window.seat_id: window.bbox}
     records: list[dict[str, Any]] = []
     heads: dict[UUID, list[tuple[int, tuple[float, float]]]] = {seat_id: [] for seat_id in seats}
@@ -196,8 +200,10 @@ def review_window(window: SuspectWindow, frames: Sequence[ReviewFrame],
                  and any(distance(obj.bbox.center, p) < cfg.phone_wrist_widths * width for p in wrists)
                  and obj.bbox.center[1] < desk_top - cfg.phone_raise_heights * box.height for obj in frame.objects)
         hits.append((frame.offset_ms, ok))
-    dense = [(t, sum(1 for s, ok in hits if ok and t - cfg.phone_span_ms < s <= t) >= cfg.phone_frames)
-             for t, _ in hits]
+    def needed(t: int) -> int:  # with sparse frames a second may hold fewer than phone_frames frames
+        return max(1, min(cfg.phone_frames, sum(1 for s, _ in hits if t - cfg.phone_span_ms < s <= t)))
+
+    dense = [(t, sum(1 for s, ok in hits if ok and t - cfg.phone_span_ms < s <= t) >= needed(t)) for t, _ in hits]
     flag(EventType.PHONE_DETECTED, main, dense, 0)
 
     # (b) passing: wrists of two seats meet, or an object moves from one seat to the other.

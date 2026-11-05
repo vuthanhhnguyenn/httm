@@ -126,3 +126,40 @@ def test_rule_events_unchanged_and_fed_to_tracker() -> None:
     assert strip(plain) == strip(tracked) and strip(plain)
     windows = [w for w in tracker.finish(12_000) if w.seat_id == a.seat_id]
     assert windows and "RULE_EVENT" in windows[0].reasons
+
+
+def test_peak_is_moment_with_most_reasons() -> None:
+    tracker, a = SuspectTracker(), seat(0.3, 1)
+    # HEAD_AWAY is marked from 2.5 s (held 1 s since 1.5 s); a rule event joins it at 2.6-2.8 s.
+    feed(tracker, [a], _away(1500, 3500), 0, 4000, rule_events=lambda ms: [a.seat_id] if 2600 <= ms <= 2800 else [])
+    (window,) = tracker.finish(None)
+    assert {"HEAD_AWAY", "RULE_EVENT"} <= set(window.reasons)
+    assert window.peak_ms == 2600
+
+
+def _away(start, end):
+    return lambda s, ms: person(cx=0.3, top=0.3, bent=True, nose_dx=0.3 if start <= ms < end else 0.0)
+
+
+def _always(a):
+    return lambda ms: [a.seat_id]
+
+
+def test_poll_returns_closed_window_once() -> None:
+    tracker, a = SuspectTracker(), seat(0.3, 1)
+    feed(tracker, [a], calm, 0, 4000, rule_events=lambda ms: [a.seat_id] if 1500 <= ms < 3000 else [])
+    assert tracker.poll(4000) == []  # could still grow
+    feed(tracker, [a], calm, 4000, 12000)
+    (window,) = tracker.poll(12000)
+    assert window.start_ms <= 1500 and window.end_ms >= 3000
+    assert tracker.poll(13000) == [] and tracker.finish(None) == []
+
+
+def test_poll_splits_long_open_span_at_10s() -> None:
+    tracker, a = SuspectTracker(), seat(0.3, 1)
+    feed(tracker, [a], calm, 0, 14000, rule_events=lambda ms: [a.seat_id] if ms >= 1500 else [])
+    (first,) = tracker.poll(14000, max_open_ms=10000)
+    assert first.end_ms - first.start_ms == 10000
+    feed(tracker, [a], calm, 14000, 30000, rule_events=lambda ms: [a.seat_id] if ms < 16000 else [])
+    rest = tracker.poll(30000) + tracker.finish(None)
+    assert len(rest) == 1 and rest[0].start_ms == first.end_ms

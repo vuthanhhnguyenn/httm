@@ -249,3 +249,18 @@ def test_object_above_the_head_on_the_desk_in_front_is_not_phone() -> None:
     records = review_window(window(seats, a, 0, 1000),
                             frames(seats, pose, 0, 1000, lambda ms: [phone(0.31, 0.31)]))
     assert "PHONE_DETECTED" not in kinds(records)
+
+
+def test_sparse_frames_keep_lap_hold():
+    """Frames 333 ms apart (live deep tier) must not cut a 4 s run into pieces shorter than the hold."""
+
+    seats = {uuid4(): box(0.5)}
+    main = next(iter(seats))
+
+    def pose(_key, ms):
+        kps = person(0.5, 0.3, bent=True)
+        return wristed(kps, left=(0.47, 0.52), right=(0.53, 0.52)) if ms >= 6000 else wristed(kps, left=(0.47, 0.42))
+
+    sparse = [f for f in frames(seats, pose, 0, 10000) if f.offset_ms % 333 < 100]
+    records = review_window(window(seats, main, 6000, 10000, ("HEAD_DOWN_HANDS_LOW",)), sparse)
+    assert "LOOK_AT_LAP" in kinds(records)

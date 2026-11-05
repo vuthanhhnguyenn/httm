@@ -20,6 +20,7 @@ for _src in ("packages/proctoring_core/src", "packages/proctoring_ai/src"):
         sys.path.insert(0, str(ROOT / _src))
 
 from proctoring_ai.multi.cctv.review_cache import load_cache, window_key  # noqa: E402
+from proctoring_ai.multi.cctv.review_frames import select_offsets  # noqa: E402
 from proctoring_ai.multi.cctv.review_rules import ReviewRuleConfig, review_window  # noqa: E402
 from proctoring_ai.multi.cctv.review_score import load_verdicts, score_review  # noqa: E402
 from proctoring_ai.multi.cctv.suspects import SuspectWindow  # noqa: E402
@@ -35,6 +36,9 @@ def replay(suspects: Path, cache: Path, *, config: ReviewRuleConfig | None = Non
         analysed = frames.get(window_key(window))
         if analysed is None:
             raise KeyError(f"cache không có đoạn {window_key(window)}")
+        if max_frames is not None:
+            keep = set(select_offsets(window, [frame.offset_ms for frame in analysed], max_frames=max_frames))
+            analysed = [frame for frame in analysed if frame.offset_ms in keep]
         records += review_window(window, analysed, config)
     return records
 
