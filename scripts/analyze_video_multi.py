@@ -54,6 +54,8 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--tile-every", type=int, default=4,
                         help="cctv: soi kỹ hàng xa (2 ô phóng to) mỗi N frame; 0 để tắt")
     parser.add_argument("--debug", action="store_true", help="cctv: ghi debug.jsonl (hướng đầu, khoảng cách từng cặp)")
+    parser.add_argument("--phone-device", choices=("auto", "cuda", "intel:gpu", "cpu"), default=None,
+                        help="cctv: thiết bị cho máy dò điện thoại (intel:gpu = OpenVINO trên card Intel)")
     parser.add_argument("--no-seat-map", action="store_true", help="cctv: theo dõi từng người thay vì bản đồ ghế")
     parser.add_argument("--suspects", action="store_true",
                         help="cctv: ghi suspects.jsonl (đoạn nghi vấn) cho scripts/review_suspects.py")
@@ -110,6 +112,8 @@ async def run(args: argparse.Namespace) -> int:
     # CCTV: phones are small in a whole-room view, so the object detector runs at the pose size.
     factory.detector_image_size = args.pose_size if cctv else args.yolo_size
     factory.analyzer_options = analyzer_options(config.detection)
+    if cctv and args.phone_device:
+        factory.phone_device = args.phone_device
     health = await factory.initialize()
     rules: Any = None
     if cctv:
@@ -155,7 +159,10 @@ async def run(args: argparse.Namespace) -> int:
         print(f"Không mở được video: {exc}", file=sys.stderr)
         return 1
     video_fps = args.fps if args.mode == "full" else (source.fps or 30.0)
-    source = VideoFileFrameSource(args.video, analysis_rate_hz=rate)
+    from proctoring_ai.capture.prefetch_source import PrefetchFrameSource
+
+    # Decoding the next frames overlaps the AI on the current one.
+    source = PrefetchFrameSource(VideoFileFrameSource(args.video, analysis_rate_hz=rate), max_queue=8)
     try:
         result = await run_multi_replay(source, pipeline, policy=settings.raw_policy, raw_config=raw_config,
                                         out_dir=args.out, mode=args.mode, overlap=not args.no_overlap,

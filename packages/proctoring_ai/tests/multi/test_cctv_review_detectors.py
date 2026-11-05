@@ -124,3 +124,23 @@ def test_oom_at_batch_one_moves_model_to_cpu(tmp_path: Path) -> None:
     found = detectors.objects_many(*_crops(3))
     assert len(found) == 3 and all(device == "cpu" for _, device in model.calls)
     assert detectors.devices["coco"] == "cpu" and "hết VRAM" in detectors.reasons["coco"]
+
+
+def test_spec_device_resolved_with_reason(tmp_path: Path, monkeypatch) -> None:
+    from dataclasses import replace
+
+    from proctoring_ai.multi.cctv import review_detectors
+
+    spec = replace(_spec(tmp_path, "coco", {"cell phone": "phone"}), device="intel:gpu")
+    loaded = []
+    monkeypatch.setattr(review_detectors, "resolve_device", lambda wanted, path: ("cpu", path, "cpu: không có card Intel"))
+    detectors = ReviewDetectors([spec], loader=lambda path: loaded.append(path) or _BatchModel({0: "x"}, []))
+    assert detectors.status["coco"] == "ok" and detectors.devices["coco"] == "cpu"
+    assert detectors.reasons["coco"] == "cpu: không có card Intel" and loaded == [spec.path]
+
+
+def test_load_specs_reads_device(tmp_path: Path) -> None:
+    config = tmp_path / "review_models.yaml"
+    config.write_text("models:\n  - {name: a, kind: objects, path: a.pt, class_map: {book: book}, device: intel:gpu}\n"
+                      "  - {name: b, kind: pose, path: b.pt}\n", encoding="utf-8")
+    assert [spec.device for spec in load_specs(config, tmp_path)] == ["intel:gpu", "auto"]

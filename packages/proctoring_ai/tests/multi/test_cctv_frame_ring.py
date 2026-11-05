@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import numpy as np
-
 from proctoring_ai.multi.cctv.frame_ring import FrameRing
 
 

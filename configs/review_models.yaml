@@ -2,18 +2,22 @@
 # kind: pose (khung xương COCO 17 điểm) | objects (vật thể). class_map đổi tên lớp của model về
 # phone / paper / book; lớp không có trong class_map bị bỏ. Model thiếu file hoặc sai SHA-256 bị bỏ qua
 # và ghi lý do vào timing.json. Hai model thấy cùng một vật thì giữ kết quả tin cậy hơn.
+# device: auto | cuda | intel:gpu | cpu. intel:gpu chạy OpenVINO trên card Intel, cần
+# `scripts/download_model.py --export-openvino`; thiếu gì thì tự chạy CPU và ghi lý do.
 models:
   - name: yolo11x-pose
     kind: pose
     path: pretrained/yolo11x-pose.pt
     sha256: 013c43543b0751b8918486ba96e01ee44a59040683a07f96cc22bcc2cb7785f8
     min_conf: 0.25
+    device: cuda
   - name: yolo11x
     kind: objects
     path: pretrained/yolo11x.pt
     sha256: 7bc158aa95c0ebfdd87f70f01653c1131b93e92522dbe15c228bcd742e773a24
     min_conf: 0.35
     class_map: {cell phone: phone, book: book}
+    device: intel:gpu
   # Tắt sau lần thử 2026-11-04 (docs/superpowers/notes/2026-11-04-yoloe-spike.md): không thấy giấy.
   # Tạo file bằng scripts/export_yoloe_prompts.py rồi điền sha256 nếu muốn bật lại.
   - name: yoloe-11l-seg-exam

@@ -146,7 +146,9 @@ def review(video: Path, windows: list[SuspectWindow], detectors: Any, out_dir: P
                                      "max": round(max(seconds), 2) if seconds else 0.0},
               "events_opened": dict(Counter(item["type"] for item in records if item["action"] == "opened")),
               "dismissed": sum(1 for item in records if item["action"] == "dismissed"),
-              "models": dict(detectors.status)}
+              "models": dict(detectors.status),
+              "devices": dict(getattr(detectors, "devices", {})),
+              "device_reasons": dict(getattr(detectors, "reasons", {}))}
     (out_dir / "timing.json").write_text(json.dumps(timing, ensure_ascii=False, indent=2), encoding="utf-8")
     return timing
 

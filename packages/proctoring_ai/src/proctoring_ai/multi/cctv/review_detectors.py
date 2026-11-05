@@ -18,6 +18,7 @@ import yaml
 from proctoring_core.observations import Box
 
 from .crops import CropTransform
+from .devices import resolve_device
 
 LABELS = ("phone", "paper", "book")
 
@@ -38,6 +39,7 @@ class ModelSpec:
     class_map: Mapping[str, str]
     min_conf: float
     sha256: str | None
+    device: str = "auto"  # auto | cuda | intel:gpu | cpu (devices.resolve_device)
 
 
 def load_specs(config_path: Path, models_root: Path) -> list[ModelSpec]:
@@ -50,7 +52,7 @@ def load_specs(config_path: Path, models_root: Path) -> list[ModelSpec]:
         if any(value not in LABELS for value in class_map.values()):
             raise ValueError(f"{item['name']}: class_map chỉ được đổi về {LABELS}")
         specs.append(ModelSpec(str(item["name"]), str(item["kind"]), models_root / str(item["path"]), class_map,
-                               float(item.get("min_conf", 0.25)), item.get("sha256")))
+                               float(item.get("min_conf", 0.25)), item.get("sha256"), str(item.get("device", "auto"))))
     return specs
 
 
@@ -76,6 +78,14 @@ def _default_loader(path: Path) -> Any:
     return YOLO(str(path))
 
 
+def load_openvino(path: Path, kind: str) -> Any:
+    """An exported OpenVINO model directory; Ultralytics cannot tell its task from the folder alone."""
+
+    from ultralytics import YOLO
+
+    return YOLO(str(path), task="pose" if kind == "pose" else "detect")
+
+
 def _is_oom(exc: BaseException) -> bool:
     return "out of memory" in str(exc).casefold()
 
@@ -98,13 +108,20 @@ class ReviewDetectors:
             if spec.sha256 and _sha256(spec.path) != str(spec.sha256).lower():
                 self.status[spec.name] = "bỏ qua: SHA-256 không khớp cấu hình"
                 continue
+            wanted = spec.device if spec.device != "auto" or device is None else None
+            if wanted is None:  # an explicit --device wins over "auto"
+                run_on, path, reason = device, spec.path, ""
+            else:
+                run_on, path, reason = resolve_device(wanted, spec.path)
             try:
-                self._models.append((spec, load(spec.path)))
+                self._models.append((spec, load(path) if path == spec.path else load_openvino(path, spec.kind)))
             except Exception as exc:  # a broken third-party model must not stop the review
                 self.status[spec.name] = f"bỏ qua: không nạp được ({exc})"
                 continue
             self.status[spec.name] = "ok"
-            self.devices[spec.name] = device
+            self.devices[spec.name] = run_on
+            if reason:
+                self.reasons[spec.name] = reason
 
     def _predict_batch(self, spec: ModelSpec, model: Any, images: list[Any]) -> list[Any]:
         options: dict[str, Any] = {"source": images, "conf": spec.min_conf, "verbose": False, "imgsz": self.image_size}

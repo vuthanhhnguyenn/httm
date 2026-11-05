@@ -71,6 +71,8 @@ class AnalyzerFactory:
         self.manifest_path = Path(manifest_path).resolve()
         self.detector_image_size = detector_image_size
         self.detector_device = detector_device
+        # CCTV only: where the phone detector runs (auto | cuda | intel:gpu | cpu); None keeps detector_device.
+        self.phone_device: str | None = None
         self.detector: Any | None = None
         self.face_analyzer: MediaPipeFaceLandmarker | None = None
         self.pose_analyzer: MediaPipePoseEstimator | None = None
@@ -149,17 +151,25 @@ class AnalyzerFactory:
                 raise ValueError("detector manifest must list the allowed model classes")
             from .detectors.yolo_detector import YoloObjectDetector
 
+            device, load_path, reason = self.detector_device, None, ""
+            if getattr(self, "phone_device", None):
+                from .multi.cctv.devices import resolve_device
+
+                device, resolved, reason = resolve_device(str(self.phone_device), Path(model_path))
+                load_path = resolved if resolved != Path(model_path) else None
             self.detector = YoloObjectDetector(
                 model_path,
                 model_version=str(entry.get("version", "unknown")),
                 model_sha256=str(entry["sha256"]),
                 confidence_threshold=0.25,
                 image_size=self.detector_image_size,
-                device=self.detector_device,
+                device=device,
                 allowed_classes=[str(name) for name in class_map.values()],
+                load_path=load_path,
+                task="detect" if load_path is not None else None,
             )
             await self.detector.initialize()
-            self._status["object_detector"] = ("ready", "")
+            self._status["object_detector"] = ("ready", reason)
         except Exception as exc:
             self.detector = None
             self._status["object_detector"] = ("unavailable", f"{type(exc).__name__}:{exc}")
@@ -216,7 +226,22 @@ class AnalyzerFactory:
         tracker: Any = (SeatMapTracker(max_subjects=max_subjects) if seat_map
                         else MultiSubjectTracker(max_subjects=max_subjects))
         return CctvPipeline(pose_detector=detector, tracker=tracker, object_detector=self.detector,
-                            phone_every=phone_every, timeout_ms=timeout_ms)
+                            phone_every=phone_every, timeout_ms=timeout_ms,
+                            parallel_objects=self._separate_devices())
+
+    def _separate_devices(self) -> bool:
+        """Pose and phones on different hardware, so running them at the same time actually overlaps."""
+
+        from .multi.cctv.devices import _cuda_available
+
+        def actual(detector: Any) -> str:
+            device = getattr(detector, "device", None)
+            if device is None:
+                return "cuda" if _cuda_available() else "cpu"
+            return "cpu" if str(device) == "cpu" else "intel" if str(device).startswith("intel") else "cuda"
+
+        return self.detector is not None and self.pose_detector is not None and \
+            actual(self.detector) != actual(self.pose_detector)
 
     def health(self) -> dict[str, str]:
         return {name: status for name, (status, _reason) in self._status.items()}
