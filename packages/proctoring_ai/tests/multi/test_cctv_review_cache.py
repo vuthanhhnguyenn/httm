@@ -55,4 +55,17 @@ def test_score_review():
     assert score["unjudged"] == 2
     assert score["missed"] == ["LOOK_AT_LAP@51.2"]
     # A repeat the deduper folded into an alert already on screen still shows the invigilator that seat.
-    assert score["true_with_merged"] == 2 and score["found_by_merged"] == ["LOOK_AT_LAP@51.2"]
+    assert score["true_covered"] == 2 and score["covered_only"] == ["LOOK_AT_LAP@51.2"]
+
+
+def test_score_counts_alert_still_open_at_the_picture():
+    verdicts = [Verdict("LOOK_AT_LAP", 59.0, ((0.776, 0.527),), True),
+                Verdict("PASSING_OBJECT", 22.1, ((0.3, 0.2),), False)]
+    lap = {**_opened("LOOK_AT_LAP", 51200, (0.776, 0.527)), "id": "a"}
+    passing = {**_opened("PASSING_OBJECT", 17000, (0.3, 0.2)), "id": "b"}
+    records = [lap, passing, {"action": "closed", "id": "a", "video_offset_ms": 66000},
+               {"action": "closed", "id": "b", "video_offset_ms": 21000}]
+    score = score_review(records, verdicts)
+    assert score["true_found"] == 0 and score["false_opened"] == 0
+    # Still on screen at 59.0 s; the passing alert ended 1.1 s before 22.1 s (within max_dt_s).
+    assert score["true_covered"] == 1 and score["false_covered"] == 1

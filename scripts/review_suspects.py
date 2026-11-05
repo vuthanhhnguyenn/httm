@@ -170,8 +170,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--fps", type=float, default=10.0)
     parser.add_argument("--device", default=None, help="vd. 0 cho GPU NVIDIA đầu tiên")
     parser.add_argument("--warmup-ms", type=int, default=WARMUP_MS, help="đọc thêm trước mỗi đoạn để có mốc tư thế")
-    parser.add_argument("--max-frames", type=int, default=12,
-                        help="số khung tối đa mỗi đoạn (0 = mọi khung ở --fps, như phase 2e)")
+    parser.add_argument("--max-frames", type=int, default=0,
+                        help="số khung tối đa mỗi đoạn (0 = mọi khung ở --fps, như phase 2e; đoạn dài mà ít khung "
+                             "thì sót sự kiện, xem replay_review.py --split-ms)")
     parser.add_argument("--cache-dir", type=Path, default=None,
                         help="ghi đầu ra model của từng đoạn vào <thư mục>/cache.json.gz để chạy lại luật bằng replay_review.py")
     args = parser.parse_args(argv)

@@ -24,8 +24,36 @@ def review_seats(window: SuspectWindow, limit: int = 2) -> dict[Any, Any]:
     return {window.seat_id: main, **{key: seats[key] for key in others[:limit]}}
 
 
+class ReviewHistory:
+    """Frames the deep tier already analysed, per seat, for the next piece of the same seat.
+
+    The live tier reviews a long window in 10 s pieces. The rules hold a behaviour for seconds and learn the
+    desk line and head baselines from what came before; without the earlier piece's frames a lap posture
+    that started 2 s before the cut is cut in two and missed. Those frames cost no model time.
+    """
+
+    def __init__(self, keep_ms: int = 20000) -> None:
+        self.keep_ms = keep_ms
+        self._frames: dict[Any, list[ReviewFrame]] = {}
+
+    def before(self, window: SuspectWindow) -> list[ReviewFrame]:
+        seats = set(review_seats(window))
+        return [frame for frame in self._frames.get(window.seat_id, [])
+                if window.start_ms - self.keep_ms <= frame.offset_ms < window.start_ms and set(frame.seats) == seats]
+
+    def add(self, window: SuspectWindow, frames: Sequence[ReviewFrame]) -> None:
+        kept = {frame.offset_ms: frame for frame in self._frames.get(window.seat_id, [])}
+        kept.update({frame.offset_ms: frame for frame in frames})
+        newest = max(kept, default=0)
+        self._frames[window.seat_id] = [kept[t] for t in sorted(kept) if t >= newest - self.keep_ms]
+
+
 def analyse_window(window: SuspectWindow, images: Sequence[tuple[int, Any]], detectors: Any, *,
-                   config: ReviewRuleConfig | None = None) -> tuple[list[dict[str, Any]], list[ReviewFrame]]:
+                   config: ReviewRuleConfig | None = None,
+                   context: Sequence[ReviewFrame] = ()) -> tuple[list[dict[str, Any]], list[ReviewFrame]]:
+    """``context``: frames already analysed just before (``ReviewHistory.before``); the rules see them, the
+    models do not run on them again, and only the new frames are returned."""
+
     seats = review_seats(window)
     frames: list[ReviewFrame] = []
     if images:
@@ -36,7 +64,8 @@ def analyse_window(window: SuspectWindow, images: Sequence[tuple[int, Any]], det
         for (offset, image), found, things in zip(images, people, objects, strict=True):
             height, width = image.shape[:2]
             frames.append(ReviewFrame(offset, seats, assign_poses(seats, found), things, width / height))
-    return review_window(window, frames, config), frames
+    earlier = [frame for frame in context if not frames or frame.offset_ms < frames[0].offset_ms]
+    return review_window(window, [*earlier, *frames], config), frames
 
 
-__all__ = ["analyse_window", "review_seats"]
+__all__ = ["ReviewHistory", "analyse_window", "review_seats"]

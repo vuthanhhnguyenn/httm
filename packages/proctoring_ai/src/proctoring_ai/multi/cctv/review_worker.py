@@ -20,7 +20,7 @@ from typing import Any
 import cv2
 
 from .frame_ring import FrameRing
-from .review_core import analyse_window
+from .review_core import ReviewHistory, analyse_window
 from .review_dedupe import ReviewDeduper
 from .review_frames import select_offsets
 from .review_queue import ReviewQueue, skipped_record
@@ -31,10 +31,14 @@ Record = tuple[dict[str, Any], Any]  # (event record, frame for its evidence pic
 
 @dataclass(frozen=True, slots=True)
 class ReviewWorkerConfig:
-    max_frames: int = 12
+    # Clip 1 replayed with these (scripts/replay_review.py --split-ms 10000): 3 frames a second inside the
+    # piece and a dense 6 s warm-up keep 9/9 true alerts; 12 frames a window with 2 warm-up frames found 0/9,
+    # because a hold of 3 s and the desk line need frames close together.
+    max_frames: int = 48
     per_s: float = 3.0
-    warmup_frames: int = 2
+    warmup_frames: int = 18
     warmup_ms: int = 6000
+    history_ms: int = 20000  # frames of the previous piece of the same seat the rules see again
     deadline_ms: int = 60000
     dedupe_ms: int = 10000
     max_open_ms: int = 10000
@@ -77,6 +81,7 @@ class ReviewWorker:
         self.clock = clock
         self.queue = ReviewQueue(self.config.deadline_ms, self.config.max_frames)
         self.dedupe = ReviewDeduper(self.config.dedupe_ms)
+        self.history = ReviewHistory(self.config.history_ms)
         self._done: list[Record] = []
         self._latency_ms: list[float] = []
         self._windows = self._skipped = 0
@@ -120,22 +125,26 @@ class ReviewWorker:
             return False
         waited_from, window = popped  # latency counts the wait in the queue too
         cfg = self.config
+        context = self.history.before(window)
+        warmup_ms = 0 if context else cfg.warmup_ms  # the previous piece already is the warm-up
+        warmup_frames = 0 if context else cfg.warmup_frames
         oldest = self.ring.oldest_ms()
-        needs_file = oldest is None or window.start_ms - cfg.warmup_ms < oldest - 1000 / 5
+        needs_file = oldest is None or window.start_ms - warmup_ms < oldest - 1000 / 5
         if needs_file and self.video_path is None and (oldest is None or window.start_ms < oldest):
             with self._lock:
                 self._skip(window, "frames_gone")
             return True
         if needs_file and self.video_path is not None:
-            dense = list(range(max(0, window.start_ms - cfg.warmup_ms), window.end_ms + 1, 200))
-            offsets = select_offsets(window, dense, per_s=cfg.per_s, warmup_frames=cfg.warmup_frames,
-                                     warmup_ms=cfg.warmup_ms, max_frames=cfg.max_frames)
+            dense = list(range(max(0, window.start_ms - warmup_ms), window.end_ms + 1, 200))
+            offsets = select_offsets(window, dense, per_s=cfg.per_s, warmup_frames=warmup_frames,
+                                     warmup_ms=warmup_ms, max_frames=cfg.max_frames)
             images = _file_frames(self.video_path, offsets)
         else:
-            offsets = select_offsets(window, self.ring.offsets(), per_s=cfg.per_s, warmup_frames=cfg.warmup_frames,
-                                     warmup_ms=cfg.warmup_ms, max_frames=cfg.max_frames)
+            offsets = select_offsets(window, self.ring.offsets(), per_s=cfg.per_s, warmup_frames=warmup_frames,
+                                     warmup_ms=warmup_ms, max_frames=cfg.max_frames)
             images = [found for t in offsets if (found := self.ring.get(t)) is not None]
-        records, _frames = analyse_window(window, images, self.detectors)
+        records, frames = analyse_window(window, images, self.detectors, context=context)
+        self.history.add(window, frames)
         by_offset = dict(images)
         out: list[Record] = []
         for item in self.dedupe.admit(records):

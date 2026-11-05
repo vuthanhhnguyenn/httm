@@ -69,7 +69,7 @@ def test_worker_reviews_from_ring():
     worker.submit([window(8000, 10000), window(12000, 14000), window(15000, 17000)])
     records = worker.close(flush=True)
     assert opened(records).count("PHONE_DETECTED") == 3
-    assert detectors.images <= 3 * 12
+    assert detectors.images <= 3 * ReviewWorkerConfig().max_frames
     assert all(image is not None for item, image in records if item["action"] == "opened")
     stats = worker.stats()
     assert stats["review_windows"] == 3 and stats["review_skipped"] == 0 and "p95" in stats["review_latency_ms"]
@@ -113,3 +113,26 @@ def test_close_without_flush_marks_shutdown():
     worker.submit([window()])
     records = worker.close(flush=False)
     assert [item["skip_reason"] for item, _ in records] == ["shutdown"]
+
+
+def test_next_piece_of_a_seat_reuses_analysed_frames():
+    detectors = _Detectors()
+    worker = ReviewWorker(detectors, ring_with(), video_path=None, start=False)
+    first = window(8000, 10000)
+    second = SuspectWindow(first.seat_id, 1, (), 10000, 12000, ("OBJECT_HINT",), BOX, {first.seat_id: BOX}, None)
+    worker.submit([first])
+    worker.step()
+    before = detectors.images
+    worker.submit([second])
+    worker.step()
+    cfg = ReviewWorkerConfig()
+    # No warm-up frames read again: the first piece's frames are the context.
+    assert detectors.images - before <= cfg.per_s * 2 + 1
+    assert worker.history.before(SuspectWindow(first.seat_id, 1, (), 12000, 14000, ("OBJECT_HINT",), BOX,
+                                               {first.seat_id: BOX}, None))
+
+
+def test_live_density_defaults():
+    # Clip 1 replay (phase 2f): 3 frames a second and a dense 6 s warm-up keep 9/9; 12 frames a window found 0/9.
+    cfg = ReviewWorkerConfig()
+    assert cfg.per_s == 3.0 and cfg.warmup_frames == 18 and cfg.max_frames == 48

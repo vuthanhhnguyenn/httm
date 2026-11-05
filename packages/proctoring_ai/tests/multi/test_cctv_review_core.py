@@ -47,3 +47,54 @@ def test_analyse_window_no_images():
     records, frames = analyse_window(window, [], detectors)
     assert frames == [] and detectors.calls == []
     assert [item["action"] for item in records] == ["dismissed"]
+
+
+def _bent_frames(seat, box, start, end, step=200):
+    from proctoring_ai.multi.cctv.review_rules import ReviewFrame
+
+    kps = person(cx=0.5, top=0.3, bent=True)
+    kps[9] = [0.5, 0.49, 0.9]  # both hands below the desk line, head down: the lap rule
+    kps[10] = [0.52, 0.49, 0.9]
+    return [ReviewFrame(t, {seat: box}, {seat: kps}, [], 16 / 9) for t in range(start, end, step)]
+
+
+def test_history_carries_a_long_window_across_pieces():
+    from proctoring_ai.multi.cctv.review_core import ReviewHistory
+
+    seat = uuid4()
+    box = Box(0.45, 0.3, 0.1, 0.2)
+    first = SuspectWindow(seat, 1, (), 0, 10000, ("LEAN",), box, {seat: box})
+    second = SuspectWindow(seat, 1, (), 10000, 12000, ("LEAN",), box, {seat: box})
+    history = ReviewHistory(keep_ms=20000)
+    history.add(first, _bent_frames(seat, box, 0, 10000))
+    context = history.before(second)
+    assert context and context[-1].offset_ms < second.start_ms and context[0].offset_ms >= 0
+    # Only 2 s of new frames: too short for the 3 s lap hold alone, enough with what came before.
+    new = _bent_frames(seat, box, 10000, 12000)
+    assert "LOOK_AT_LAP" not in [r["type"] for r in review_window(second, new) if r["action"] == "opened"]
+    assert "LOOK_AT_LAP" in [r["type"] for r in review_window(second, context + new) if r["action"] == "opened"]
+
+
+def test_history_only_for_the_same_seats_and_recent():
+    from proctoring_ai.multi.cctv.review_core import ReviewHistory
+
+    seat, other = uuid4(), uuid4()
+    box = Box(0.45, 0.3, 0.1, 0.2)
+    history = ReviewHistory(keep_ms=5000)
+    history.add(SuspectWindow(seat, 1, (), 0, 10000, ("LEAN",), box, {seat: box}), _bent_frames(seat, box, 0, 10000))
+    later = SuspectWindow(seat, 1, (), 10000, 12000, ("LEAN",), box, {seat: box})
+    assert min(f.offset_ms for f in history.before(later)) >= 5000
+    with_neighbour = SuspectWindow(seat, 1, (other,), 10000, 12000, ("LEAN",), box, {seat: box, other: box})
+    assert history.before(with_neighbour) == []
+
+
+def test_analyse_window_rules_see_context_but_returns_new_frames_only():
+    seat = uuid4()
+    box = Box(0.45, 0.3, 0.1, 0.2)
+    window = SuspectWindow(seat, 1, (), 10000, 12000, ("LEAN",), box, {seat: box})
+    images = [(t, np.zeros((72, 128, 3), np.uint8)) for t in range(10000, 12000, 200)]
+    kps = person(cx=0.5, top=0.3, bent=True)
+    kps[9], kps[10] = [0.5, 0.49, 0.9], [0.52, 0.49, 0.9]
+    records, frames = analyse_window(window, images, _Detectors(kps), context=_bent_frames(seat, box, 4000, 10000))
+    assert [f.offset_ms for f in frames] == [t for t, _ in images]
+    assert "LOOK_AT_LAP" in [r["type"] for r in records if r["action"] == "opened"]

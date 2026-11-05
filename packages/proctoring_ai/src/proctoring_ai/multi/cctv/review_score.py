@@ -3,9 +3,12 @@
 A verdict is one picture Nguyên judged: event type, time, the heads of the seats in it, true or false.
 An ``opened`` event matches it when the type is the same, it is at most ``max_dt_s`` away and its head is
 within ``max_head`` of one of the verdict's heads. ``false_opened`` counts false verdicts hit (one per
-picture, as Nguyên graded them); ``false_events`` counts every event that hit one. ``true_with_merged`` also
-counts a true verdict that only a ``merged`` record hit: the deduper folded it into an alert for the same seat
-and type that is already on the invigilator's screen.
+picture, as Nguyên graded them); ``false_events`` counts every event that hit one.
+
+``true_covered`` / ``false_covered`` count what the invigilator actually sees at the picture's moment: an
+alert of that type on that head that is open then (from ``opened`` to its ``closed``, give or take
+``max_dt_s``), or a ``merged`` repeat the deduper folded into an alert already on screen. A behaviour that
+goes on (the same boy with his hands in his lap at 51.2, 59.0 and 63.0 s) is one alert, not three.
 """
 
 from __future__ import annotations
@@ -35,11 +38,14 @@ def load_verdicts(path: Path) -> list[Verdict]:
                     bool(item["verdict"])) for item in payload.get("verdicts", [])]
 
 
-def _matches(event: dict[str, Any], verdict: Verdict, max_dt_s: float, max_head: float) -> bool:
+def _matches(event: dict[str, Any], verdict: Verdict, max_dt_s: float, max_head: float,
+             end_s: float | None = None) -> bool:
     head = event.get("head")
     if event.get("type") != verdict.type or head is None:
         return False
-    if abs(float(event.get("video_offset_ms", 0)) / 1000 - verdict.t_s) > max_dt_s:
+    start_s = float(event.get("video_offset_ms", 0)) / 1000
+    end_s = start_s if end_s is None else max(start_s, end_s)
+    if not start_s - max_dt_s <= verdict.t_s <= end_s + max_dt_s:
         return False
     return any(math.dist((head[0], head[1]), h) <= max_head for h in verdict.heads)
 
@@ -58,12 +64,16 @@ def score_review(records: Iterable[dict[str, Any]], verdicts: Sequence[Verdict],
         if any(not verdicts[i].verdict for i in found):
             false_events += 1
     trues = [i for i, verdict in enumerate(verdicts) if verdict.verdict]
-    merged = [item for item in records if item.get("action") == "merged" and item.get("type") not in IGNORED]
-    by_merged = [i for i in trues if i not in hit
-                 and any(_matches(event, verdicts[i], max_dt_s, max_head) for event in merged)]
+    ends = {str(item.get("id")): float(item.get("video_offset_ms", 0)) / 1000 for item in records
+            if item.get("action") == "closed"}
+    shown = [(item, ends.get(str(item.get("id"))) if item.get("action") == "opened" else None) for item in records
+             if item.get("action") in ("opened", "merged") and item.get("type") not in IGNORED]
+    covered = {i for i, verdict in enumerate(verdicts)
+               if any(_matches(event, verdict, max_dt_s, max_head, end) for event, end in shown)} | hit
     return {"true_found": sum(1 for i in trues if i in hit), "true_total": len(trues),
-            "true_with_merged": sum(1 for i in trues if i in hit) + len(by_merged),
-            "found_by_merged": [f"{verdicts[i].type}@{verdicts[i].t_s}" for i in by_merged],
+            "true_covered": sum(1 for i in trues if i in covered),
+            "false_covered": sum(1 for i in covered if not verdicts[i].verdict),
+            "covered_only": [f"{verdicts[i].type}@{verdicts[i].t_s}" for i in trues if i in covered - hit],
             "false_opened": sum(1 for i in hit if not verdicts[i].verdict), "false_events": false_events,
             "unjudged": unjudged,
             "missed": [f"{verdicts[i].type}@{verdicts[i].t_s}" for i in trues if i not in hit]}
