@@ -57,7 +57,7 @@ class ReviewRuleConfig:
     calculator_on_paper: bool = False  # a "phone" on the seat's own paper is a calculator (set if 31.6 stays)
     # Hands meeting is judged against the people's size, not the frame: far rows are tiny and their
     # keypoints jitter by more than a hand's width.
-    passing_wrist_heights: float = 0.15  # wrists closer than this x the smaller seat box height
+    passing_wrist_heights: float = 0.2  # wrists closer than this x the smaller seat box height (25.5 s: 0.13-0.2)
     passing_wrist_conf: float = 0.5
     far_row_height: float = 0.12  # seat boxes lower than this (frame heights) are far rows
     far_row_inside_frames: int = 2  # far rows also need a wrist inside the other seat this often

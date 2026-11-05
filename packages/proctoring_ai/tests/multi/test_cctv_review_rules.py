@@ -451,3 +451,11 @@ def test_document_below_desk_needs_a_hand_on_it() -> None:
 
     records = review_window(window(seats, a, 0, 2000), frames(seats, pose, 0, 2000, lambda ms: [book]))
     assert "DOCUMENT_DETECTED" not in kinds(records)
+
+
+def test_near_row_hands_a_fifth_of_a_seat_apart_reported() -> None:
+    # Clip 1 at 25.5 s (true): the handover wrists stayed 0.13-0.2 seat heights apart.
+    a, b, seats = _pair(0.25)
+    pose = _meeting(a, (0.35, 0.42), (0.395, 0.42))  # 0.045 = 0.18 seat heights
+    records = review_window(window(seats, a, 0, 1000, ("HANDS_MEET",)), frames(seats, pose, 0, 1000))
+    assert "PASSING_OBJECT" in kinds(records)
