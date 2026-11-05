@@ -51,7 +51,13 @@ class ReviewRuleConfig:
     object_track_iou: float = 0.3  # same object in consecutive sightings
     object_wrist_widths: float = 0.6  # "in the hand": centre this close to a wrist, in seat widths
     object_move_widths: float = 0.5  # or it travelled this far, in its own widths
-    calculator_on_paper: bool = False  # a "phone" on the seat's own paper is a calculator (set if 31.6 stays)
+    calculator_on_paper: bool = False
+    # Hands meeting is judged against the people's size, not the frame: far rows are tiny and their
+    # keypoints jitter by more than a hand's width.
+    passing_wrist_heights: float = 0.15  # wrists closer than this x the smaller seat box height
+    passing_wrist_conf: float = 0.5
+    far_row_height: float = 0.12  # seat boxes lower than this (frame heights) are far rows
+    far_row_inside_frames: int = 2  # far rows also need a wrist inside the other seat this often  # a "phone" on the seat's own paper is a calculator (set if 31.6 stays)
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,8 +111,8 @@ def _inside(p: tuple[float, float], box: Box) -> bool:
     return box.x <= p[0] <= box.x + box.width and box.y <= p[1] <= box.y + box.height
 
 
-def _wrists(kps: Keypoints | None) -> list[tuple[float, float]]:
-    return [p for index in (LEFT_WRIST, RIGHT_WRIST) if (p := point(kps, index, 0.4))]
+def _wrists(kps: Keypoints | None, min_conf: float = 0.4) -> list[tuple[float, float]]:
+    return [p for index in (LEFT_WRIST, RIGHT_WRIST) if (p := point(kps, index, min_conf))]
 
 
 def _runs(samples: Sequence[tuple[int, bool]], hold_ms: int, gap_ms: int) -> list[tuple[int, int, int]]:
@@ -220,10 +226,7 @@ def review_window(window: SuspectWindow, frames: Sequence[ReviewFrame],
     for other in seats:
         if other == main:
             continue
-        pair_width = (width + seats[other].width) / 2
-        meet = [(f.offset_ms, any(distance(p, q) < cfg.passing_wrist_widths * pair_width
-                                  for p in _wrists(f.poses.get(main)) for q in _wrists(f.poses.get(other))))
-                for f in frames]
+        meet = _hands_meet(frames, main, other, seats, cfg)
         runs = _runs(meet, cfg.passing_hold_ms, cfg.gap_ms)
         if not runs:
             runs = _transfers(frames, main, other, seats, cfg, window.start_ms)
@@ -263,6 +266,27 @@ def review_window(window: SuspectWindow, frames: Sequence[ReviewFrame],
             records.append({"action": "dismissed", "seat_id": str(main), "start_ms": window.start_ms,
                             "end_ms": window.end_ms, "reasons": list(window.reasons), "stage": "review"})
     return records
+
+
+def _hands_meet(frames: Sequence[ReviewFrame], a: UUID, b: UUID, seats: Mapping[UUID, Box],
+                cfg: ReviewRuleConfig) -> list[tuple[int, bool]]:
+    height = min(seats[a].height, seats[b].height)
+    reach = cfg.passing_wrist_heights * height
+    far = height < cfg.far_row_height
+    inside = sum(1 for f in frames
+                 if any(_inside(p, seats[b]) for p in _wrists(f.poses.get(a), cfg.passing_wrist_conf))
+                 or any(_inside(q, seats[a]) for q in _wrists(f.poses.get(b), cfg.passing_wrist_conf)))
+    out: list[tuple[int, bool]] = []
+    for f in frames:
+        pairs = [(p, q) for p in _wrists(f.poses.get(a), cfg.passing_wrist_conf)
+                 for q in _wrists(f.poses.get(b), cfg.passing_wrist_conf) if distance(p, q) < reach]
+        ok = bool(pairs)
+        if ok and far:
+            between = any(distance(obj.bbox.center, ((p[0] + q[0]) / 2, (p[1] + q[1]) / 2)) < reach
+                          for p, q in pairs for obj in f.objects)
+            ok = between or inside >= cfg.far_row_inside_frames
+        out.append((f.offset_ms, ok))
+    return out
 
 
 def _alive(frames: Sequence[ReviewFrame], main: UUID, box: Box, cfg: ReviewRuleConfig) -> set[int]:

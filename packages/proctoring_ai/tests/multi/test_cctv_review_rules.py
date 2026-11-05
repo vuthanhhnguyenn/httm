@@ -341,3 +341,45 @@ def test_still_book_under_desk_without_hand_ignored() -> None:
     records = review_window(window(seats, a, 0, 1500, ("LEAN",)),
                             frames(seats, lambda key, ms: person(cx=0.3, top=0.3), 0, 1500, lambda ms: [book]))
     assert "DOCUMENT_DETECTED" not in kinds(records)
+
+
+def _pair(height: float):
+    a, b = uuid4(), uuid4()
+    return a, b, {a: Box(0.25, 0.3, 0.1, height), b: Box(0.37, 0.3, 0.1, height)}
+
+
+def _meeting(a, wrist_a, wrist_b, conf=0.9):
+    def pose(key, ms):
+        kps = person(cx=0.3 if key == a else 0.42, top=0.3)
+        kps[9] = [*(wrist_a if key == a else wrist_b), conf]
+        return kps
+
+    return pose
+
+
+def test_far_row_hands_meet_without_object_ignored() -> None:
+    a, b, seats = _pair(0.08)
+    pose = _meeting(a, (0.355, 0.33), (0.36, 0.33))  # touching at the midline, nobody inside the other seat
+    records = review_window(window(seats, a, 0, 1000, ("HANDS_MEET",)), frames(seats, pose, 0, 1000))
+    assert "PASSING_OBJECT" not in kinds(records)
+
+
+def test_far_row_wrist_inside_other_seat_reported() -> None:
+    a, b, seats = _pair(0.08)
+    pose = _meeting(a, (0.375, 0.33), (0.38, 0.33))  # a's hand is in b's seat box
+    records = review_window(window(seats, a, 0, 1000, ("HANDS_MEET",)), frames(seats, pose, 0, 1000))
+    assert "PASSING_OBJECT" in kinds(records)
+
+
+def test_near_row_hands_meet_reported() -> None:
+    a, b, seats = _pair(0.25)
+    pose = _meeting(a, (0.355, 0.42), (0.36, 0.42))
+    records = review_window(window(seats, a, 0, 1000, ("HANDS_MEET",)), frames(seats, pose, 0, 1000))
+    assert "PASSING_OBJECT" in kinds(records)
+
+
+def test_low_conf_wrist_ignored() -> None:
+    a, b, seats = _pair(0.25)
+    pose = _meeting(a, (0.355, 0.42), (0.36, 0.42), conf=0.45)
+    records = review_window(window(seats, a, 0, 1000, ("HANDS_MEET",)), frames(seats, pose, 0, 1000))
+    assert "PASSING_OBJECT" not in kinds(records)
