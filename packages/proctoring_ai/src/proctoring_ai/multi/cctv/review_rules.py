@@ -41,6 +41,9 @@ class ReviewRuleConfig:
     passing_transfer_ms: int = 2000
     document_hold_ms: int = 1000
     document_face_widths: float = 0.3
+    # Below the desk only a document in the hand counts: a wrist this close (seat heights) in the same frame.
+    # The exam paper under a writing hand sits a third of a seat height below the wrist (clip 1, 10.0/32.0 s).
+    document_wrist_heights: float = 0.15
     lap_hold_ms: int = 3000
     min_head_lift: float = 0.1
     gap_ms: int = 300
@@ -246,11 +249,15 @@ def review_window(window: SuspectWindow, frames: Sequence[ReviewFrame],
             emit(EventType.PASSING_OBJECT, reacher, opened, last, neighbor_seat_id=str(neighbour))
 
     # (d) paper or book below the desk or held up at the face.
+    moving = _alive(frames, main, box, cfg, by_hand=False)
     document = []
     for i, frame in enumerate(frames):
         head = head_point(frame.poses.get(main), box) if frame.poses.get(main) is not None else None
+        hands = _wrists(frame.poses.get(main))
+        held = cfg.document_wrist_heights * box.height
         ok = any(obj.label in ("paper", "book") and id(obj) in alive and _inside(obj.bbox.center, box)
-                 and (obj.bbox.center[1] > lines[main][i]
+                 and ((obj.bbox.center[1] > lines[main][i]
+                       and (id(obj) in moving or any(distance(obj.bbox.center, p) < held for p in hands)))
                       or (head is not None and distance(obj.bbox.center, head) < cfg.document_face_widths * width))
                  for obj in frame.objects)
         document.append((frame.offset_ms, ok))
@@ -314,9 +321,11 @@ def _object_between(frames: Sequence[ReviewFrame], a: UUID, b: UUID, run: tuple[
     return False
 
 
-def _alive(frames: Sequence[ReviewFrame], main: UUID, box: Box, cfg: ReviewRuleConfig) -> set[int]:
+def _alive(frames: Sequence[ReviewFrame], main: UUID, box: Box, cfg: ReviewRuleConfig, *,
+           by_hand: bool = True) -> set[int]:
     """``id()`` of the objects in the seat that somebody handles: the same object (linked frame to frame by
-    IoU) seen in ``object_min_frames`` frames, and near the candidate's wrist once or moved meanwhile."""
+    IoU) seen in ``object_min_frames`` frames, and near the candidate's wrist once or moved meanwhile.
+    ``by_hand=False`` keeps only the ones that moved."""
 
     tracks: list[list[tuple[ReviewObject, list[tuple[float, float]]]]] = []
     for frame in frames:
@@ -338,7 +347,7 @@ def _alive(frames: Sequence[ReviewFrame], main: UUID, box: Box, cfg: ReviewRuleC
                    for obj, wrists in track for p in wrists)
         first, last = track[0][0].bbox, track[-1][0].bbox
         moved = distance(first.center, last.center) > cfg.object_move_widths * max(first.width, 1e-6)
-        if held or moved:
+        if (held and by_hand) or moved:
             out |= {id(obj) for obj, _ in track}
     return out
 

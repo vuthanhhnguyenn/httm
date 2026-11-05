@@ -3,7 +3,9 @@
 A verdict is one picture Nguyên judged: event type, time, the heads of the seats in it, true or false.
 An ``opened`` event matches it when the type is the same, it is at most ``max_dt_s`` away and its head is
 within ``max_head`` of one of the verdict's heads. ``false_opened`` counts false verdicts hit (one per
-picture, as Nguyên graded them); ``false_events`` counts every event that hit one.
+picture, as Nguyên graded them); ``false_events`` counts every event that hit one. ``true_with_merged`` also
+counts a true verdict that only a ``merged`` record hit: the deduper folded it into an alert for the same seat
+and type that is already on the invigilator's screen.
 """
 
 from __future__ import annotations
@@ -56,7 +58,12 @@ def score_review(records: Iterable[dict[str, Any]], verdicts: Sequence[Verdict],
         if any(not verdicts[i].verdict for i in found):
             false_events += 1
     trues = [i for i, verdict in enumerate(verdicts) if verdict.verdict]
+    merged = [item for item in records if item.get("action") == "merged" and item.get("type") not in IGNORED]
+    by_merged = [i for i in trues if i not in hit
+                 and any(_matches(event, verdicts[i], max_dt_s, max_head) for event in merged)]
     return {"true_found": sum(1 for i in trues if i in hit), "true_total": len(trues),
+            "true_with_merged": sum(1 for i in trues if i in hit) + len(by_merged),
+            "found_by_merged": [f"{verdicts[i].type}@{verdicts[i].t_s}" for i in by_merged],
             "false_opened": sum(1 for i in hit if not verdicts[i].verdict), "false_events": false_events,
             "unjudged": unjudged,
             "missed": [f"{verdicts[i].type}@{verdicts[i].t_s}" for i in trues if i not in hit]}

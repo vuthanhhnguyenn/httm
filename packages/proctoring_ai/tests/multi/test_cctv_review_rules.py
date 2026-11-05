@@ -436,3 +436,18 @@ def test_passing_ignores_long_side_by_side_hands_without_object() -> None:
 
     records = review_window(window(seats, a, 0, 5000, ("HANDS_MEET",)), frames(seats, pose, 0, 5000))
     assert "PASSING_OBJECT" not in kinds(records)
+
+
+def test_document_below_desk_needs_a_hand_on_it() -> None:
+    # Clip 1 at 10.0 s and 32.0 s: the paper lies under the desk line, the hand that writes is a third of
+    # a seat height above it. Only a document a hand holds is cheating material.
+    a = uuid4()
+    seats = {a: box(0.3)}
+    book = ReviewObject("book", 0.5, Box(0.28, 0.46, 0.04, 0.02), "yolo11x")
+
+    def pose(key, ms):
+        wrist = (0.3, 0.47) if ms == 0 else (0.3, 0.41)  # touched once, then written above it
+        return wristed(person(cx=0.3, top=0.3), left=wrist)
+
+    records = review_window(window(seats, a, 0, 2000), frames(seats, pose, 0, 2000, lambda ms: [book]))
+    assert "DOCUMENT_DETECTED" not in kinds(records)

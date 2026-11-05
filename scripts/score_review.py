@@ -27,6 +27,9 @@ def main(argv: list[str] | None = None) -> int:
     score = score_review([item for item in records if item.get("stage") == "review"], load_verdicts(args.labels))
     print(f"đúng {score['true_found']}/{score['true_total']}, nhầm {score['false_opened']} "
           f"({score['false_events']} sự kiện), chưa chấm {score['unjudged']}")
+    if score["found_by_merged"]:
+        print("Bắt được qua sự kiện đã gộp:", ", ".join(score["found_by_merged"]),
+              f"(tính cả: đúng {score['true_with_merged']}/{score['true_total']})")
     if score["missed"]:
         print("Sót:", ", ".join(score["missed"]))
     return 0

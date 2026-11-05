@@ -54,3 +54,5 @@ def test_score_review():
     assert score["false_opened"] == 1 and score["false_events"] == 2
     assert score["unjudged"] == 2
     assert score["missed"] == ["LOOK_AT_LAP@51.2"]
+    # A repeat the deduper folded into an alert already on screen still shows the invigilator that seat.
+    assert score["true_with_merged"] == 2 and score["found_by_merged"] == ["LOOK_AT_LAP@51.2"]
