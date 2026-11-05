@@ -52,3 +52,12 @@ def test_skipped_record():
     assert item["type"] == "REVIEW_SKIPPED" and item["stage"] == "review" and item["action"] == "opened"
     assert item["video_offset_ms"] == 3000 and item["skip_reason"] == "deadline"
     assert skipped_record(win(start=1000), "shutdown")["video_offset_ms"] == 1000
+
+
+def test_a_seat_pieces_in_time_order():
+    # The next piece of a seat reuses the frames of the one before it (ReviewHistory): never review it first.
+    queue = ReviewQueue()
+    seat = uuid4()
+    queue.push(win(seat, 0, 9800, ("LEAN",)), 0)
+    queue.push(win(seat, 10000, 20000, ("LEAN", "HEAD_AWAY", "RULE_EVENT")), 1)
+    assert [queue.pop().start_ms, queue.pop().start_ms] == [0, 10000]

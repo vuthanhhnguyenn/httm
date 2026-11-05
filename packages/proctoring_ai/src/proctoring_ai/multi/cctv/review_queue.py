@@ -62,6 +62,9 @@ class ReviewQueue:
         if not self._waiting:
             return None
         best = min(self._waiting, key=self._rank)
+        # A seat's pieces go in time order: the later one reuses the earlier one's frames (ReviewHistory).
+        best = min((item for item in self._waiting if item[2].seat_id == best[2].seat_id),
+                   key=lambda item: item[2].start_ms)
         self._waiting.remove(best)
         return best[0], best[2]
 
