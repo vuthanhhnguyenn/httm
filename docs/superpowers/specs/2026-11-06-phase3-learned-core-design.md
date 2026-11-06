@@ -51,7 +51,7 @@ video ──► 1. Dòng thời gian từng ghế ──► 2. Cửa sổ 3 s + 
 - Mỗi ghế (kèm các ghế kề) trở thành một `SuspectWindow` phủ **toàn bộ video** (lý do `"ALL_SEATS"`), rồi đi qua
   `review_offline` như hiện nay: giải mã một lần, cắt ảnh phóng to quanh cụm, `yolo11x-pose` + `yolo11x`,
   FP16, batch, 2 GPU, 5 khung/giây. Các ghế có vùng cắt chồng nhau dùng chung một ảnh cắt trong cùng khung (`_group`, `share_iou`).
-- Đầu ra: `timeline.json.gz` (định dạng `review_cache`, mỗi ghế một dòng), chứa là `(ghế, offset_ms, keypoints, vật thể gần ghế, hộp ghế)`. Đây cũng là
+- Đầu ra: `timeline.json.gz` (định dạng `review_cache`, mỗi ghế một dòng), chứa `(ghế, offset_ms, keypoints, vật thể gần ghế, hộp ghế)`. Đây cũng là
   cache để train lại mà không chạy GPU lại.
 
 ### 3.2 Tầng 2: cửa sổ 3 giây và đặc trưng
