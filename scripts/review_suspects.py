@@ -26,7 +26,7 @@ import numpy as np  # noqa: E402
 from proctoring_ai.multi.cctv.review_cache import save_window  # noqa: E402
 from proctoring_ai.multi.cctv.review_core import analyse_window  # noqa: E402
 from proctoring_ai.multi.cctv.review_dedupe import ReviewDeduper  # noqa: E402
-from proctoring_ai.multi.cctv.review_frames import select_offsets  # noqa: E402
+from proctoring_ai.multi.cctv.review_frames import FrameCursor, select_offsets  # noqa: E402
 from proctoring_ai.multi.cctv.review_rules import (  # noqa: E402
     ReviewFrame,
 )
@@ -37,19 +37,16 @@ WARMUP_MS = 8000  # head baselines need a few seconds of usual posture before th
 
 
 def _frames(capture: Any, start_ms: int, end_ms: int, fps: float) -> list[tuple[int, Any]]:
-    step = 1000.0 / fps
+    cursor = FrameCursor(start_ms, end_ms, fps)
     capture.set(cv2.CAP_PROP_POS_MSEC, max(0, start_ms))
     out: list[tuple[int, Any]] = []
-    target = float(max(0, start_ms))
-    while target <= end_ms:
+    while not cursor.done:
         ok, image = capture.read()
         if not ok:
             break
         position = capture.get(cv2.CAP_PROP_POS_MSEC)
-        if position + 1e-6 < target:
-            continue
-        out.append((int(round(position)), image))
-        target = position + step
+        if cursor.take(position):
+            out.append((int(round(position)), image))
     return out
 
 

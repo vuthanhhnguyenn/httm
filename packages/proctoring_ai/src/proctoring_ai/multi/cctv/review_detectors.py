@@ -96,7 +96,8 @@ def _is_cuda(device: str) -> bool:
 
 
 class ReviewDetectors:
-    """``devices`` holds where each model actually runs; ``reasons`` why, when that is not what was asked."""
+    """``devices`` holds where each model actually runs; ``reasons`` why, when that is not what was asked;
+    ``kinds`` the kind (``pose`` / ``objects``) of each loaded model."""
 
     def __init__(self, specs: list[ModelSpec], device: str | None = None,
                  loader: Callable[[Path], Any] | None = None, image_size: int = 960, batch_size: int = 8, *, half: bool = False,
@@ -106,6 +107,7 @@ class ReviewDetectors:
         overrides = device_override or {}
         self.status: dict[str, str] = {}
         self.devices: dict[str, str | None] = {}
+        self.kinds: dict[str, str] = {}
         self.reasons: dict[str, str] = {}
         self._models: list[tuple[ModelSpec, Any]] = []
         load = loader or _default_loader
@@ -128,6 +130,7 @@ class ReviewDetectors:
                 continue
             self.status[spec.name] = "ok"
             self.devices[spec.name] = run_on
+            self.kinds[spec.name] = spec.kind
             if reason:
                 self.reasons[spec.name] = reason
 

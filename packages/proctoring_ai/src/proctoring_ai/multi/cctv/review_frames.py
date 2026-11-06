@@ -12,6 +12,27 @@ from collections.abc import Sequence
 from .suspects import SuspectWindow
 
 
+class FrameCursor:
+    """One window's frame grid over a video read in order: the first frame at or after each target, the next
+    target one ``1000 / fps`` step after the frame taken, until ``end_ms``. Shared by the per-window seek
+    (``scripts/review_suspects.py``) and the single pass of ``review_offline`` so both take the same frames."""
+
+    def __init__(self, start_ms: float, end_ms: float, fps: float) -> None:
+        self.step = 1000.0 / fps
+        self.target = float(max(0.0, start_ms))
+        self.end_ms = end_ms
+
+    @property
+    def done(self) -> bool:
+        return self.target > self.end_ms
+
+    def take(self, position_ms: float) -> bool:
+        if self.done or position_ms + 1e-6 < self.target:
+            return False
+        self.target = position_ms + self.step
+        return True
+
+
 def _nearest(available: Sequence[int], target: float) -> int:
     return min(available, key=lambda t: abs(t - target))
 
@@ -47,4 +68,4 @@ def select_offsets(window: SuspectWindow, available: Sequence[int], *, per_s: fl
     return sorted(chosen)
 
 
-__all__ = ["select_offsets"]
+__all__ = ["FrameCursor", "select_offsets"]

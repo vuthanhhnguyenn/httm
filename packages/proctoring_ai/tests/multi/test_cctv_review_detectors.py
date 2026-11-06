@@ -178,3 +178,12 @@ def test_half_only_on_cuda(tmp_path: Path) -> None:
     seen.clear()
     ReviewDetectors([spec], device="0", loader=lambda _p: _Recorder({0: "cell phone"}, [])).objects(image, transform)
     assert "half" not in seen[0]
+
+
+def test_kinds_of_loaded_models_only(tmp_path: Path) -> None:
+    objects = _spec(tmp_path, "coco", {"cell phone": "phone"})
+    pose = _spec(tmp_path, "pose", {})
+    pose = ModelSpec(pose.name, "pose", pose.path, {}, 0.2, pose.sha256)
+    missing = ModelSpec("missing", "objects", tmp_path / "nope.pt", {}, 0.2, None)
+    detectors = ReviewDetectors([objects, pose, missing], loader=lambda _path: _Model({}, []))
+    assert detectors.kinds == {"coco": "objects", "pose": "pose"}
