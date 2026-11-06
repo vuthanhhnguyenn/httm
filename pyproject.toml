@@ -105,6 +105,8 @@ pythonpath = [
 ]
 addopts = "-ra --strict-config --strict-markers"
 asyncio_mode = "auto"
+# Dump every thread's stack if one test runs over 2 min (a Windows CI run hung with no clue where).
+faulthandler_timeout = 120
 markers = [
   "contract: application contract tests",
   "integration: cross-component integration tests",
