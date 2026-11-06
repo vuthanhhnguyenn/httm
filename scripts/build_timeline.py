@@ -42,23 +42,23 @@ def _process_video() -> Any:
 
 
 def timeline_pass(video: Path, out: Path, video_s: float, detectors: Any, *, share_iou: float,
-                  batch: int | None = None) -> tuple[list[Any], dict[str, Any]]:
+                  batch: int | None = None) -> tuple[list[Any], dict[Any, list[Any]], dict[str, Any]]:
     """All-seat windows from ``out/tracks.jsonl`` through ``review_offline``; the cache goes to
-    ``out/timeline.json.gz``. Returns the windows and the run's stats."""
+    ``out/timeline.json.gz``. Returns the windows, their analysed frames and the run's stats."""
 
     pv = _process_video()
     windows = all_seat_windows(load_tracks(out / "tracks.jsonl"), int(video_s * 1000))
     cache_path = out / TIMELINE
     cache_path.unlink(missing_ok=True)  # save_window appends
     if not windows:
-        return windows, {"seats": 0}
+        return windows, {}, {"seats": 0}
 
     def progress(done: int, total: int) -> None:
         print(f"\rDòng thời gian: {done}/{total} khung", end="\n" if done >= total else "", flush=True)
 
     result = review_offline(video, windows, detectors, fps=pv.REVIEW_FPS, warmup_ms=0, share_iou=share_iou,
                             cache_path=cache_path, parallel=True, batch_size=batch, on_progress=progress)
-    return windows, {"seats": len(windows), **result.stats}
+    return windows, result.frames, {"seats": len(windows), **result.stats}
 
 
 def build(video: Path, out: Path, *, quality: str = "max", device: str | None = None, device2: str | None = None,
@@ -78,7 +78,7 @@ def build(video: Path, out: Path, *, quality: str = "max", device: str | None = 
     began = time.perf_counter()
     if detectors is None:
         detectors = pv.build_detectors(quality, device, device2, batch, half=half)
-    windows, stats = timeline_pass(video, out, video_s, detectors, share_iou=pv.SHARE_IOU, batch=batch)
+    windows, _frames, stats = timeline_pass(video, out, video_s, detectors, share_iou=pv.SHARE_IOU, batch=batch)
     timeline_s = time.perf_counter() - began
     total_s = time.perf_counter() - started
     timing = {"video_s": round(video_s, 2), "fast_s": round(fast_s, 2), "timeline_s": round(timeline_s, 2),

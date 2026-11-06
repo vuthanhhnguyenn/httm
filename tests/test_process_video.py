@@ -243,7 +243,7 @@ def test_fp32_and_share_iou_reach_the_deep_tier(tmp_path: Path, monkeypatch: pyt
                        fast_runner=_FastRunner([_window()])) == 0
     assert built == {"half": False} and seen == {"share_iou": 1.1}
     saved = json.loads((tmp_path / "o" / "timing.json").read_text(encoding="utf-8"))
-    assert saved["config"] == {"quality": "max", "half": False, "share_iou": 1.1}
+    assert saved["config"] == {"quality": "max", "half": False, "share_iou": 1.1, "core": "rules"}
 
 
 def test_reuse_fast_skips_the_fast_tier(tmp_path: Path) -> None:
@@ -254,3 +254,63 @@ def test_reuse_fast_skips_the_fast_tier(tmp_path: Path) -> None:
     module.process(video, out, detectors=_Detectors(), fast_runner=runner, reuse_fast=True)
     assert runner.calls == 1
     assert [e["type"] for e in _events(out) if e["action"] == "opened"] == ["UNCLASSIFIED_SUSPECT"]
+
+
+def _person(cx: float) -> list[list[float]]:
+    kps = [[0.0, 0.0, 0.0] for _ in range(17)]
+    kps[0] = [cx, 0.36, 0.9]
+    kps[1], kps[2] = [cx - 0.01, 0.35, 0.9], [cx + 0.01, 0.35, 0.9]
+    kps[5], kps[6] = [cx - 0.04, 0.42, 0.9], [cx + 0.04, 0.42, 0.9]
+    kps[9], kps[10] = [cx - 0.02, 0.55, 0.9], [cx + 0.02, 0.55, 0.9]
+    return kps
+
+
+class _SeeingDetectors(_Detectors):
+    """Both candidates sit still in every crop."""
+
+    def pose_many(self, crops, transforms):
+        self.calls += 1
+        people = [{"class": "person", "confidence": 0.9, "keypoints": _person(box.center[0])} for box in (BOX_A, BOX_B)]
+        return [list(people) for _ in crops]
+
+
+class _AlwaysLooking:
+    """Stands in for a trained model: every window of every seat looks at the neighbour."""
+
+    def __init__(self) -> None:
+        from proctoring_ai.multi.cctv.learned import LearnedCore
+
+        self.core = LearnedCore(None, ("NORMAL", "LOOK_AT_NEIGHBOR"), {"LOOK_AT_NEIGHBOR": (0.8, 0.5)}, {})
+        self.core.predict = lambda rows: [{"NORMAL": 0.1, "LOOK_AT_NEIGHBOR": 0.9} for _ in rows]  # type: ignore[method-assign]
+
+
+def test_learned_core_requires_model(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    code = _module().main([str(_video(tmp_path / "in.mp4")), "--out", str(tmp_path / "o"), "--core", "learned"])
+    assert code == 1 and "--model" in capsys.readouterr().err
+
+
+def test_learned_core_missing_model_dir(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    code = _module().main([str(_video(tmp_path / "in.mp4")), "--out", str(tmp_path / "o"), "--core", "learned",
+                           "--model", str(tmp_path / "khong-co")])
+    assert code == 1 and "model.txt" in capsys.readouterr().err
+
+
+def test_learned_core_end_to_end(tmp_path: Path) -> None:
+    out = tmp_path / "o"
+    timing = _module().process(_video(tmp_path / "in.mp4", seconds=6.0), out, detectors=_SeeingDetectors(),
+                               fast_runner=_FastRunner([]), core="learned", learned=_AlwaysLooking().core)
+    opened = [item for item in _events(out) if item["action"] == "opened"]
+    assert opened and all(item["stage"] == "learned" and item["level"] == "red" for item in opened)
+    assert {item["seat_id"] for item in opened} == {str(SEAT_A), str(SEAT_B)}
+    assert all(item.get("label_vi") for item in opened)
+    assert (out / "features.csv").is_file() and (out / "timeline.json.gz").is_file()
+    assert (out / "annotated.mp4").is_file()
+    assert timing["config"]["core"] == "learned"
+
+
+def test_learned_core_short_video(tmp_path: Path) -> None:
+    out = tmp_path / "o"
+    timing = _module().process(_video(tmp_path / "in.mp4", seconds=2.0), out, detectors=_SeeingDetectors(),
+                               fast_runner=_FastRunner([]), core="learned", learned=_AlwaysLooking().core)
+    assert [item for item in _events(out) if item["action"] == "opened"] == []
+    assert timing["video_s"] > 0
