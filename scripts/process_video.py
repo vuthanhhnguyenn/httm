@@ -53,6 +53,7 @@ QUALITY_IMGSZ = {"max": 960, "balanced": 640}  # deep-tier crop size; balanced i
 BUDGET_RATIO = 2.0
 REVIEW_FPS = 5.0
 WARMUP_MS = 6000
+SHARE_IOU = 0.7  # crops of one frame overlapping at least this much share one model run; > 1 turns it off
 DEFAULT_DEVICE = "cuda"
 
 FastRunner = Callable[[Path, Path, Path], None]
@@ -96,11 +97,12 @@ def device_overrides(specs: Sequence[ModelSpec], device: str | None, device2: st
     return {spec.name: second if spec.kind == "objects" else first for spec in specs}
 
 
-def build_detectors(quality: str, device: str | None, device2: str | None, batch: int | None) -> Any:
+def build_detectors(quality: str, device: str | None, device2: str | None, batch: int | None,
+                    half: bool = True) -> Any:
     from proctoring_ai.multi.cctv.review_detectors import ReviewDetectors, load_specs
 
     specs = load_specs(ROOT / "configs" / "review_models.yaml", ROOT / "models")
-    return ReviewDetectors(specs, image_size=QUALITY_IMGSZ[quality], batch_size=batch or 16, half=True,
+    return ReviewDetectors(specs, image_size=QUALITY_IMGSZ[quality], batch_size=batch or 16, half=half,
                            device_override=device_overrides(specs, device, device2))
 
 
@@ -168,7 +170,7 @@ def finish_records(per_window: WindowRecords, fast_events: list[dict[str, Any]],
 
 
 def _deep_pass(video: Path, windows: list[SuspectWindow], detectors: Any, cache_path: Path,
-               batch: int | None) -> tuple[WindowRecords, dict[CacheKey, list[ReviewFrame]], dict[str, Any]]:
+               batch: int | None, share_iou: float = SHARE_IOU) -> tuple[WindowRecords, dict[CacheKey, list[ReviewFrame]], dict[str, Any]]:
     cache_path.unlink(missing_ok=True)  # save_window appends
     stats: dict[str, Any] = {"windows": len(windows), "skipped": 0,
                              "models": dict(getattr(detectors, "status", {}) or {})}
@@ -188,7 +190,8 @@ def _deep_pass(video: Path, windows: list[SuspectWindow], detectors: Any, cache_
     errors: dict[int, str] = {}
     try:
         result = review_offline(video, windows, detectors, fps=REVIEW_FPS, warmup_ms=WARMUP_MS,
-                                cache_path=cache_path, parallel=True, batch_size=batch, on_progress=progress)
+                                cache_path=cache_path, parallel=True, batch_size=batch, share_iou=share_iou,
+                                on_progress=progress)
         frames, run_stats = result.frames, dict(result.stats)
     except Exception as exc:
         # Crops of many windows share a batch: find the windows that fail by running each on its own.
@@ -198,7 +201,7 @@ def _deep_pass(video: Path, windows: list[SuspectWindow], detectors: Any, cache_
         for index, window in enumerate(windows):
             try:
                 single = review_offline(video, [window], detectors, fps=REVIEW_FPS, warmup_ms=WARMUP_MS,
-                                        cache_path=cache_path, parallel=True, batch_size=batch)
+                                        cache_path=cache_path, parallel=True, batch_size=batch, share_iou=share_iou)
             except Exception as window_exc:
                 errors[index] = str(window_exc)
                 continue
@@ -254,7 +257,8 @@ def _evidence(video: Path, out: Path, per_window: WindowRecords, records: list[d
 
 def process(video: Path, out: Path, *, quality: str = "max", device: str | None = None,
             device2: str | None = None, detectors: Any = None, fast_runner: FastRunner | None = None,
-            batch: int | None = None, ffmpeg: str | None = "ffmpeg") -> dict[str, Any]:
+            batch: int | None = None, ffmpeg: str | None = "ffmpeg", half: bool = True,
+            share_iou: float = SHARE_IOU, reuse_fast: bool = False) -> dict[str, Any]:
     """Run the three passes; returns what ``timing.json`` holds. ``detectors`` / ``fast_runner`` replace the
     real models and fast tier (tests). Raises ``ProcessError`` when the video cannot be read."""
 
@@ -266,10 +270,13 @@ def process(video: Path, out: Path, *, quality: str = "max", device: str | None 
 
     # Pass 1: fast tier.
     fast_dir, tracks_path = out / "fast", out / "tracks.jsonl"
-    shutil.rmtree(fast_dir, ignore_errors=True)
-    tracks_path.unlink(missing_ok=True)
     began = time.perf_counter()
-    (fast_runner or run_fast)(video, fast_dir, tracks_path)
+    if reuse_fast and (fast_dir / "suspects.jsonl").is_file() and tracks_path.is_file():
+        print("Dùng lại kết quả tầng nhanh đã có trong thư mục ra.", flush=True)
+    else:
+        shutil.rmtree(fast_dir, ignore_errors=True)
+        tracks_path.unlink(missing_ok=True)
+        (fast_runner or run_fast)(video, fast_dir, tracks_path)
     fast_s = time.perf_counter() - began
     if (fast_dir / "suspects.jsonl").is_file():
         shutil.copyfile(fast_dir / "suspects.jsonl", out / "suspects.jsonl")
@@ -281,7 +288,7 @@ def process(video: Path, out: Path, *, quality: str = "max", device: str | None 
     # Pass 2: deep tier over whole windows.
     began = time.perf_counter()
     if detectors is None and windows:
-        detectors = build_detectors(quality, device, device2, batch)
+        detectors = build_detectors(quality, device, device2, batch, half=half)
     devices = dict(getattr(detectors, "devices", {}) or {}) if detectors is not None else {}
     reasons = dict(getattr(detectors, "reasons", {}) or {}) if detectors is not None else {}
     if detectors is not None:
@@ -290,7 +297,8 @@ def process(video: Path, out: Path, *, quality: str = "max", device: str | None 
                   f"{'; ' + reasons[name] if name in reasons else ''})", flush=True)
     if any(str(value) == "cpu" for value in devices.values()):
         print("Cảnh báo: tầng kỹ chạy trên CPU, sẽ chậm hơn nhiều.", file=sys.stderr)
-    per_window, frames, deep_stats = _deep_pass(video, windows, detectors, out / "review_cache.json.gz", batch)
+    per_window, frames, deep_stats = _deep_pass(video, windows, detectors, out / "review_cache.json.gz", batch,
+                                                share_iou)
     if not windows:
         (out / "review_cache.json.gz").unlink(missing_ok=True)
     review_s = time.perf_counter() - began
@@ -313,7 +321,8 @@ def process(video: Path, out: Path, *, quality: str = "max", device: str | None 
             "video_s": round(video_s, 3), "fast_s": round(fast_s, 3), "review_s": round(review_s, 3),
             "render_s": round(render_s, 3), "report_s": round(report_s, 3), "total_s": round(total_s, 3),
             "ratio": round(ratio, 3), "over_budget": ratio > BUDGET_RATIO, "devices": devices,
-            "device_reasons": reasons, "deep_stats": deep_stats, "encoder": rendered.get("encoder")}
+            "device_reasons": reasons, "deep_stats": deep_stats, "encoder": rendered.get("encoder"),
+            "config": {"quality": quality, "half": half, "share_iou": share_iou}}
         if rendered.get("error"):
             timing["render_error"] = rendered["error"]
         return timing
@@ -346,10 +355,16 @@ def main(argv: list[str] | None = None, *, fast_runner: FastRunner | None = None
     parser.add_argument("--device", default=None, help="card cho model khung xương (vd. 0); mặc định cuda")
     parser.add_argument("--device2", default=None, help="card cho model vật thể (vd. 1); mặc định như --device")
     parser.add_argument("--batch", type=int, default=None, help="số ảnh cắt mỗi lần chạy model (mặc định 16)")
+    parser.add_argument("--fp32", action="store_true", help="tắt FP16 ở tầng kỹ (chậm hơn, để so độ chính xác)")
+    parser.add_argument("--share-iou", type=float, default=SHARE_IOU,
+                        help="ảnh cắt chồng nhau từ mức này thì chạy model chung; lớn hơn 1 là tắt gộp")
+    parser.add_argument("--reuse-fast", action="store_true",
+                        help="dùng lại tầng nhanh đã có trong --out (so cấu hình tầng kỹ trên cùng đoạn nghi vấn)")
     args = parser.parse_args(argv)
     try:
         process(args.video, args.out, quality=args.quality, device=args.device, device2=args.device2,
-                fast_runner=fast_runner, batch=args.batch)
+                fast_runner=fast_runner, batch=args.batch, half=not args.fp32, share_iou=args.share_iou,
+                reuse_fast=args.reuse_fast)
     except ProcessError as exc:
         print(str(exc), file=sys.stderr)
         return 1

@@ -155,7 +155,7 @@ def test_odd_dimensions_encode_with_libx264(tmp_path: Path) -> None:
     assert result["encoder"] == "libx264" and result["error"] is None and result["frames"] == 6
 
 
-def test_unclassified_shown_briefly_with_short_label() -> None:
+def test_unclassified_not_drawn_on_video() -> None:
     from proctoring_runtime.render import _collect_events
     events = [{"action": "opened", "id": "u", "seat_id": "1", "type": "UNCLASSIFIED_SUSPECT", "level": "yellow",
                "video_offset_ms": 1000},
@@ -164,10 +164,9 @@ def test_unclassified_shown_briefly_with_short_label() -> None:
               {"action": "opened", "id": "p", "seat_id": "1", "type": "PHONE_DETECTED", "level": "red",
                "video_offset_ms": 1000},
               {"action": "closed", "id": "p", "seat_id": "1", "type": "PHONE_DETECTED", "video_offset_ms": 11000}]
-    by_label = {e.name: e for e in _collect_events(events, 2000)}
-    unclassified = by_label["Nghi vấn chưa rõ"]
-    assert (unclassified.start, unclassified.end) == (1000, 3000)  # not the whole 10 s window
-    assert max(e.end for e in by_label.values()) == 11000  # other types still last until closed
+    shown = _collect_events(events, 2000)
+    # Unclassified windows are report-only: on Kaggle they were 9 of 26 (clip 1) and 10 of 14 (clip 2) boxes.
+    assert [(e.start, e.end) for e in shown] == [(1000, 11000)]
 
 
 def test_font_paths_fall_back_to_matplotlib_dejavu(tmp_path: Path, monkeypatch) -> None:

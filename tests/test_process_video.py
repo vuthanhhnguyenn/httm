@@ -225,3 +225,32 @@ def test_device_overrides_put_objects_on_second_card() -> None:
 def test_quality_sets_crop_size() -> None:
     module = _module()
     assert module.QUALITY_IMGSZ == {"max": 960, "balanced": 640}
+
+
+def test_fp32_and_share_iou_reach_the_deep_tier(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Diagnosis knobs: --fp32 builds the models without FP16, --share-iou reaches review_offline."""
+
+    module = _module()
+    built: dict = {}
+    seen: dict = {}
+    monkeypatch.setattr(module, "build_detectors",
+                        lambda quality, device, device2, batch, half=True: built.update(half=half) or _Detectors())
+    real = module.review_offline
+    monkeypatch.setattr(module, "review_offline",
+                        lambda *a, **kw: seen.update(share_iou=kw.get("share_iou")) or real(*a, **kw))
+    video = _video(tmp_path / "in.mp4")
+    assert module.main([str(video), "--out", str(tmp_path / "o"), "--fp32", "--share-iou", "1.1"],
+                       fast_runner=_FastRunner([_window()])) == 0
+    assert built == {"half": False} and seen == {"share_iou": 1.1}
+    saved = json.loads((tmp_path / "o" / "timing.json").read_text(encoding="utf-8"))
+    assert saved["config"] == {"quality": "max", "half": False, "share_iou": 1.1}
+
+
+def test_reuse_fast_skips_the_fast_tier(tmp_path: Path) -> None:
+    module = _module()
+    video, out = _video(tmp_path / "in.mp4"), tmp_path / "o"
+    runner = _FastRunner([_window()])
+    module.process(video, out, detectors=_Detectors(), fast_runner=runner)
+    module.process(video, out, detectors=_Detectors(), fast_runner=runner, reuse_fast=True)
+    assert runner.calls == 1
+    assert [e["type"] for e in _events(out) if e["action"] == "opened"] == ["UNCLASSIFIED_SUSPECT"]
