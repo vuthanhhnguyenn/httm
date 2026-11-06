@@ -119,3 +119,9 @@ Tầng nhanh: 29 đoạn nghi vấn (83 % clip). Cache tầng kỹ 5 khung/giây
 
 Bản live thêm 2 sự kiện quay đầu vì mốc hướng đầu của từng khúc 10 s ngắn hơn cả đoạn. Ảnh để chấm:
 `phase2f/clip2/su-kien.jpg` (project files).
+
+## Phase 2g: xử lý video offline
+
+- Độ chính xác clip 1 (hồi quy fixture): `true_covered` 9/9, `true_red` 4, `false_red` 0, `false_opened` ≤ 7.
+- Tốc độ trên Kaggle (2× T4): chưa đo; sẽ ghi sau khi chạy `notebooks/kaggle_process_video.ipynb`.
+- Thử trên CPU với đoạn 15 s: `video_s` 15, `total_s` 683,5 (chất lượng `balanced`, chỉ CPU). Đây không phải số đại diện cho GPU.
