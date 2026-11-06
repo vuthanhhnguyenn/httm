@@ -18,6 +18,7 @@ ai = [
   "ultralytics>=8.3,<9.0",
   "mediapipe>=0.10,<1.0",
   "openvino>=2024.0,<2027.0",
+  "lightgbm>=4.3,<5.0",
 ]
 desktop = [
   { include-group = "ai" },
