@@ -434,12 +434,19 @@ def _head_rules(window: SuspectWindow, frames: Sequence[ReviewFrame], seats: Map
     rules = CctvSeatRules(config=replace(CctvRuleConfig(), home_min_ms=cfg.home_min_ms), roles=_AllCandidates())
     keep = {EventType.LOOK_AT_NEIGHBOR.value, EventType.HEAD_TURN_LEFT.value, EventType.HEAD_TURN_RIGHT.value,
             EventType.TURN_AROUND.value, EventType.HEADS_TOGETHER.value}
+    seat_objs = [Seat(seat_id, (window.runtime_track_id or 0) if seat_id == window.seat_id else 0, box, box.center, 1.0,
+                      0, 0, True) for seat_id, box in seats.items()]
+    # One event loop for the whole window: a loop per frame meant thousands of loops per video, and on Windows
+    # every new loop opens a loopback socketpair (CI hung waiting on one).
+    with asyncio.Runner() as runner:
+        return _head_rules_loop(window, frames, rules, keep, seat_objs, runner.run)
+
+
+def _head_rules_loop(window: SuspectWindow, frames: Sequence[ReviewFrame], rules: CctvSeatRules, keep: set[str],
+                     seat_objs: list[Seat], run: Callable[[Any], Any]) -> list[dict[str, Any]]:
     opened: dict[str, dict[str, Any]] = {}
     warm: dict[str, dict[str, Any]] = {}  # latched before the window began
     out: list[dict[str, Any]] = []
-    seat_objs = [Seat(seat_id, (window.runtime_track_id or 0) if seat_id == window.seat_id else 0, box, box.center, 1.0,
-                      0, 0, True) for seat_id, box in seats.items()]
-    run: Callable[[Any], Any] = asyncio.run
     for frame in frames:
         update = TrackerUpdate(seat_objs, [], [], [], 0, 0)
         result = MultiFrameResult(frame.offset_ms // 100, frame.offset_ms, update, {}, {}, {}, [], _TIMING,

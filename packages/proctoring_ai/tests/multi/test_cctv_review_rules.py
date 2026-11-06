@@ -534,3 +534,22 @@ def test_phone_on_desk_is_not_raised() -> None:
     (item,) = _phone_run(0.43)
     assert item["raised"] is False
     assert item["confidence"] == 0.8
+
+
+def test_head_rules_use_one_event_loop_per_window(monkeypatch) -> None:
+    """A loop per frame opened thousands of loops; on Windows each needs a loopback socketpair and CI hung."""
+
+    import asyncio.events
+
+    made = []
+    real = asyncio.events.new_event_loop
+    monkeypatch.setattr(asyncio.events, "new_event_loop", lambda: made.append(1) or real())
+    a, b = uuid4(), uuid4()
+    seats = {a: box(0.3), b: box(0.45)}
+
+    def pose(key, ms):
+        return person(cx=seats[key].center[0], top=0.3, nose_dx=0.6 if key == a and ms >= 8000 else 0.0)
+
+    records = review_window(window(seats, a, 7000, 10_000, ("HEAD_AWAY",)), frames(seats, pose, 0, 10_000))
+    assert kinds(records) == ["LOOK_AT_NEIGHBOR"]
+    assert len(made) <= 1
