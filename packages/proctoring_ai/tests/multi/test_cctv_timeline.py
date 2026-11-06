@@ -48,3 +48,16 @@ def test_load_tracks(tmp_path: Path) -> None:
     path = tmp_path / "tracks.jsonl"
     path.write_text("\n".join(json.dumps(_row(i, {A: [0.1, 0.3, 0.1, 0.2, "candidate"]})) for i in range(3)) + "\n")
     assert len(load_tracks(path)) == 3
+
+
+def test_load_timeline_reads_windows_and_frames(tmp_path: Path) -> None:
+    from proctoring_ai.multi.cctv.review_cache import save_window
+    from proctoring_ai.multi.cctv.review_rules import ReviewFrame
+    from proctoring_ai.multi.cctv.timeline import load_timeline
+
+    seats = {A: [0.1, 0.3, 0.1, 0.2, "candidate"]}
+    (tmp_path / "tracks.jsonl").write_text(json.dumps(_row(0, seats)) + "\n", encoding="utf-8")
+    (window,) = all_seat_windows([_row(0, seats)], 4000)
+    save_window(tmp_path / "timeline.json.gz", window, [ReviewFrame(0, dict(window.seats), {}, [])])
+    windows, frames = load_timeline(tmp_path)
+    assert [w.end_ms for w in windows] == [4000] and len(frames) == 1

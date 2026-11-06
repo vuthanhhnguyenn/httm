@@ -58,3 +58,15 @@ def all_seat_windows(tracks: Iterable[Mapping[str, Any]], duration_ms: int, *, m
         windows.append(SuspectWindow(seat, None, neighbours, 0, int(duration_ms), (REASON,), box,
                                      {seat: box, **{other: seats[other] for other in neighbours}}))
     return windows
+
+
+def load_timeline(folder: Path) -> tuple[list[SuspectWindow], dict[Any, list[Any]]]:
+    """The seat windows and their frames of a ``build_timeline.py`` output folder (``tracks.jsonl`` +
+    ``timeline.json.gz``); the video length is read off the cache keys."""
+
+    from .review_cache import load_cache
+
+    frames = load_cache(folder / "timeline.json.gz")
+    duration = max((key[2] for key in frames), default=0)
+    windows = all_seat_windows(load_tracks(folder / "tracks.jsonl"), duration)
+    return windows, frames
