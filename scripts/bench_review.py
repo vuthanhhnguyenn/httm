@@ -83,19 +83,23 @@ def bench(video: Path, *, batches: Sequence[int], halves: Sequence[bool], device
     chosen = specs if specs is not None else load_specs(ROOT / "configs" / "review_models.yaml", ROOT / "models")
     rows: list[dict[str, Any]] = []
     for spec, batch, half, device, imgsz in itertools.product(chosen, batches, halves, devices, image_sizes):
-        detectors = ReviewDetectors([spec], device=device, loader=loader, image_size=imgsz, batch_size=batch,
-                                    half=half, device_override={spec.name: device})
-        if detectors.status.get(spec.name) != "ok":
-            print(f"Bỏ qua {spec.name}: {detectors.status.get(spec.name)}", file=sys.stderr)
-            continue
-        _run(detectors, spec, images, transforms)  # warm-up: CUDA init, cuDNN autotune, first allocation
-        samples: list[float] = []
-        for _ in range(REPEATS):
-            start = time.perf_counter()
-            _run(detectors, spec, images, transforms)
-            samples.append((time.perf_counter() - start) * 1000.0 / len(images))
-        rows.append({"model": spec.name, "batch": batch, "half": half, "device": device, "imgsz": imgsz,
-                     "ran_on": detectors.devices.get(spec.name), "ms_per_crop": round(median(samples), 3)})
+        row: dict[str, Any] = {"model": spec.name, "batch": batch, "half": half, "device": device, "imgsz": imgsz}
+        try:
+            detectors = ReviewDetectors([spec], device=device, loader=loader, image_size=imgsz, batch_size=batch,
+                                        half=half, device_override={spec.name: device})
+            if detectors.status.get(spec.name) != "ok":
+                print(f"Bỏ qua {spec.name}: {detectors.status.get(spec.name)}", file=sys.stderr)
+                continue
+            _run(detectors, spec, images, transforms)  # warm-up: CUDA init, cuDNN autotune, first allocation
+            samples: list[float] = []
+            for _ in range(REPEATS):
+                start = time.perf_counter()
+                _run(detectors, spec, images, transforms)
+                samples.append((time.perf_counter() - start) * 1000.0 / len(images))
+            row |= {"ran_on": detectors.devices.get(spec.name), "ms_per_crop": round(median(samples), 3)}
+        except Exception as exc:  # e.g. CUDA out of memory at batch 32: keep the row, go on with the rest
+            row |= {"ran_on": None, "ms_per_crop": None, "error": str(exc)}
+        rows.append(row)
     return rows
 
 
@@ -104,8 +108,17 @@ def format_table(rows: Sequence[dict[str, Any]]) -> str:
     lines = [header, "-" * len(header)]
     for row in rows:
         lines.append(f"{row['model']:<22}{row['batch']:>6}{'on' if row['half'] else 'off':>6}{row['device']:>8}"
-                     f"{row['imgsz']:>7}{str(row['ran_on']):>11}{row['ms_per_crop']:>9.1f}")
+                     f"{row['imgsz']:>7}{str(row['ran_on']):>11}"
+                     + (f"{row['ms_per_crop']:>9.1f}" if row["ms_per_crop"] is not None
+                        else f"{'LỖI':>9}  {row.get('error', '')}"))
     return "\n".join(lines)
+
+
+def _halves(text: str) -> list[bool]:
+    parts = [part.strip() for part in text.split(",")]
+    if not parts or any(part not in ("on", "off") for part in parts):
+        raise argparse.ArgumentTypeError(f"--halves chỉ nhận on hoặc off (cách nhau bằng dấu phẩy), không phải {text!r}")
+    return [part == "on" for part in parts]
 
 
 def _ints(text: str) -> list[int]:
@@ -118,12 +131,12 @@ def main(argv: list[str] | None = None, *, loader: Callable[[Path], Any] | None 
     parser.add_argument("video", type=Path)
     parser.add_argument("--out", type=Path, default=Path("bench.json"))
     parser.add_argument("--batches", default="8,16,32", help="các cỡ batch, cách nhau bằng dấu phẩy")
-    parser.add_argument("--halves", default="off,on", help="FP16: off, on hoặc off,on")
+    parser.add_argument("--halves", type=_halves, default="off,on", help="FP16: off, on hoặc off,on")
     parser.add_argument("--devices", default="0,1", help="cpu hoặc chỉ số card, vd. 0,1")
     parser.add_argument("--image-sizes", default="960,640")
     parser.add_argument("--crops", type=int, default=64)
     args = parser.parse_args(argv)
-    rows = bench(args.video, batches=_ints(args.batches), halves=[part.strip() == "on" for part in args.halves.split(",")],
+    rows = bench(args.video, batches=_ints(args.batches), halves=args.halves,
                  devices=[part.strip() for part in args.devices.split(",")], image_sizes=_ints(args.image_sizes),
                  crops=args.crops, loader=loader, specs=specs)
     print(format_table(rows))

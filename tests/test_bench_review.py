@@ -86,3 +86,26 @@ def test_cli_writes_bench_json(tmp_path: Path, capsys) -> None:
     rows = json.loads(out.read_text(encoding="utf-8"))
     assert len(rows) == 2
     assert "ms/ảnh" in capsys.readouterr().out
+
+
+def test_halves_rejects_garbage(tmp_path: Path, capsys) -> None:
+    import pytest
+
+    module = _module()
+    with pytest.raises(SystemExit):
+        module.main([str(tmp_path / "x.mp4"), "--halves", "yes"])
+    assert "--halves" in capsys.readouterr().err
+
+
+def test_failed_config_becomes_error_row(tmp_path: Path) -> None:
+    module = _module()
+    video = _video(tmp_path / "clip.mp4")
+
+    class _Oom:
+        def predict(self, **_kwargs):
+            raise RuntimeError("CUDA out of memory")
+
+    rows = module.bench(video, batches=(4,), halves=(False,), devices=("cpu",), image_sizes=(640,), crops=4,
+                        loader=lambda _path: _Oom(), specs=_specs(tmp_path))
+    assert len(rows) == 2 and all(row["ms_per_crop"] is None and "out of memory" in row["error"] for row in rows)
+    assert "LỖI" in module.format_table(rows)
