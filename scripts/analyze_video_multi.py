@@ -61,6 +61,8 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--review-models", type=Path, default=ROOT / "configs" / "review_models.yaml")
     parser.add_argument("--ring-jpeg", action="store_true",
                         help="cctv --review-live: giữ 20 s khung gần nhất dạng JPEG (~20 MB thay vì ~280 MB)")
+    parser.add_argument("--tracks", type=Path, default=None,
+                        help="ghi tracks.jsonl (khung ghế theo từng frame) cho bước dựng video")
     parser.add_argument("--no-seat-map", action="store_true", help="cctv: theo dõi từng người thay vì bản đồ ghế")
     parser.add_argument("--suspects", action="store_true",
                         help="cctv: ghi suspects.jsonl (đoạn nghi vấn) cho scripts/review_suspects.py")
@@ -187,7 +189,7 @@ async def run(args: argparse.Namespace) -> int:
                                         out_dir=args.out, mode=args.mode, overlap=not args.no_overlap,
                                         write_video=not args.no_video, video_fps=video_fps,
                                         exam_mode=args.exam_mode, run_config=run_config, rules=rules,
-                                        side_tasks=side_tasks)
+                                        side_tasks=side_tasks, tracks_path=args.tracks)
     finally:
         factory.close()
     if rules is not None and getattr(rules, "debug_rows", None) is not None:

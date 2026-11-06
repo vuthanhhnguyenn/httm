@@ -27,6 +27,7 @@ from proctoring_core.types import ExamMode
 
 from .replay import FrameSource, create_replay_processor
 from .session_engine import SessionRuleProcessor
+from .tracks import write_track
 
 cv2: Any
 try:
@@ -222,6 +223,7 @@ async def run_multi_replay(
     side_tasks: Sequence[Any] = (),
     clock: Callable[[], float] = time.perf_counter,
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+    tracks_path: Path | None = None,
 ) -> MultiReplayResult:
     session = session_id or uuid4()
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -232,6 +234,8 @@ async def run_multi_replay(
     writer = AnnotatedVideoWriter(out_dir / "annotated.mp4", video_fps) if write_video else None
     result = MultiReplayResult()
     events_file = (out_dir / "events.jsonl").open("w", encoding="utf-8")
+    # Streamed one line per analysed frame; boxes are normalised 0..1 like the event boxes.
+    tracks_file = tracks_path.open("w", encoding="utf-8") if tracks_path is not None else None
     started = clock()
     previous_offset: int | None = None
 
@@ -300,6 +304,12 @@ async def run_multi_replay(
                 writer.write(frame.get("image"), analysed, rules.labels(), repeat=repeat,
                              roles=seat_roles() if seat_roles is not None else None)
                 written_offset = offset
+            if tracks_file is not None:
+                roles = seat_roles() if seat_roles is not None else {}
+                write_track(tracks_file, offset, {
+                    str(seat.seat_id): (seat.bbox.x, seat.bbox.y, seat.bbox.width, seat.bbox.height,
+                                        roles.get(seat.seat_id, "candidate"))
+                    for seat in analysed.tracker.analyzed})
             result.frames_analyzed += 1
             last_frame, last_offset = frame, offset
             if not overlap:
@@ -314,6 +324,9 @@ async def run_multi_replay(
     finally:
         await source.close()
         events_file.close()
+        if tracks_file is not None:
+            tracks_file.flush()
+            tracks_file.close()
         if writer is not None:
             writer.close()
         pipeline.close()

@@ -362,3 +362,79 @@ async def test_side_task_records_written(tmp_path: Path) -> None:
     assert [(e["id"], e["evidence_status"]) for e in live] == [("live-1", "saved"), ("live-2", "failed")]
     assert (tmp_path / "evidence" / "live-1.jpg").is_file()
     assert json.loads((tmp_path / "timing.json").read_text(encoding="utf-8"))["review_windows"] == 2
+
+
+# --- tracks.jsonl -----------------------------------------------------------------------------
+
+
+class RoleRules:
+    """Minimal rules stand-in exposing seat_roles, like the CCTV rule set."""
+
+    def __init__(self) -> None:
+        self.roles: dict[UUID, str] = {}
+
+    async def step(self, result: Any, frame: dict[str, Any], offset: int) -> list[Any]:
+        for index, seat in enumerate(result.tracker.analyzed):
+            self.roles[seat.seat_id] = "walker" if index else "candidate"
+        return []
+
+    def finish(self, frame: dict[str, Any], offset: int) -> list[Any]:
+        return []
+
+    def labels(self) -> dict[UUID, list[str]]:
+        return {}
+
+    def focus_seats(self) -> list[UUID]:
+        return []
+
+    def seat_roles(self) -> dict[UUID, str]:
+        return dict(self.roles)
+
+
+async def test_tracks_file_has_one_line_per_frame(tmp_path: Path) -> None:
+    from proctoring_runtime.tracks import load_tracks, tracks_at
+
+    pipeline = multi_pipeline(two_people, [lambda _ms: 0.0, lambda _ms: 0.0])
+    tracks_path = tmp_path / "tracks.jsonl"
+    result = await run(pipeline, 12, tmp_path, write_video=False, tracks_path=tracks_path, rules=RoleRules())
+    raw = [json.loads(line) for line in tracks_path.read_text(encoding="utf-8").splitlines()]
+    assert len(raw) == result.frames_analyzed == 12
+    assert [row["t"] for row in raw] == [i * 100 for i in range(12)]
+    seats = raw[-1]["seats"]
+    assert len(seats) == 2
+    assert sorted(v[4] for v in seats.values()) == ["candidate", "walker"]
+    first = next(iter(seats.values()))
+    assert len(first) == 5 and all(isinstance(n, float) and n == round(n, 4) for n in first[:4])
+    loaded = load_tracks(tracks_path)
+    assert [t for t, _ in loaded] == [i * 100 for i in range(12)]
+    assert tracks_at(loaded, 520) == loaded[5][1]
+    assert tracks_at(loaded, 1100 + 150) == loaded[-1][1]
+    assert tracks_at(loaded, 1100 + 250) is None
+
+
+async def test_tracks_role_defaults_to_candidate_without_roles(tmp_path: Path) -> None:
+    pipeline = multi_pipeline(two_people, [lambda _ms: 0.0, lambda _ms: 0.0])
+    tracks_path = tmp_path / "t.jsonl"
+    await run(pipeline, 3, tmp_path, write_video=False, tracks_path=tracks_path)
+    row = json.loads(tracks_path.read_text(encoding="utf-8").splitlines()[-1])
+    assert {v[4] for v in row["seats"].values()} == {"candidate"}
+
+
+async def test_no_tracks_file_by_default(tmp_path: Path) -> None:
+    await run(multi_pipeline(two_people, []), 3, tmp_path, write_video=False)
+    assert not (tmp_path / "tracks.jsonl").exists()
+
+
+def test_tracks_at_edges(tmp_path: Path) -> None:
+    from proctoring_runtime.tracks import load_tracks, tracks_at
+
+    path = tmp_path / "t.jsonl"
+    path.write_text('{"t": 100, "seats": {"a": [0, 0, 1, 1, "pending"]}}\n\n'
+                    '{"t": 300, "seats": {}}\n', encoding="utf-8")
+    tracks = load_tracks(path)
+    assert tracks_at([], 0) is None
+    assert tracks_at(tracks, -150) is None
+    assert tracks_at(tracks, 150) == {"a": [0, 0, 1, 1, "pending"]}
+    assert tracks_at(tracks, 220) == {}
+    assert tracks_at(tracks, 600, max_gap_ms=300) == {}
+    assert tracks_at(tracks, 600) is None
