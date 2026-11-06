@@ -48,10 +48,10 @@ video ──► 1. Dòng thời gian từng ghế ──► 2. Cửa sổ 3 s + 
 ### 3.1 Tầng 1: dòng thời gian từng ghế
 
 - Tầng nhanh hiện có vẫn chạy để dựng **bản đồ ghế** (`seat_map.py`) và track, nhưng **không còn là cổng**.
-- Mỗi cụm ghế kề nhau trở thành một `SuspectWindow` phủ **toàn bộ video** (lý do `"ALL_SEATS"`), rồi đi qua
+- Mỗi ghế (kèm các ghế kề) trở thành một `SuspectWindow` phủ **toàn bộ video** (lý do `"ALL_SEATS"`), rồi đi qua
   `review_offline` như hiện nay: giải mã một lần, cắt ảnh phóng to quanh cụm, `yolo11x-pose` + `yolo11x`,
-  FP16, batch, 2 GPU, 5 khung/giây. Cụm = các ghế có vùng cắt chồng nhau (dùng lại `_group`, `share_iou`).
-- Đầu ra: `timeline.jsonl.gz`, mỗi dòng là `(ghế, offset_ms, keypoints, vật thể gần ghế, hộp ghế)`. Đây cũng là
+  FP16, batch, 2 GPU, 5 khung/giây. Các ghế có vùng cắt chồng nhau dùng chung một ảnh cắt trong cùng khung (`_group`, `share_iou`).
+- Đầu ra: `timeline.json.gz` (định dạng `review_cache`, mỗi ghế một dòng), chứa là `(ghế, offset_ms, keypoints, vật thể gần ghế, hộp ghế)`. Đây cũng là
   cache để train lại mà không chạy GPU lại.
 
 ### 3.2 Tầng 2: cửa sổ 3 giây và đặc trưng
@@ -70,14 +70,14 @@ video ──► 1. Dòng thời gian từng ghế ──► 2. Cửa sổ 3 s + 
     không. Luật không còn tự ra sự kiện.
   - **Độ tin cậy:** điểm keypoint trung bình, chiều cao hộp ghế so với khung (hàng xa), số khung có người.
   - **Tuỳ chọn (mục 6):** điểm "trông như gian lận" từ bộ phân loại ảnh cắt.
-- Đầu ra: bảng `features.parquet` (một dòng mỗi ghế mỗi cửa sổ) cùng tên cột cố định `FEATURE_NAMES`.
+- Đầu ra: bảng `features.csv` (một dòng mỗi ghế mỗi cửa sổ) cùng tên cột cố định `FEATURE_NAMES`.
 
 ### 3.3 Tầng 3: bộ phân loại
 
 - **LightGBM** đa lớp (giấy phép MIT), 8 lớp: `NORMAL`, `LOOK_AT_NEIGHBOR`, `HEADS_TOGETHER`, `PASSING_OBJECT`,
   `PHONE_DETECTED`, `DOCUMENT_DETECTED`, `LOOK_AT_LAP`, `TURN_AROUND`. Trọng số lớp cân bằng theo tần suất.
   `TURN_AROUND` gộp chung với nhìn bạn nếu có dưới 10 mẫu; quyết định này ghi lại trong log khi train.
-- Model lưu ở `models/learned_core/<phiên bản>.txt` kèm `meta.json` (tên đặc trưng, ngưỡng đỏ/vàng, các video đã
+- Model lưu ở `models/learned_core/<phiên bản>/model.txt` kèm `meta.json` (tên đặc trưng, ngưỡng đỏ/vàng, các video đã
   train). Khi suy luận, đặc trưng thiếu hoặc khác tên thì báo lỗi rõ ràng, không đoán.
 - Train chạy trên CPU (vài giây cho khoảng 2 000 dòng). Notebook Kaggle chỉ cần cho tầng 1.
 
@@ -142,14 +142,14 @@ trong `meta.json`.
 
 | Thành phần | Việc |
 |---|---|
-| `multi/cctv/timeline.py` | Cụm ghế toàn video → `review_offline` → `timeline.jsonl.gz` |
+| `multi/cctv/timeline.py` + `scripts/build_timeline.py` | Mỗi ghế một cửa sổ toàn video → `review_offline` → `timeline.json.gz` |
 | `multi/cctv/features.py` | Cửa sổ 3 s + `FEATURE_NAMES`, hàm thuần, test bằng khung giả |
 | `multi/cctv/learned.py` | Nạp model, dự đoán, trễ hai ngưỡng, gán đỏ/vàng, ra bản ghi sự kiện |
 | `scripts/label_sheets.py` | Chọn đoạn cần gán và xuất ảnh ghép |
 | `scripts/train_core.py` | Train LightGBM, chấm theo từng video để riêng, chọn ngưỡng, ghi model + `meta.json` |
 | `scripts/process_video.py` | `--core learned\|rules`, `--model` |
 | `notebooks/kaggle_timeline.ipynb` | Chạy tầng 1 cho mọi video trong dataset, đo thời gian, zip timeline |
-| `pyproject.toml` | Thêm `lightgbm`, `pyarrow` vào nhóm `ai` |
+| `pyproject.toml` | Thêm `lightgbm` vào nhóm `ai` |
 
 Lõi cũ (`rules.py`, `review_rules.py`) giữ nguyên và vẫn được gọi để làm cờ đặc trưng.
 
