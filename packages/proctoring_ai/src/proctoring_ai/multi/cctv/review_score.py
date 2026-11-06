@@ -9,6 +9,9 @@ picture, as Nguyên graded them); ``false_events`` counts every event that hit o
 alert of that type on that head that is open then (from ``opened`` to its ``closed``, give or take
 ``max_dt_s``), or a ``merged`` repeat the deduper folded into an alert already on screen. A behaviour that
 goes on (the same boy with his hands in his lap at 51.2, 59.0 and 63.0 s) is one alert, not three.
+
+``true_red`` / ``false_red`` count the pictures (true / false verdicts) that a red alert covers in the same
+sense; events need ``level`` from ``confidence.assign_levels`` (without it both are 0).
 """
 
 from __future__ import annotations
@@ -70,7 +73,12 @@ def score_review(records: Iterable[dict[str, Any]], verdicts: Sequence[Verdict],
              if item.get("action") in ("opened", "merged") and item.get("type") not in IGNORED]
     covered = {i for i, verdict in enumerate(verdicts)
                if any(_matches(event, verdict, max_dt_s, max_head, end) for event, end in shown)} | hit
-    return {"true_found": sum(1 for i in trues if i in hit), "true_total": len(trues),
+    # Red alerts on screen (opened, still open, or a merged repeat) at each picture, after ``assign_levels``.
+    red = {i for i, verdict in enumerate(verdicts)
+           if any(event.get("level") == "red" and _matches(event, verdict, max_dt_s, max_head, end)
+                  for event, end in shown)}
+    return {"true_red": sum(1 for i in red if verdicts[i].verdict),
+            "false_red": sum(1 for i in red if not verdicts[i].verdict), "true_found": sum(1 for i in trues if i in hit), "true_total": len(trues),
             "true_covered": sum(1 for i in trues if i in covered),
             "false_covered": sum(1 for i in covered if not verdicts[i].verdict),
             "covered_only": [f"{verdicts[i].type}@{verdicts[i].t_s}" for i in trues if i in covered - hit],

@@ -51,3 +51,18 @@ def test_clip1_opened_events_unchanged(split_ms: int | None, max_frames: int | N
     opened = sorted([r["type"], r["video_offset_ms"]] for r in _replay(split_ms, max_frames)
                     if r.get("action") == "opened")
     assert opened == golden
+
+
+@pytest.mark.parametrize(("split_ms", "max_frames"), [(None, None), (10000, 48)], ids=["offline", "live"])
+def test_clip1_confidence_levels(split_ms: int | None, max_frames: int | None) -> None:
+    """No false picture may be covered by a red alert; the 9 true ones stay covered (fast tier: no events here)."""
+
+    from proctoring_ai.multi.cctv.confidence import assign_levels, load_confidence
+    from proctoring_ai.multi.cctv.review_score import load_verdicts, score_review
+
+    records = _replay(split_ms, max_frames)
+    leveled = assign_levels(records, [], load_confidence(ROOT / "configs/confidence.yaml"))
+    # assign_levels returns only opened/merged; score_review needs the closed ones for "still open at the picture".
+    score = score_review([*leveled, *(r for r in records if r.get("action") == "closed")], load_verdicts(LABELS))
+    assert score["false_red"] == 0, score
+    assert score["true_covered"] == 9, score

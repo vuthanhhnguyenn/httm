@@ -69,3 +69,14 @@ def test_score_counts_alert_still_open_at_the_picture():
     assert score["true_found"] == 0 and score["false_opened"] == 0
     # Still on screen at 59.0 s; the passing alert ended 1.1 s before 22.1 s (within max_dt_s).
     assert score["true_covered"] == 1 and score["false_covered"] == 1
+
+
+def test_score_review_counts_red_events():
+    verdicts = [Verdict("LOOK_AT_NEIGHBOR", 10.0, ((0.5, 0.5),), True),
+                Verdict("PASSING_OBJECT", 20.0, ((0.3, 0.2),), False),
+                Verdict("PHONE_DETECTED", 30.0, ((0.7, 0.4),), False)]
+    records = [{**_opened("LOOK_AT_NEIGHBOR", 10000, (0.5, 0.5)), "level": "red"},
+               {**_opened("PASSING_OBJECT", 20000, (0.3, 0.2)), "level": "red"},
+               {**_opened("PHONE_DETECTED", 30000, (0.7, 0.4)), "level": "yellow"}]
+    score = score_review(records, verdicts)
+    assert score["true_red"] == 1 and score["false_red"] == 1
