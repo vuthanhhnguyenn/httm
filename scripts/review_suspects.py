@@ -22,7 +22,6 @@ for _src in ("packages/proctoring_core/src", "packages/proctoring_ai/src", "pack
         sys.path.insert(0, str(ROOT / _src))
 
 import cv2  # noqa: E402
-import numpy as np  # noqa: E402
 from proctoring_ai.multi.cctv.review_cache import save_window  # noqa: E402
 from proctoring_ai.multi.cctv.review_core import analyse_window  # noqa: E402
 from proctoring_ai.multi.cctv.review_dedupe import ReviewDeduper  # noqa: E402
@@ -32,6 +31,7 @@ from proctoring_ai.multi.cctv.review_rules import (  # noqa: E402
 )
 from proctoring_ai.multi.cctv.suspects import SuspectWindow  # noqa: E402
 from proctoring_runtime.messages import event_name  # noqa: E402
+from proctoring_runtime.text import put_text  # noqa: E402
 
 WARMUP_MS = 8000  # head baselines need a few seconds of usual posture before the window
 
@@ -48,32 +48,6 @@ def _frames(capture: Any, start_ms: int, end_ms: int, fps: float) -> list[tuple[
         if cursor.take(position):
             out.append((int(round(position)), image))
     return out
-
-
-_FONTS = ("C:/Windows/Fonts/arial.ttf", "C:/Windows/Fonts/segoeui.ttf",
-          "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/Library/Fonts/Arial Unicode.ttf")
-
-
-def put_text(image: Any, text: str, origin: tuple[int, int], size: int = 18,
-             colour: tuple[int, int, int] = (255, 255, 0)) -> Any:
-    """Vietnamese text on a BGR image (OpenCV's own fonts have no diacritics)."""
-
-    from PIL import Image, ImageDraw, ImageFont
-
-    font: Any = None
-    for path in _FONTS:
-        try:
-            font = ImageFont.truetype(path, size)
-            break
-        except OSError:
-            continue
-    canvas = Image.fromarray(image[:, :, ::-1].copy())
-    draw = ImageDraw.Draw(canvas)
-    x, y = origin
-    box = draw.textbbox((x, y), text, font=font or ImageFont.load_default())
-    draw.rectangle(box, fill=(0, 0, 0))
-    draw.text((x, y), text, fill=colour, font=font or ImageFont.load_default())
-    return np.asarray(canvas)[:, :, ::-1].copy()
 
 
 def _draw(image: Any, window: SuspectWindow, frame: ReviewFrame | None, item: dict[str, Any]) -> Any:
