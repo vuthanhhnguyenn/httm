@@ -169,6 +169,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--models", type=Path, default=ROOT / "configs" / "review_models.yaml")
     parser.add_argument("--fps", type=float, default=10.0)
     parser.add_argument("--device", default=None, help="vd. 0 cho GPU NVIDIA đầu tiên")
+    parser.add_argument("--half", action="store_true", help="FP16 (chỉ khi model chạy trên CUDA)")
     parser.add_argument("--warmup-ms", type=int, default=WARMUP_MS, help="đọc thêm trước mỗi đoạn để có mốc tư thế")
     parser.add_argument("--max-frames", type=int, default=0,
                         help="số khung tối đa mỗi đoạn (0 = mọi khung ở --fps, như phase 2e; đoạn dài mà ít khung "
@@ -180,7 +181,9 @@ def main(argv: list[str] | None = None) -> int:
 
     windows = [SuspectWindow.from_json(json.loads(line))
                for line in args.suspects.read_text(encoding="utf-8").splitlines() if line.strip()]
-    detectors = ReviewDetectors(load_specs(args.models, ROOT / "models"), device=args.device)
+    specs = load_specs(args.models, ROOT / "models")
+    override = {spec.name: args.device for spec in specs} if args.device else None
+    detectors = ReviewDetectors(specs, device=args.device, half=args.half, device_override=override)
     for name, status in detectors.status.items():
         print(f"Model {name}: {status}")
     if not any(spec.kind == "pose" and detectors.status.get(spec.name) == "ok"

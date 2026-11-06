@@ -57,6 +57,8 @@ def resolve_device(wanted: str, model_path: Path) -> tuple[str, Path, str]:
         return ("intel:gpu", openvino_dir(model_path), "") if not problem else ("cpu", model_path, f"cpu: {problem}")
     if wanted == "cuda":
         return ("cuda:0", model_path, "") if _cuda_available() else ("cpu", model_path, "cpu: không có CUDA")
+    if wanted.isdigit() or wanted.startswith("cuda:"):  # an explicit card index
+        return (wanted, model_path, "") if _cuda_available() else ("cpu", model_path, "cpu: không có CUDA")
     return ("cuda:0" if _cuda_available() else "cpu"), model_path, ""
 
 

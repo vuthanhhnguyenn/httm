@@ -90,12 +90,20 @@ def _is_oom(exc: BaseException) -> bool:
     return "out of memory" in str(exc).casefold()
 
 
+def _is_cuda(device: str) -> bool:
+    name = str(device)
+    return name.isdigit() or name == "cuda" or name.startswith("cuda:")
+
+
 class ReviewDetectors:
     """``devices`` holds where each model actually runs; ``reasons`` why, when that is not what was asked."""
 
     def __init__(self, specs: list[ModelSpec], device: str | None = None,
-                 loader: Callable[[Path], Any] | None = None, image_size: int = 960, batch_size: int = 8) -> None:
+                 loader: Callable[[Path], Any] | None = None, image_size: int = 960, batch_size: int = 8, *, half: bool = False,
+                 device_override: Mapping[str, str] | None = None) -> None:
         self.device, self.image_size, self.batch_size = device, image_size, max(1, batch_size)
+        self.half = half
+        overrides = device_override or {}
         self.status: dict[str, str] = {}
         self.devices: dict[str, str | None] = {}
         self.reasons: dict[str, str] = {}
@@ -108,7 +116,7 @@ class ReviewDetectors:
             if spec.sha256 and _sha256(spec.path) != str(spec.sha256).lower():
                 self.status[spec.name] = "bỏ qua: SHA-256 không khớp cấu hình"
                 continue
-            wanted = spec.device if spec.device != "auto" or device is None else None
+            wanted = overrides.get(spec.name) or (spec.device if spec.device != "auto" or device is None else None)
             if wanted is None:  # an explicit --device wins over "auto"
                 run_on, path, reason = device, spec.path, ""
             else:
@@ -127,6 +135,8 @@ class ReviewDetectors:
         options: dict[str, Any] = {"source": images, "conf": spec.min_conf, "verbose": False, "imgsz": self.image_size}
         if (device := self.devices.get(spec.name)) is not None:
             options["device"] = device
+            if self.half and _is_cuda(device):
+                options["half"] = True
         return list(model.predict(**options))
 
     def _predict_many(self, spec: ModelSpec, model: Any, images: Sequence[Any]) -> list[Any]:

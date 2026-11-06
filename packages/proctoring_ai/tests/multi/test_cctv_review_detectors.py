@@ -144,3 +144,37 @@ def test_load_specs_reads_device(tmp_path: Path) -> None:
     config.write_text("models:\n  - {name: a, kind: objects, path: a.pt, class_map: {book: book}, device: intel:gpu}\n"
                       "  - {name: b, kind: pose, path: b.pt}\n", encoding="utf-8")
     assert [spec.device for spec in load_specs(config, tmp_path)] == ["intel:gpu", "auto"]
+
+
+def test_device_override_beats_config(tmp_path: Path, monkeypatch) -> None:
+    from proctoring_ai.multi.cctv import devices
+
+    monkeypatch.setattr(devices, "_cuda_available", lambda: True)
+    spec = _spec(tmp_path, "m", {"cell phone": "phone"})
+    spec = ModelSpec(spec.name, spec.kind, spec.path, spec.class_map, spec.min_conf, spec.sha256, "intel:gpu")
+    model = _Model({0: "cell phone"}, [])
+    detectors = ReviewDetectors([spec], loader=lambda _path: model, device_override={"m": "cuda:1"})
+    assert detectors.devices["m"] == "cuda:1"
+    assert "intel" not in detectors.reasons.get("m", "")
+
+
+def test_half_only_on_cuda(tmp_path: Path) -> None:
+    seen: list[dict] = []
+
+    class _Recorder(_Model):
+        def predict(self, **kwargs):
+            seen.append(kwargs)
+            return super().predict(**kwargs)
+
+    spec = _spec(tmp_path, "m", {"cell phone": "phone"})
+    image, transform = np.zeros((100, 100, 3), np.uint8), CropTransform(0, 0, 1.0, (100, 100))
+    for device in ("cpu", "0"):
+        seen.clear()
+        detectors = ReviewDetectors([spec], device=device, loader=lambda _p: _Recorder({0: "cell phone"}, []),
+                                    half=True)
+        detectors.objects(image, transform)
+        assert ("half" in seen[0]) == (device == "0")
+        assert seen[0].get("half", True) is True
+    seen.clear()
+    ReviewDetectors([spec], device="0", loader=lambda _p: _Recorder({0: "cell phone"}, [])).objects(image, transform)
+    assert "half" not in seen[0]
