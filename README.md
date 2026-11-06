@@ -127,7 +127,7 @@ Dùng khi muốn xử lý video phòng thi bằng GPU của Kaggle (2× T4) thay
 1. Tải video `.mp4` lên Kaggle thành một Dataset, đặt **Private** (video thí sinh là dữ liệu cá nhân).
 2. Tạo Notebook mới, nạp file `kaggle_process_video.ipynb`, rồi vào Settings bật **Internet** và chọn **GPU T4 x2**.
 3. Nếu repo là private, thêm Kaggle Secret `GITHUB_TOKEN` (token chỉ cần quyền đọc repo).
-4. Sửa `DATASET_DIR` và `BRANCH` ở ô số 2; `QUALITY = "max"` mặc định, đổi sang `"balanced"` nếu tỉ lệ trong bảng lớn hơn 2.
+4. Ô số 2 thường để nguyên: `DATASET_DIR = "/kaggle/input"` tìm video trong mọi Dataset đã thêm, `BRANCH = "main"`; `QUALITY = "max"` mặc định, đổi sang `"balanced"` nếu tỉ lệ trong bảng lớn hơn 2.
 5. Bấm **Run All**. Với mỗi video, notebook chạy `scripts/process_video.py` và in bảng thời lượng, thời gian chạy, tỉ lệ, số sự kiện đỏ/vàng. Video lỗi được ghi vào bảng, các video còn lại vẫn chạy.
 6. Tải `ket-qua.zip` ở tab **Output**: mỗi video có thư mục riêng gồm `annotated.mp4`, `report.html`, `events.csv`, `events.jsonl`, `evidence/`.
 
