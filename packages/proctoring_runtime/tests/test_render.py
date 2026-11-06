@@ -82,7 +82,8 @@ def test_min_show_and_missing_track_uses_last_box(tmp_path: Path) -> None:
 def test_unseen_seat_and_no_level_do_not_crash(tmp_path: Path) -> None:
     video = make_video(tmp_path / "in.mp4", 10, 10)
     events = [{"action": "opened", "id": "a", "seat_id": "9", "type": "PHONE_DETECTED", "video_offset_ms": 0},
-              {"action": "merged", "id": "a", "seat_id": "9", "type": "PHONE_DETECTED", "video_offset_ms": 100},
+              {"action": "merged", "id": "b", "merged_into": "a", "seat_id": "9", "type": "PHONE_DETECTED",
+               "level": "red", "video_offset_ms": 100},
               {"action": "dismissed", "seat_id": "9"}]
     result = render_video(video, tmp_path / "out.mp4", [], events)
     assert result["frames"] == 10 and result["error"] is None
@@ -103,7 +104,7 @@ def test_missing_ffmpeg_falls_back_to_mp4v(tmp_path: Path) -> None:
 
 def test_ffmpeg_exiting_early_does_not_hang(tmp_path: Path) -> None:
     fake = tmp_path / "fake-ffmpeg"
-    fake.write_text("#!/bin/sh\nexit 1\n")
+    fake.write_text("#!/bin/sh\nfor last; do :; done\necho partial > \"$last\"\nexit 1\n")
     fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
     video = make_video(tmp_path / "in.mp4", 200, 10, size=(640, 360))
     started = time.monotonic()
@@ -116,3 +117,39 @@ def test_ffmpeg_exiting_early_does_not_hang(tmp_path: Path) -> None:
 def test_put_text_still_works() -> None:
     image = np.zeros((40, 200, 3), np.uint8)
     assert put_text(image, "Điện thoại", (2, 2)).any()
+
+
+def region_has(frame: np.ndarray, colour: tuple[int, int, int], box: tuple[int, int, int, int], tol: int = 60) -> int:
+    x0, y0, x1, y1 = box
+    diff = np.abs(frame[y0:y1, x0:x1].astype(int) - np.array(colour)).max(axis=2)
+    return int((diff < tol).sum())
+
+
+def test_no_level_is_yellow_and_counter_drawn(tmp_path: Path) -> None:
+    video = make_video(tmp_path / "in.mp4", 10, 10)
+    events = [{"action": "opened", "id": "a", "seat_id": "1", "type": "PHONE_DETECTED", "video_offset_ms": 0}]
+    render_video(video, tmp_path / "out.mp4", tracks_for(10, 10), events)
+    frame = read_frames(tmp_path / "out.mp4")[5]
+    assert region_has(frame, (0, 200, 255), (60, 30, 110, 90)) > 20
+    assert frame[0:20, 0:80].max() > 150  # counter text
+
+
+def test_merged_repeat_drawn_but_not_counted(tmp_path: Path) -> None:
+    video = make_video(tmp_path / "in.mp4", 40, 10)
+    events = [{"action": "opened", "id": "a", "seat_id": "1", "type": "PHONE_DETECTED", "level": "yellow",
+               "video_offset_ms": 0},
+              {"action": "closed", "id": "a", "seat_id": "1", "type": "PHONE_DETECTED", "video_offset_ms": 500},
+              {"action": "merged", "id": "b", "merged_into": "a", "seat_id": "1", "type": "PHONE_DETECTED",
+               "level": "red", "video_offset_ms": 3000}]
+    render_video(video, tmp_path / "out.mp4", tracks_for(40, 10), events, min_show_ms=1000)
+    frames = read_frames(tmp_path / "out.mp4")
+    assert red_pixels(frames[35]) > 20  # repeat makes the seat red
+    assert red_pixels(frames[15]) == 0  # nothing open between
+    from proctoring_runtime.render import _collect_events
+    assert [e.counted for e in _collect_events(events, 1000)] == [True, False]
+
+
+def test_odd_dimensions_encode_with_libx264(tmp_path: Path) -> None:
+    video = make_video(tmp_path / "in.mp4", 6, 10, size=(161, 121))
+    result = render_video(video, tmp_path / "out.mp4", [], [])
+    assert result["encoder"] == "libx264" and result["error"] is None and result["frames"] == 6

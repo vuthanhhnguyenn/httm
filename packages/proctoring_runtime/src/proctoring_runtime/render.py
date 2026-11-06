@@ -31,6 +31,7 @@ class _Event:
     red: bool
     start: int
     end: int
+    counted: bool = True  # False for ``merged`` repeats: drawn, but not a distinct alert
 
 
 def _collect_events(events: list[dict[str, Any]], min_show_ms: int) -> list[_Event]:
@@ -43,16 +44,18 @@ def _collect_events(events: list[dict[str, Any]], min_show_ms: int) -> list[_Eve
     seen: set[str] = set()
     out: list[_Event] = []
     for item in events:
-        if item.get("action") != "opened" or "video_offset_ms" not in item:
+        action = item.get("action")
+        if action not in ("opened", "merged") or "video_offset_ms" not in item:
             continue
         key = str(item.get("id", id(item)))
         if key in seen:
             continue
         seen.add(key)
         start = int(item["video_offset_ms"])
-        end = max(closed.get(key, start), start + min_show_ms)
+        # A merged repeat has its own id and no closed record: show it for min_show_ms from its own time.
+        end = max(closed.get(key, start), start + min_show_ms) if action == "opened" else start + min_show_ms
         out.append(_Event(str(item.get("seat_id", "")), event_name(str(item.get("type", ""))),
-                          item.get("level") == "red", start, end))
+                          item.get("level") == "red", start, end, counted=action == "opened"))
     out.sort(key=lambda e: e.start)
     return out
 
@@ -64,7 +67,7 @@ def _draw_frame(frame: Any, t_ms: int, tracks: Tracks, events: list[_Event], las
     for seat, row in seats.items():
         last_box[seat] = row
     active = [e for e in events if e.start <= t_ms <= e.end]
-    opened = [e for e in events if e.start <= t_ms]
+    opened = [e for e in events if e.counted and e.start <= t_ms]
     by_seat: dict[str, list[_Event]] = {}
     for event in active:
         by_seat.setdefault(event.seat, []).append(event)
@@ -134,13 +137,18 @@ def _probe(video: Path) -> tuple[int, int, str]:
 
 
 def _encode_ffmpeg(ffmpeg: str, frames: Iterator[Any], out: Path, width: int, height: int, fps: str) -> int:
-    """Pipe frames into ffmpeg; returns the frame count, raises RuntimeError on any failure."""
+    """Pipe frames into ffmpeg; returns the frame count, raises RuntimeError on any failure.
+
+    Odd frame sizes are padded by one pixel (yuv420p needs even dimensions).
+    """
+
+    pad = ["-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2"] if width % 2 or height % 2 else []
 
     with tempfile.TemporaryFile() as errlog:
         try:
             proc = subprocess.Popen(
                 [ffmpeg, "-y", "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{width}x{height}", "-r", fps,
-                 "-i", "-", "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p",
+                 "-i", "-", *pad, "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p",
                  str(out)],
                 stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=errlog)
         except OSError as exc:
@@ -175,7 +183,11 @@ def _encode_ffmpeg(ffmpeg: str, frames: Iterator[Any], out: Path, width: int, he
 
 
 def _encode_mp4v(frames: Iterator[Any], out: Path, width: int, height: int, fps: str) -> int:
+    """Write with OpenCV ``mp4v``; raises RuntimeError when the writer cannot be opened."""
+
     writer = cv2.VideoWriter(str(out), cv2.VideoWriter_fourcc(*"mp4v"), float(fps), (width, height))  # type: ignore[attr-defined]
+    if not writer.isOpened():
+        raise RuntimeError("không mở được bộ ghi mp4v")
     count = 0
     try:
         for frame in frames:
@@ -209,7 +221,10 @@ def render_video(video: Path, out: Path, tracks: Tracks, events: list[dict[str, 
     elif width > 0 and height > 0:
         result["encoder"] = "mp4v"
         out.unlink(missing_ok=True)
-        result["frames"] = _encode_mp4v(make(), out, width, height, fps)
+        try:
+            result["frames"] = _encode_mp4v(make(), out, width, height, fps)
+        except RuntimeError as exc:
+            result.update(frames=0, error=f"{result['error']}; {exc}")
     result["seconds"] = round(time.monotonic() - started, 3)
     return result
 
