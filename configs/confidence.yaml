@@ -1,0 +1,23 @@
+# Mức tin cậy của sự kiện tầng kỹ CCTV (spec phase 2g mục 4), đọc bởi proctoring_ai/multi/cctv/confidence.py.
+# Mỗi loại một khoá: `always: red|yellow`, hoặc `red_if` (đỏ khi đủ điều kiện, còn lại vàng):
+#   evidence_kind: [..]   trường evidence_kind của sự kiện nằm trong danh sách
+#   raised: true          sự kiện ghi raised (điện thoại giơ cao hơn mép bàn); luật đã tính, không tính lại
+#   min_confidence: 0.6   độ tin cậy ghi trong sự kiện tối thiểu
+#   fast_agrees_s: 3      tầng nhanh có sự kiện luật cùng ghế, lệch tối đa từng đó giây
+# Loại không có ở đây là vàng.
+LOOK_AT_NEIGHBOR: {always: red}
+HEADS_TOGETHER: {always: red}
+DOCUMENT_DETECTED: {always: red}
+PASSING_OBJECT:
+  red_if: {evidence_kind: [object_between, transfer]}
+PHONE_DETECTED:
+  red_if: {raised: true, min_confidence: 0.6}
+TURN_AROUND:
+  red_if: {fast_agrees_s: 3}
+HEAD_TURN_LEFT:
+  red_if: {fast_agrees_s: 3}
+HEAD_TURN_RIGHT:
+  red_if: {fast_agrees_s: 3}
+LOOK_AT_LAP: {always: yellow}
+UNCLASSIFIED_SUSPECT: {always: yellow}
+REVIEW_SKIPPED: {always: yellow}

@@ -64,12 +64,14 @@ class SuspectWindow:
     bbox: Box
     # Every seat the deep tier must look at (this one and its neighbours), with its box.
     seats: Mapping[UUID, Box] = field(default_factory=dict)
+    # When the most fast-tier reasons held at once (earliest on a tie): the deep tier always looks there.
+    peak_ms: int | None = None
 
     def to_json(self) -> dict[str, Any]:
         return {"seat_id": str(self.seat_id), "runtime_track_id": self.runtime_track_id,
                 "neighbor_ids": [str(item) for item in self.neighbor_ids], "start_ms": self.start_ms,
                 "end_ms": self.end_ms, "reasons": list(self.reasons), "bbox": _box_json(self.bbox),
-                "seats": {str(key): _box_json(box) for key, box in self.seats.items()}}
+                "seats": {str(key): _box_json(box) for key, box in self.seats.items()}, "peak_ms": self.peak_ms}
 
     @classmethod
     def from_json(cls, item: Mapping[str, Any]) -> SuspectWindow:
@@ -79,7 +81,8 @@ class SuspectWindow:
         return cls(UUID(item["seat_id"]), item.get("runtime_track_id"),
                    tuple(UUID(value) for value in item.get("neighbor_ids", ())), int(item["start_ms"]),
                    int(item["end_ms"]), tuple(item.get("reasons", ())), box(item["bbox"]),
-                   {UUID(key): box(value) for key, value in item.get("seats", {}).items()})
+                   {UUID(key): box(value) for key, value in item.get("seats", {}).items()},
+                   None if item.get("peak_ms") is None else int(item["peak_ms"]))
 
 
 class DeskLine:
@@ -106,6 +109,10 @@ class _Span:
     reasons: set[str]
     neighbors: set[UUID]
     seats: dict[UUID, Box]
+    marks: dict[int, int] = field(default_factory=dict)  # video ms -> reasons marked at that frame
+
+    def peak(self) -> int | None:
+        return min(self.marks, key=lambda t: (-self.marks[t], t)) if self.marks else None
 
 
 class SuspectTracker:
@@ -117,6 +124,7 @@ class SuspectTracker:
         self._hold: dict[tuple[UUID, str], tuple[int, int]] = {}  # (since, last true) in video ms
         self._spans: dict[UUID, list[_Span]] = {}
         self._runtime_ids: dict[UUID, int] = {}
+        self._emitted: dict[UUID, int] = {}  # per seat: windows up to this video ms were handed out by poll
 
     def _baseline(self) -> RollingBaseline:
         return RollingBaseline(min_span_ms=self.config.baseline_min_span_ms, min_samples=5)
@@ -210,32 +218,79 @@ class SuspectTracker:
             span = _Span(start, end, set(), set(), {})
             spans.append(span)
         span.reasons.add(reason)
+        span.marks[end] = span.marks.get(end, 0) + 1
         span.neighbors |= neighbors
         for key, box in seats.items():
             span.seats[key] = _union(span.seats[key], box) if key in span.seats else box
 
-    def finish(self, duration_ms: int | None) -> list[SuspectWindow]:
+    def _merged(self, seat_id: UUID, duration_ms: int | None) -> list[_Span]:
+        """The seat's spans padded by ``pad_ms`` each side and merged where they overlap."""
+
         pad = self.config.pad_ms
+        merged: list[_Span] = []
+        for span in sorted(self._spans.get(seat_id, []), key=lambda item: item.start):
+            start = max(0, span.start - pad)
+            end = span.end + pad if duration_ms is None else min(duration_ms, span.end + pad)
+            if merged and start <= merged[-1].end:
+                last = merged[-1]
+                last.end = max(last.end, end)
+                last.reasons |= span.reasons
+                last.neighbors |= span.neighbors
+                for key, box in span.seats.items():
+                    last.seats[key] = _union(last.seats[key], box) if key in last.seats else box
+                for t, count in span.marks.items():
+                    last.marks[t] = last.marks.get(t, 0) + count
+            else:
+                merged.append(_Span(start, end, set(span.reasons), set(span.neighbors), dict(span.seats),
+                                    dict(span.marks)))
+        return merged
+
+    def _window(self, seat_id: UUID, span: _Span, start: int, end: int) -> SuspectWindow:
+        marks = {t: c for t, c in span.marks.items() if start <= t <= end}
+        peak = min(marks, key=lambda t: (-marks[t], t)) if marks else None
+        return SuspectWindow(seat_id, self._runtime_ids.get(seat_id), tuple(sorted(span.neighbors, key=str)),
+                             start, end, tuple(reason for reason in REASONS if reason in span.reasons),
+                             span.seats[seat_id], span.seats, peak)
+
+    def poll(self, offset_ms: int, *, max_open_ms: int = 10000) -> list[SuspectWindow]:
+        """Windows that can no longer grow, each handed out once; a window open longer than ``max_open_ms``
+        is handed out in ``max_open_ms`` pieces so the live deep tier does not wait for its end."""
+
+        cfg = self.config
+        # A new mark merges into a span up to gap_ms after it, and padded spans merge up to 2 x pad apart;
+        # a mark can also start hold_ms before the frame that confirms it.
+        settle = 2 * cfg.pad_ms + cfg.gap_ms + cfg.hold_ms
         out: list[SuspectWindow] = []
-        for seat_id, spans in self._spans.items():
-            merged: list[_Span] = []
-            for span in sorted(spans, key=lambda item: item.start):
-                start = max(0, span.start - pad)
-                end = span.end + pad if duration_ms is None else min(duration_ms, span.end + pad)
-                if merged and start <= merged[-1].end:
-                    last = merged[-1]
-                    last.end = max(last.end, end)
-                    last.reasons |= span.reasons
-                    last.neighbors |= span.neighbors
-                    for key, box in span.seats.items():
-                        last.seats[key] = _union(last.seats[key], box) if key in last.seats else box
-                else:
-                    merged.append(_Span(start, end, set(span.reasons), set(span.neighbors), dict(span.seats)))
-            for span in merged:
-                out.append(SuspectWindow(seat_id, self._runtime_ids.get(seat_id),
-                                         tuple(sorted(span.neighbors, key=str)), span.start, span.end,
-                                         tuple(reason for reason in REASONS if reason in span.reasons),
-                                         span.seats[seat_id], span.seats))
+        for seat_id in list(self._spans):
+            done = self._emitted.get(seat_id, -1)
+            for span in self._merged(seat_id, None):
+                start = max(span.start, done)
+                if span.end <= done:
+                    continue
+                if offset_ms - (span.end - cfg.pad_ms) > settle:
+                    # Settled: the rest in max_open_ms pieces, each handed out once.
+                    while start < span.end:
+                        end = span.end if span.end - start <= max_open_ms else start + max_open_ms
+                        out.append(self._window(seat_id, span, start, end))
+                        start = done = end
+                    continue
+                while offset_ms - start >= max_open_ms and start + max_open_ms < span.end:
+                    out.append(self._window(seat_id, span, start, start + max_open_ms))
+                    start = done = start + max_open_ms
+            self._emitted[seat_id] = done
+        return sorted(out, key=lambda item: (item.start_ms, str(item.seat_id)))
+
+    def finish(self, duration_ms: int | None) -> list[SuspectWindow]:
+        """Every window not yet handed out by ``poll`` (all of them when ``poll`` was never used)."""
+
+        out: list[SuspectWindow] = []
+        for seat_id in self._spans:
+            done = self._emitted.get(seat_id, -1)
+            for span in self._merged(seat_id, duration_ms):
+                if span.end <= done:
+                    continue
+                out.append(self._window(seat_id, span, max(span.start, done), span.end))
+            self._emitted[seat_id] = max([done] + [span.end for span in self._merged(seat_id, duration_ms)])
         return sorted(out, key=lambda item: (item.start_ms, str(item.seat_id)))
 
 

@@ -35,6 +35,7 @@ class RiskEngine:
         EventType.PASSING_OBJECT: 10.0,
         EventType.LOOK_AT_LAP: 6.0,
         EventType.UNCLASSIFIED_SUSPECT: 0.0,
+        EventType.REVIEW_SKIPPED: 0.0,
     }
 
     def __init__(self, *, weights: dict[EventType, float] | None = None, decay_per_second: float = 1.5,

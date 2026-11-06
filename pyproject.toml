@@ -17,6 +17,7 @@ ai = [
   "torch>=2.6,<3.0",
   "ultralytics>=8.3,<9.0",
   "mediapipe>=0.10,<1.0",
+  "openvino>=2024.0,<2027.0",
 ]
 desktop = [
   { include-group = "ai" },
@@ -104,6 +105,8 @@ pythonpath = [
 ]
 addopts = "-ra --strict-config --strict-markers"
 asyncio_mode = "auto"
+# Dump every thread's stack if one test runs over 2 min (a Windows CI run hung with no clue where).
+faulthandler_timeout = 120
 markers = [
   "contract: application contract tests",
   "integration: cross-component integration tests",

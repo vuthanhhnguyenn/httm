@@ -27,13 +27,19 @@ class YoloObjectDetector:
         image_size: int = 640,
         device: str | None = None,
         allowed_classes: tuple[str, ...] | list[str] | None = None,
+        load_path: str | Path | None = None,
+        task: str | None = None,
     ) -> None:
+        """``load_path``: an exported copy (e.g. OpenVINO) to run instead of ``model_path``, whose
+        checksum is still the one verified."""
         self.model_path = Path(model_path)
         self.model_version = model_version
         self.model_sha256 = model_sha256.lower() if model_sha256 else self._hash_file()
         self.confidence_threshold = confidence_threshold
         self.image_size = image_size
         self.device = device
+        self.load_path = Path(load_path) if load_path is not None else None
+        self.task = task
         self.allowed_classes = (
             tuple(str(name).casefold() for name in allowed_classes) if allowed_classes else None
         )
@@ -69,7 +75,10 @@ class YoloObjectDetector:
             actual_hash = self._hash_file()
             if self.model_sha256 and actual_hash != self.model_sha256:
                 raise ValueError("model SHA-256 does not match the reviewed manifest")
-            self._model = YOLO(str(self.model_path))
+            if self.load_path is not None:
+                self._model = YOLO(str(self.load_path), task=self.task)
+            else:
+                self._model = YOLO(str(self.model_path))
 
     async def initialize(self) -> None:
         """Load and validate the local model without blocking its async runtime."""

@@ -58,19 +58,18 @@ def test_phone_two_frames_only_dismissed() -> None:
     assert [item["action"] for item in records] == ["dismissed"]
 
 
-def test_passing_by_wrists_reports_both_seats() -> None:
+def test_passing_by_wrists_reports_only_the_window_seat_when_nobody_reaches_over() -> None:
     a, b = uuid4(), uuid4()
     seats = {a: box(0.3), b: box(0.42)}
 
     def pose(key, ms):
         if key == a:
             return wristed(person(cx=0.3, top=0.3), left=(0.36, 0.42))
-        return wristed(person(cx=0.42, top=0.3), left=(0.365, 0.42))
+        return wristed(person(cx=0.42, top=0.3), left=(0.375, 0.42))
 
     records = review_window(window(seats, a, 0, 500, ("HANDS_MEET",)), frames(seats, pose, 0, 500))
     passing = [item for item in records if item["action"] == "opened" and item["type"] == "PASSING_OBJECT"]
-    assert {item["seat_id"] for item in passing} == {str(a), str(b)}
-    assert {item["neighbor_seat_id"] for item in passing} == {str(a), str(b)}
+    assert [(item["seat_id"], item["neighbor_seat_id"]) for item in passing] == [(str(a), str(b))]
 
 
 def test_passing_by_object_transfer() -> None:
@@ -91,15 +90,15 @@ def test_passing_by_object_transfer() -> None:
         return wristed(person(cx=cx, top=0.3), left=(cx, 0.415) if holding else None)
 
     records = review_window(window(seats, a, 0, 3000), frames(seats, pose, 0, 3000, objects))
-    assert sorted(kinds(records)) == ["PASSING_OBJECT", "PASSING_OBJECT"]
+    assert kinds(records) == ["PASSING_OBJECT"]
 
 
 def test_document_below_desk_line_opens() -> None:
     a = uuid4()
     seats = {a: box(0.3)}
     book = ReviewObject("book", 0.5, Box(0.28, 0.46, 0.04, 0.02), "yolo11x")
-    records = review_window(window(seats, a, 0, 1500),
-                            frames(seats, lambda key, ms: person(cx=0.3, top=0.3), 0, 1500, lambda ms: [book]))
+    holding = lambda key, ms: wristed(person(cx=0.3, top=0.3), left=(0.3, 0.47))  # noqa: E731
+    records = review_window(window(seats, a, 0, 1500), frames(seats, holding, 0, 1500, lambda ms: [book]))
     assert kinds(records) == ["DOCUMENT_DETECTED"]
 
 
@@ -249,3 +248,308 @@ def test_object_above_the_head_on_the_desk_in_front_is_not_phone() -> None:
     records = review_window(window(seats, a, 0, 1000),
                             frames(seats, pose, 0, 1000, lambda ms: [phone(0.31, 0.31)]))
     assert "PHONE_DETECTED" not in kinds(records)
+
+
+def test_sparse_frames_keep_lap_hold():
+    """Frames 333 ms apart (live deep tier) must not cut a 4 s run into pieces shorter than the hold."""
+
+    seats = {uuid4(): box(0.5)}
+    main = next(iter(seats))
+
+    def pose(_key, ms):
+        kps = person(0.5, 0.3, bent=True)
+        return wristed(kps, left=(0.47, 0.52), right=(0.53, 0.52)) if ms >= 6000 else wristed(kps, left=(0.47, 0.42))
+
+    sparse = [f for f in frames(seats, pose, 0, 10000) if f.offset_ms % 333 < 100]
+    records = review_window(window(seats, main, 6000, 10000, ("HEAD_DOWN_HANDS_LOW",)), sparse)
+    assert "LOOK_AT_LAP" in kinds(records)
+
+
+def test_passing_only_reacher() -> None:
+    """Nguyên (phase 2d): only the candidate who reaches over is flagged, not the neighbour."""
+
+    a, b = uuid4(), uuid4()
+    seats = {a: box(0.3), b: box(0.42)}  # midline x = 0.36
+
+    def pose(key, ms):
+        if key == a:
+            return wristed(person(cx=0.3, top=0.3), left=(0.31, 0.42))
+        return wristed(person(cx=0.42, top=0.3), left=(0.33, 0.42))  # b's hand is over a's desk
+
+    records = review_window(window(seats, a, 0, 500, ("HANDS_MEET",)), frames(seats, pose, 0, 500))
+    passing = [item for item in records if item["action"] == "opened" and item["type"] == "PASSING_OBJECT"]
+    assert [(item["seat_id"], item["neighbor_seat_id"]) for item in passing] == [(str(b), str(a))]
+
+
+def test_passing_both_reach_farther_wins() -> None:
+    a, b = uuid4(), uuid4()
+    seats = {a: box(0.3), b: box(0.42)}
+
+    def pose(key, ms):
+        if key == a:
+            return wristed(person(cx=0.3, top=0.3), left=(0.37, 0.42))  # 0.01 over the midline
+        return wristed(person(cx=0.42, top=0.3), left=(0.34, 0.42))  # 0.02 over
+
+    records = review_window(window(seats, a, 0, 500, ("HANDS_MEET",)), frames(seats, pose, 0, 500))
+    assert [item["seat_id"] for item in records if item["action"] == "opened"] == [str(b)]
+
+
+def test_still_phone_far_from_wrist_ignored() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    pose = lambda key, ms: wristed(person(cx=0.3, top=0.3), left=(0.26, 0.42))  # noqa: E731
+    still = phone(0.34, 0.42)  # 0.08 = 0.8 seat widths from the wrist, never moves
+    records = review_window(window(seats, a, 0, 1200), frames(seats, pose, 0, 1200, lambda ms: [still]))
+    assert "PHONE_DETECTED" not in kinds(records)
+
+
+def test_held_phone_reported() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    pose = lambda key, ms: wristed(person(cx=0.3, top=0.3), left=(0.3, 0.42))  # noqa: E731
+    records = review_window(window(seats, a, 0, 1000),
+                            frames(seats, pose, 0, 1000, lambda ms: [phone(0.303, 0.42)] if ms in (300, 500, 700) else []))
+    assert kinds(records) == ["PHONE_DETECTED"]
+
+
+def test_single_frame_object_ignored() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    book = ReviewObject("book", 0.5, Box(0.28, 0.46, 0.04, 0.02), "yolo11x")
+    holding = lambda key, ms: wristed(person(cx=0.3, top=0.3), left=(0.3, 0.47))  # noqa: E731
+    records = review_window(window(seats, a, 0, 1500, ("LEAN",)),
+                            frames(seats, holding, 0, 1500, lambda ms: [book] if ms == 700 else []))
+    assert "DOCUMENT_DETECTED" not in kinds(records)
+
+
+def test_moving_book_reported() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+
+    def book(ms):  # slides 0.03 (0.75 of its width) under the desk, nobody's wrist near it
+        return [ReviewObject("book", 0.5, Box(0.26 + 0.03 * ms / 1500, 0.46, 0.04, 0.02), "yolo11x")]
+
+    records = review_window(window(seats, a, 0, 1500),
+                            frames(seats, lambda key, ms: person(cx=0.3, top=0.3), 0, 1500, book))
+    assert kinds(records) == ["DOCUMENT_DETECTED"]
+
+
+def test_still_book_under_desk_without_hand_ignored() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    book = ReviewObject("book", 0.5, Box(0.28, 0.46, 0.04, 0.02), "yolo11x")
+    records = review_window(window(seats, a, 0, 1500, ("LEAN",)),
+                            frames(seats, lambda key, ms: person(cx=0.3, top=0.3), 0, 1500, lambda ms: [book]))
+    assert "DOCUMENT_DETECTED" not in kinds(records)
+
+
+def _pair(height: float):
+    a, b = uuid4(), uuid4()
+    return a, b, {a: Box(0.25, 0.3, 0.1, height), b: Box(0.37, 0.3, 0.1, height)}
+
+
+def _meeting(a, wrist_a, wrist_b, conf=0.9):
+    def pose(key, ms):
+        kps = person(cx=0.3 if key == a else 0.42, top=0.3)
+        kps[9] = [*(wrist_a if key == a else wrist_b), conf]
+        return kps
+
+    return pose
+
+
+def test_far_row_hands_meet_without_object_ignored() -> None:
+    a, b, seats = _pair(0.08)
+    pose = _meeting(a, (0.355, 0.33), (0.36, 0.33))  # touching at the midline, nobody inside the other seat
+    records = review_window(window(seats, a, 0, 1000, ("HANDS_MEET",)), frames(seats, pose, 0, 1000))
+    assert "PASSING_OBJECT" not in kinds(records)
+
+
+def test_far_row_wrist_inside_other_seat_reported() -> None:
+    a, b, seats = _pair(0.08)
+    pose = _meeting(a, (0.375, 0.33), (0.38, 0.33))  # a's hand is in b's seat box
+    records = review_window(window(seats, a, 0, 1000, ("HANDS_MEET",)), frames(seats, pose, 0, 1000))
+    assert "PASSING_OBJECT" in kinds(records)
+
+
+def test_near_row_hands_meet_reported() -> None:
+    a, b, seats = _pair(0.25)
+    pose = _meeting(a, (0.35, 0.42), (0.36, 0.42))
+    records = review_window(window(seats, a, 0, 1000, ("HANDS_MEET",)), frames(seats, pose, 0, 1000))
+    assert "PASSING_OBJECT" in kinds(records)
+
+
+def test_low_conf_wrist_ignored() -> None:
+    a, b, seats = _pair(0.25)
+    pose = _meeting(a, (0.35, 0.42), (0.36, 0.42), conf=0.45)
+    records = review_window(window(seats, a, 0, 1000, ("HANDS_MEET",)), frames(seats, pose, 0, 1000))
+    assert "PASSING_OBJECT" not in kinds(records)
+
+
+def _lap(left, right):
+    return lambda key, ms: wristed(person(cx=0.3, top=0.3, bent=True), left=left, right=right)
+
+
+def test_writer_one_hand_on_desk_not_lap() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    pose = _lap((0.28, 0.42), (0.32, 0.55))  # writing hand on the desk, the other in the lap
+    records = review_window(window(seats, a, 0, 4000, ("HEAD_DOWN_HANDS_LOW",)), frames(seats, pose, 0, 4000))
+    assert "LOOK_AT_LAP" not in kinds(records)
+
+
+def test_both_hands_below_desk_is_lap() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    records = review_window(window(seats, a, 0, 4000, ("HEAD_DOWN_HANDS_LOW",)),
+                            frames(seats, _lap((0.28, 0.55), (0.32, 0.55)), 0, 4000))
+    assert "LOOK_AT_LAP" in kinds(records)
+
+
+def test_hands_hidden_is_lap() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    records = review_window(window(seats, a, 0, 4000, ("HEAD_DOWN_HANDS_LOW",)),
+                            frames(seats, _lap(None, None), 0, 4000))
+    assert "LOOK_AT_LAP" in kinds(records)
+
+
+def test_passing_ignores_one_arm_given_to_both_people() -> None:
+    a, b = uuid4(), uuid4()
+    seats = {a: box(0.3), b: box(0.42)}
+
+    def pose(key, ms):
+        cx = 0.3 if key == a else 0.42
+        return wristed(person(cx=cx, top=0.3), left=(0.36, 0.42))  # the very same spot
+
+    records = review_window(window(seats, a, 0, 500, ("HANDS_MEET",)), frames(seats, pose, 0, 500))
+    assert "PASSING_OBJECT" not in kinds(records)
+
+
+def test_passing_ignores_long_side_by_side_hands_without_object() -> None:
+    a, b = uuid4(), uuid4()
+    seats = {a: box(0.3), b: box(0.42)}
+
+    def pose(key, ms):
+        if key == a:
+            return wristed(person(cx=0.3, top=0.3), left=(0.36, 0.42))
+        return wristed(person(cx=0.42, top=0.3), left=(0.375, 0.42))
+
+    records = review_window(window(seats, a, 0, 5000, ("HANDS_MEET",)), frames(seats, pose, 0, 5000))
+    assert "PASSING_OBJECT" not in kinds(records)
+
+
+def test_document_below_desk_needs_a_hand_on_it() -> None:
+    # Clip 1 at 10.0 s and 32.0 s: the paper lies under the desk line, the hand that writes is a third of
+    # a seat height above it. Only a document a hand holds is cheating material.
+    a = uuid4()
+    seats = {a: box(0.3)}
+    book = ReviewObject("book", 0.5, Box(0.28, 0.46, 0.04, 0.02), "yolo11x")
+
+    def pose(key, ms):
+        wrist = (0.3, 0.47) if ms == 0 else (0.3, 0.41)  # touched once, then written above it
+        return wristed(person(cx=0.3, top=0.3), left=wrist)
+
+    records = review_window(window(seats, a, 0, 2000), frames(seats, pose, 0, 2000, lambda ms: [book]))
+    assert "DOCUMENT_DETECTED" not in kinds(records)
+
+
+def test_near_row_hands_a_fifth_of_a_seat_apart_reported() -> None:
+    # Clip 1 at 25.5 s (true): the handover wrists stayed 0.13-0.2 seat heights apart.
+    a, b, seats = _pair(0.25)
+    pose = _meeting(a, (0.35, 0.42), (0.395, 0.42))  # 0.045 = 0.18 seat heights
+    records = review_window(window(seats, a, 0, 1000, ("HANDS_MEET",)), frames(seats, pose, 0, 1000))
+    assert "PASSING_OBJECT" in kinds(records)
+
+
+def _opened(records, kind):
+    return [item for item in records if item["action"] == "opened" and item["type"] == kind]
+
+
+def test_passing_hands_only_evidence() -> None:
+    a, b = uuid4(), uuid4()
+    seats = {a: box(0.3), b: box(0.42)}
+
+    def pose(key, ms):
+        if key == a:
+            return wristed(person(cx=0.3, top=0.3), left=(0.36, 0.42))
+        return wristed(person(cx=0.42, top=0.3), left=(0.375, 0.42))
+
+    records = review_window(window(seats, a, 0, 500, ("HANDS_MEET",)), frames(seats, pose, 0, 500))
+    assert [item["evidence_kind"] for item in _opened(records, "PASSING_OBJECT")] == ["hands_only"]
+
+
+def test_passing_object_between_hands_evidence() -> None:
+    a, b = uuid4(), uuid4()
+    seats = {a: box(0.3), b: box(0.42)}
+
+    def pose(key, ms):
+        if key == a:
+            return wristed(person(cx=0.3, top=0.3), left=(0.36, 0.42))
+        return wristed(person(cx=0.42, top=0.3), left=(0.375, 0.42))
+
+    objects = lambda ms: [ReviewObject("paper", 0.5, Box(0.36, 0.41, 0.02, 0.02), "x")]  # noqa: E731
+    records = review_window(window(seats, a, 0, 500, ("HANDS_MEET",)), frames(seats, pose, 0, 500, objects))
+    assert [item["evidence_kind"] for item in _opened(records, "PASSING_OBJECT")] == ["object_between"]
+
+
+def test_passing_transfer_evidence() -> None:
+    a, b = uuid4(), uuid4()
+    seats = {a: box(0.3), b: box(0.5)}
+    paper = lambda x: ReviewObject("paper", 0.5, Box(x - 0.02, 0.4, 0.04, 0.03), "x")  # noqa: E731
+
+    def objects(ms):
+        if 800 <= ms <= 1000:
+            return [paper(0.3)]
+        if 2500 <= ms <= 2700:
+            return [paper(0.5)]
+        return []
+
+    def pose(key, ms):
+        cx = seats[key].center[0]
+        holding = (key == a and 800 <= ms <= 1000) or (key == b and 2500 <= ms <= 2700)
+        return wristed(person(cx=cx, top=0.3), left=(cx, 0.415) if holding else None)
+
+    records = review_window(window(seats, a, 0, 3000), frames(seats, pose, 0, 3000, objects))
+    assert [item["evidence_kind"] for item in _opened(records, "PASSING_OBJECT")] == ["transfer"]
+
+
+def _phone_run(y: float, confs=(0.5, 0.8, 0.6)):
+    a = uuid4()
+    seats = {a: box(0.3)}
+    pose = lambda key, ms: wristed(person(cx=0.3, top=0.3), left=(0.3, y))  # noqa: E731
+    by_ms = dict(zip((300, 500, 700), confs, strict=True))
+    records = review_window(window(seats, a, 0, 1000),
+                            frames(seats, pose, 0, 1000, lambda ms: [phone(0.3, y, by_ms[ms])] if ms in by_ms else []))
+    return _opened(records, "PHONE_DETECTED")
+
+
+def test_phone_raised_above_desk_edge_with_max_confidence() -> None:
+    (item,) = _phone_run(0.40)
+    assert item["raised"] is True
+    assert item["confidence"] == 0.8
+
+
+def test_phone_on_desk_is_not_raised() -> None:
+    # Desk edge defaults to 0.46 here; 0.43 clears the event gate (0.44) but not the raised margin (0.42).
+    (item,) = _phone_run(0.43)
+    assert item["raised"] is False
+    assert item["confidence"] == 0.8
+
+
+def test_head_rules_use_one_event_loop_per_window(monkeypatch) -> None:
+    """A loop per frame opened thousands of loops; on Windows each needs a loopback socketpair and CI hung."""
+
+    import asyncio.events
+
+    made = []
+    real = asyncio.events.new_event_loop
+    monkeypatch.setattr(asyncio.events, "new_event_loop", lambda: made.append(1) or real())
+    a, b = uuid4(), uuid4()
+    seats = {a: box(0.3), b: box(0.45)}
+
+    def pose(key, ms):
+        return person(cx=seats[key].center[0], top=0.3, nose_dx=0.6 if key == a and ms >= 8000 else 0.0)
+
+    records = review_window(window(seats, a, 7000, 10_000, ("HEAD_AWAY",)), frames(seats, pose, 0, 10_000))
+    assert kinds(records) == ["LOOK_AT_NEIGHBOR"]
+    assert len(made) <= 1

@@ -61,18 +61,24 @@ class TiledPoseDetector:
         return str(getattr(self.base, "active_device", "auto"))
 
     async def detect(self, frame: dict[str, Any]) -> list[dict[str, Any]]:
-        people = list(await self.base.detect(frame))
         image = frame.get("image")
+        crops: list[dict[str, Any]] = []
         if image is not None and self._calls % self.every == 0:
             height, width = image.shape[:2]
-            found: list[dict[str, Any]] = []
             for tile in self.tiles:
                 x0, y0, x1, y1 = (int(tile[0] * width), int(tile[1] * height),
                                   int(tile[2] * width), int(tile[3] * height))
-                crop = {**frame, "image": image[y0:y1, x0:x1], "frame_size": (x1 - x0, y1 - y0)}
-                found += [map_from_tile(person, tile) for person in await self.base.detect(crop)]
+                crops.append({**frame, "image": image[y0:y1, x0:x1], "frame_size": (x1 - x0, y1 - y0)})
+        if hasattr(self.base, "detect_many"):
+            found_all = await self.base.detect_many([frame, *crops])
+        else:
+            found_all = [await self.base.detect(item) for item in (frame, *crops)]
+        people = list(found_all[0])
+        if crops:
             # Seated people barely move, so the far rows found here stay valid until the next tile pass.
-            self._tile_people = found
+            self._tile_people = [map_from_tile(person, tile) for tile, found in zip(self.tiles, found_all[1:],
+                                                                                    strict=True)
+                                 for person in found]
         self._calls += 1
         return merge_people(people + self._tile_people)
 

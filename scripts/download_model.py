@@ -86,11 +86,38 @@ def download_models(manifest_path: Path) -> list[Path]:
     return downloaded
 
 
+# Models that may run on the Intel iGPU (OpenVINO): the deep tier's objects and the fast tier's phones.
+OPENVINO_EXPORTS = ("yolo11x.pt", "yolo11n.pt")
+
+
+def export_openvino(models_dir: Path, names: tuple[str, ...] = OPENVINO_EXPORTS, imgsz: int = 960) -> list[Path]:
+    """``<stem>_openvino_model/`` next to each downloaded model; dynamic so the deep tier can batch."""
+
+    from ultralytics import YOLO
+
+    out: list[Path] = []
+    for name in names:
+        source = models_dir / name
+        target = models_dir / f"{source.stem}_openvino_model"
+        if not source.is_file():
+            print(f"BỎ QUA: chưa có {source}")
+            continue
+        if not target.is_dir():
+            YOLO(str(source)).export(format="openvino", imgsz=imgsz, dynamic=True, half=False)
+        print(f"OK: OpenVINO {target}")
+        out.append(target)
+    return out
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, default=Path("models/manifest.yaml"))
+    parser.add_argument("--export-openvino", action="store_true",
+                        help="xuất yolo11x và yolo11n sang OpenVINO để chạy trên card Intel (cần gói openvino)")
     args = parser.parse_args()
-    download_models(args.manifest)
+    downloaded = download_models(args.manifest)
+    if args.export_openvino:
+        export_openvino(downloaded[0].parent if downloaded else args.manifest.parent / "pretrained")
     return 0
 
 

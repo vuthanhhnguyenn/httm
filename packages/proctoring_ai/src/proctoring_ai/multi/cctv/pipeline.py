@@ -20,12 +20,15 @@ from .rules import keypoints_for
 
 class CctvPipeline:
     def __init__(self, *, pose_detector: Any, tracker: MultiSubjectTracker | Any, object_detector: Any | None = None,
-                 phone_every: int = 3, timeout_ms: int = 1200) -> None:
+                 phone_every: int = 3, timeout_ms: int = 1200, parallel_objects: bool = False) -> None:
+        """``parallel_objects``: run the phone detector alongside pose; only worth it when they use
+        different devices (e.g. pose on CUDA, phones on the Intel iGPU)."""
         self.pose_detector = pose_detector
         self.tracker = tracker
         self.object_detector = object_detector
         self.phone_every = max(1, phone_every)
         self.timeout_ms = timeout_ms
+        self.parallel_objects = parallel_objects
         self._frames_seen = 0
         self._objects: list[dict[str, Any]] = []
 
@@ -42,10 +45,16 @@ class CctvPipeline:
     async def detect(self, frame: dict[str, Any]) -> DetectionStage:
         index = self._frames_seen
         self._frames_seen += 1
-        people, health = await self._call(self.pose_detector, frame)
+        want_objects = self.object_detector is not None and index % self.phone_every == 0
+        if want_objects and self.parallel_objects:
+            (people, health), (found, object_health) = await asyncio.gather(
+                self._call(self.pose_detector, frame), self._call(self.object_detector, frame))
+        else:
+            people, health = await self._call(self.pose_detector, frame)
+            if want_objects:
+                found, object_health = await self._call(self.object_detector, frame)
         reused = True
-        if self.object_detector is not None and index % self.phone_every == 0:
-            found, object_health = await self._call(self.object_detector, frame)
+        if want_objects:
             if object_health.status == "ready":
                 # Phones persist for seconds; detections from a few frames back are still current.
                 self._objects = [item for item in found if str(item.get("class", "")).casefold() != "person"]

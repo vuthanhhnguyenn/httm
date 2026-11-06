@@ -9,7 +9,7 @@ with the reason kept in ``status``; the others still run.
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -18,6 +18,7 @@ import yaml
 from proctoring_core.observations import Box
 
 from .crops import CropTransform
+from .devices import resolve_device
 
 LABELS = ("phone", "paper", "book")
 
@@ -38,6 +39,7 @@ class ModelSpec:
     class_map: Mapping[str, str]
     min_conf: float
     sha256: str | None
+    device: str = "auto"  # auto | cuda | intel:gpu | cpu (devices.resolve_device)
 
 
 def load_specs(config_path: Path, models_root: Path) -> list[ModelSpec]:
@@ -50,7 +52,7 @@ def load_specs(config_path: Path, models_root: Path) -> list[ModelSpec]:
         if any(value not in LABELS for value in class_map.values()):
             raise ValueError(f"{item['name']}: class_map chỉ được đổi về {LABELS}")
         specs.append(ModelSpec(str(item["name"]), str(item["kind"]), models_root / str(item["path"]), class_map,
-                               float(item.get("min_conf", 0.25)), item.get("sha256")))
+                               float(item.get("min_conf", 0.25)), item.get("sha256"), str(item.get("device", "auto"))))
     return specs
 
 
@@ -76,11 +78,37 @@ def _default_loader(path: Path) -> Any:
     return YOLO(str(path))
 
 
+def load_openvino(path: Path, kind: str) -> Any:
+    """An exported OpenVINO model directory; Ultralytics cannot tell its task from the folder alone."""
+
+    from ultralytics import YOLO
+
+    return YOLO(str(path), task="pose" if kind == "pose" else "detect")
+
+
+def _is_oom(exc: BaseException) -> bool:
+    return "out of memory" in str(exc).casefold()
+
+
+def _is_cuda(device: str) -> bool:
+    name = str(device)
+    return name.isdigit() or name == "cuda" or name.startswith("cuda:")
+
+
 class ReviewDetectors:
+    """``devices`` holds where each model actually runs; ``reasons`` why, when that is not what was asked;
+    ``kinds`` the kind (``pose`` / ``objects``) of each loaded model."""
+
     def __init__(self, specs: list[ModelSpec], device: str | None = None,
-                 loader: Callable[[Path], Any] | None = None, image_size: int = 960) -> None:
-        self.device, self.image_size = device, image_size
+                 loader: Callable[[Path], Any] | None = None, image_size: int = 960, batch_size: int = 8, *, half: bool = False,
+                 device_override: Mapping[str, str] | None = None) -> None:
+        self.device, self.image_size, self.batch_size = device, image_size, max(1, batch_size)
+        self.half = half
+        overrides = device_override or {}
         self.status: dict[str, str] = {}
+        self.devices: dict[str, str | None] = {}
+        self.kinds: dict[str, str] = {}
+        self.reasons: dict[str, str] = {}
         self._models: list[tuple[ModelSpec, Any]] = []
         load = loader or _default_loader
         for spec in specs:
@@ -90,53 +118,98 @@ class ReviewDetectors:
             if spec.sha256 and _sha256(spec.path) != str(spec.sha256).lower():
                 self.status[spec.name] = "bỏ qua: SHA-256 không khớp cấu hình"
                 continue
+            wanted = overrides.get(spec.name) or (spec.device if spec.device != "auto" or device is None else None)
+            if wanted is None:  # an explicit --device wins over "auto"
+                run_on, path, reason = device, spec.path, ""
+            else:
+                run_on, path, reason = resolve_device(wanted, spec.path)
             try:
-                self._models.append((spec, load(spec.path)))
+                self._models.append((spec, load(path) if path == spec.path else load_openvino(path, spec.kind)))
             except Exception as exc:  # a broken third-party model must not stop the review
                 self.status[spec.name] = f"bỏ qua: không nạp được ({exc})"
                 continue
             self.status[spec.name] = "ok"
+            self.devices[spec.name] = run_on
+            self.kinds[spec.name] = spec.kind
+            if reason:
+                self.reasons[spec.name] = reason
 
-    def _predict(self, model: Any, image: Any, conf: float) -> list[Any]:
-        options: dict[str, Any] = {"source": image, "conf": conf, "verbose": False, "imgsz": self.image_size}
-        if self.device is not None:
-            options["device"] = self.device
+    def _predict_batch(self, spec: ModelSpec, model: Any, images: list[Any]) -> list[Any]:
+        options: dict[str, Any] = {"source": images, "conf": spec.min_conf, "verbose": False, "imgsz": self.image_size}
+        if (device := self.devices.get(spec.name)) is not None:
+            options["device"] = device
+            if self.half and _is_cuda(device):
+                options["half"] = True
         return list(model.predict(**options))
 
-    def pose(self, crop: Any, transform: CropTransform) -> list[dict[str, Any]]:
-        people: list[dict[str, Any]] = []
+    def _predict_many(self, spec: ModelSpec, model: Any, images: Sequence[Any]) -> list[Any]:
+        """One result per image, ``batch_size`` images per call; out of GPU memory halves the batch, and at
+        batch 1 the model moves to the CPU for good (the fast tier shares the GPU and must keep running)."""
+
+        out: list[Any] = []
+        size, i = self.batch_size, 0
+        while i < len(images):
+            chunk = list(images[i:i + size])
+            try:
+                out += self._predict_batch(spec, model, chunk)
+                i += len(chunk)
+            except RuntimeError as exc:
+                if not _is_oom(exc):
+                    raise
+                if size > 1:
+                    size = max(1, size // 2)
+                elif self.devices.get(spec.name) != "cpu":
+                    self.devices[spec.name] = "cpu"
+                    self.reasons[spec.name] = "cpu: hết VRAM"
+                else:
+                    raise
+        return out
+
+    def pose_many(self, crops: Sequence[Any], transforms: Sequence[CropTransform]) -> list[list[dict[str, Any]]]:
+        people: list[list[dict[str, Any]]] = [[] for _ in crops]
         for spec, model in self._models:
             if spec.kind != "pose":
                 continue
-            for result in self._predict(model, crop, spec.min_conf):
+            for index, (result, transform) in enumerate(zip(self._predict_many(spec, model, crops), transforms,
+                                                            strict=False)):
                 rows = result.boxes.data.detach().cpu().tolist()
                 points = result.keypoints.data.detach().cpu().tolist() if result.keypoints is not None else []
                 for row, kps in zip(rows, points, strict=False):
                     (x0, y0), (x1, y1) = transform.to_frame(row[0], row[1]), transform.to_frame(row[2], row[3])
-                    people.append({"class": "person", "confidence": float(row[4]),
-                                   "bbox": {"x": x0, "y": y0, "width": x1 - x0, "height": y1 - y0},
-                                   "keypoints": [[*transform.to_frame(p[0], p[1]), float(p[2]) if len(p) > 2 else 1.0]
-                                                 for p in kps]})
+                    people[index].append({"class": "person", "confidence": float(row[4]),
+                                          "bbox": {"x": x0, "y": y0, "width": x1 - x0, "height": y1 - y0},
+                                          "keypoints": [[*transform.to_frame(p[0], p[1]),
+                                                         float(p[2]) if len(p) > 2 else 1.0] for p in kps]})
         return people
 
-    def objects(self, crop: Any, transform: CropTransform) -> list[ReviewObject]:
-        found: list[ReviewObject] = []
+    def objects_many(self, crops: Sequence[Any], transforms: Sequence[CropTransform]) -> list[list[ReviewObject]]:
+        found: list[list[ReviewObject]] = [[] for _ in crops]
         for spec, model in self._models:
             if spec.kind != "objects":
                 continue
-            for result in self._predict(model, crop, spec.min_conf):
+            for index, (result, transform) in enumerate(zip(self._predict_many(spec, model, crops), transforms,
+                                                            strict=False)):
                 names = result.names
                 for row in result.boxes.data.detach().cpu().tolist():
                     label = spec.class_map.get(str(names[int(row[5])]))
                     if label is None or float(row[4]) < spec.min_conf:
                         continue
                     (x0, y0), (x1, y1) = transform.to_frame(row[0], row[1]), transform.to_frame(row[2], row[3])
-                    found.append(ReviewObject(label, float(row[4]), Box(x0, y0, x1 - x0, y1 - y0), spec.name))
-        kept: list[ReviewObject] = []
-        for item in sorted(found, key=lambda obj: -obj.confidence):
-            if not any(other.label == item.label and _iou(other.bbox, item.bbox) > 0.5 for other in kept):
-                kept.append(item)
-        return kept
+                    found[index].append(ReviewObject(label, float(row[4]), Box(x0, y0, x1 - x0, y1 - y0), spec.name))
+        out: list[list[ReviewObject]] = []
+        for items in found:
+            kept: list[ReviewObject] = []
+            for item in sorted(items, key=lambda obj: -obj.confidence):
+                if not any(other.label == item.label and _iou(other.bbox, item.bbox) > 0.5 for other in kept):
+                    kept.append(item)
+            out.append(kept)
+        return out
+
+    def pose(self, crop: Any, transform: CropTransform) -> list[dict[str, Any]]:
+        return self.pose_many([crop], [transform])[0]
+
+    def objects(self, crop: Any, transform: CropTransform) -> list[ReviewObject]:
+        return self.objects_many([crop], [transform])[0]
 
 
 __all__ = ["LABELS", "ModelSpec", "ReviewDetectors", "ReviewObject", "load_specs"]

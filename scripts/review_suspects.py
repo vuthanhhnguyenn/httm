@@ -22,70 +22,32 @@ for _src in ("packages/proctoring_core/src", "packages/proctoring_ai/src", "pack
         sys.path.insert(0, str(ROOT / _src))
 
 import cv2  # noqa: E402
-import numpy as np  # noqa: E402
-from proctoring_ai.multi.cctv.crops import crop_image, crop_region  # noqa: E402
+from proctoring_ai.multi.cctv.review_cache import save_window  # noqa: E402
+from proctoring_ai.multi.cctv.review_core import analyse_window  # noqa: E402
+from proctoring_ai.multi.cctv.review_dedupe import ReviewDeduper  # noqa: E402
+from proctoring_ai.multi.cctv.review_frames import FrameCursor, select_offsets  # noqa: E402
 from proctoring_ai.multi.cctv.review_rules import (  # noqa: E402
     ReviewFrame,
-    assign_poses,
-    review_window,
 )
 from proctoring_ai.multi.cctv.suspects import SuspectWindow  # noqa: E402
 from proctoring_runtime.messages import event_name  # noqa: E402
+from proctoring_runtime.text import put_text  # noqa: E402
 
 WARMUP_MS = 8000  # head baselines need a few seconds of usual posture before the window
 
 
 def _frames(capture: Any, start_ms: int, end_ms: int, fps: float) -> list[tuple[int, Any]]:
-    step = 1000.0 / fps
+    cursor = FrameCursor(start_ms, end_ms, fps)
     capture.set(cv2.CAP_PROP_POS_MSEC, max(0, start_ms))
     out: list[tuple[int, Any]] = []
-    target = float(max(0, start_ms))
-    while target <= end_ms:
+    while not cursor.done:
         ok, image = capture.read()
         if not ok:
             break
         position = capture.get(cv2.CAP_PROP_POS_MSEC)
-        if position + 1e-6 < target:
-            continue
-        out.append((int(round(position)), image))
-        target = position + step
+        if cursor.take(position):
+            out.append((int(round(position)), image))
     return out
-
-
-_FONTS = ("C:/Windows/Fonts/arial.ttf", "C:/Windows/Fonts/segoeui.ttf",
-          "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/Library/Fonts/Arial Unicode.ttf")
-
-
-def put_text(image: Any, text: str, origin: tuple[int, int], size: int = 18,
-             colour: tuple[int, int, int] = (255, 255, 0)) -> Any:
-    """Vietnamese text on a BGR image (OpenCV's own fonts have no diacritics)."""
-
-    from PIL import Image, ImageDraw, ImageFont
-
-    font: Any = None
-    for path in _FONTS:
-        try:
-            font = ImageFont.truetype(path, size)
-            break
-        except OSError:
-            continue
-    canvas = Image.fromarray(image[:, :, ::-1].copy())
-    draw = ImageDraw.Draw(canvas)
-    x, y = origin
-    box = draw.textbbox((x, y), text, font=font or ImageFont.load_default())
-    draw.rectangle(box, fill=(0, 0, 0))
-    draw.text((x, y), text, fill=colour, font=font or ImageFont.load_default())
-    return np.asarray(canvas)[:, :, ::-1].copy()
-
-
-def review_seats(window: SuspectWindow, limit: int = 2) -> dict[Any, Any]:
-    """The window's seat and its ``limit`` nearest neighbours: a crop over a whole row would shrink, not enlarge."""
-
-    seats = dict(window.seats) or {window.seat_id: window.bbox}
-    main = seats.get(window.seat_id, window.bbox)
-    others = sorted((key for key in seats if key != window.seat_id),
-                    key=lambda key: (seats[key].center[0] - main.center[0]) ** 2 + (seats[key].center[1] - main.center[1]) ** 2)
-    return {window.seat_id: main, **{key: seats[key] for key in others[:limit]}}
 
 
 def _draw(image: Any, window: SuspectWindow, frame: ReviewFrame | None, item: dict[str, Any]) -> Any:
@@ -113,7 +75,8 @@ def _draw(image: Any, window: SuspectWindow, frame: ReviewFrame | None, item: di
 
 
 def review(video: Path, windows: list[SuspectWindow], detectors: Any, out_dir: Path, fps: float = 10.0,
-           warmup_ms: int = WARMUP_MS) -> dict[str, Any]:
+           warmup_ms: int = WARMUP_MS, cache_path: Path | None = None,
+           max_frames: int | None = None) -> dict[str, Any]:
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "evidence").mkdir(exist_ok=True)
     capture = cv2.VideoCapture(str(video))
@@ -124,20 +87,19 @@ def review(video: Path, windows: list[SuspectWindow], detectors: Any, out_dir: P
     duration_ms = int(1000 * count / rate) if count and rate else None
     records: list[dict[str, Any]] = []
     seconds: list[float] = []
+    dedupe = ReviewDeduper()
     try:
         for window in windows:
             began = time.perf_counter()
             end = window.end_ms if duration_ms is None else min(window.end_ms, duration_ms)
-            seats = review_seats(window)
-            region = crop_region(list(seats.values()))
-            analysed: list[ReviewFrame] = []
-            for offset, image in _frames(capture, window.start_ms - warmup_ms, end, fps):
-                crop, transform = crop_image(image, region)
-                height, width = image.shape[:2]
-                people = detectors.pose(crop, transform)
-                analysed.append(ReviewFrame(offset, seats, assign_poses(seats, people),
-                                            detectors.objects(crop, transform), width / height))
-            found = review_window(window, analysed)
+            images = _frames(capture, window.start_ms - warmup_ms, end, fps)
+            if max_frames is not None:
+                keep = set(select_offsets(window, [t for t, _ in images], max_frames=max_frames, warmup_ms=warmup_ms))
+                images = [(t, image) for t, image in images if t in keep]
+            found, analysed = analyse_window(window, images, detectors)
+            if cache_path is not None:
+                save_window(cache_path, window, analysed)
+            found = dedupe.admit(found)
             for item in found:
                 if "type" in item:
                     item["label_vi"] = event_name(item["type"])
@@ -163,7 +125,9 @@ def review(video: Path, windows: list[SuspectWindow], detectors: Any, out_dir: P
                                      "max": round(max(seconds), 2) if seconds else 0.0},
               "events_opened": dict(Counter(item["type"] for item in records if item["action"] == "opened")),
               "dismissed": sum(1 for item in records if item["action"] == "dismissed"),
-              "models": dict(detectors.status)}
+              "models": dict(detectors.status),
+              "devices": dict(getattr(detectors, "devices", {})),
+              "device_reasons": dict(getattr(detectors, "reasons", {}))}
     (out_dir / "timing.json").write_text(json.dumps(timing, ensure_ascii=False, indent=2), encoding="utf-8")
     return timing
 
@@ -176,19 +140,33 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--models", type=Path, default=ROOT / "configs" / "review_models.yaml")
     parser.add_argument("--fps", type=float, default=10.0)
     parser.add_argument("--device", default=None, help="vd. 0 cho GPU NVIDIA đầu tiên")
+    parser.add_argument("--half", action="store_true", help="FP16 (chỉ khi model chạy trên CUDA)")
     parser.add_argument("--warmup-ms", type=int, default=WARMUP_MS, help="đọc thêm trước mỗi đoạn để có mốc tư thế")
+    parser.add_argument("--max-frames", type=int, default=0,
+                        help="số khung tối đa mỗi đoạn (0 = mọi khung ở --fps, như phase 2e; đoạn dài mà ít khung "
+                             "thì sót sự kiện, xem replay_review.py --split-ms)")
+    parser.add_argument("--cache-dir", type=Path, default=None,
+                        help="ghi đầu ra model của từng đoạn vào <thư mục>/cache.json.gz để chạy lại luật bằng replay_review.py")
     args = parser.parse_args(argv)
     from proctoring_ai.multi.cctv.review_detectors import ReviewDetectors, load_specs
 
     windows = [SuspectWindow.from_json(json.loads(line))
                for line in args.suspects.read_text(encoding="utf-8").splitlines() if line.strip()]
-    detectors = ReviewDetectors(load_specs(args.models, ROOT / "models"), device=args.device)
+    specs = load_specs(args.models, ROOT / "models")
+    override = {spec.name: args.device for spec in specs} if args.device else None
+    detectors = ReviewDetectors(specs, device=args.device, half=args.half, device_override=override)
     for name, status in detectors.status.items():
         print(f"Model {name}: {status}")
     if not any(spec.kind == "pose" and detectors.status.get(spec.name) == "ok"
                for spec in load_specs(args.models, ROOT / "models")):
         print("Không có model khung xương nào dùng được; tầng kỹ sẽ loại gần hết các đoạn.", file=sys.stderr)
-    timing = review(args.video, windows, detectors, args.out, fps=args.fps, warmup_ms=args.warmup_ms)
+    cache_path = None
+    if args.cache_dir is not None:
+        args.cache_dir.mkdir(parents=True, exist_ok=True)
+        cache_path = args.cache_dir / "cache.json.gz"
+        cache_path.unlink(missing_ok=True)
+    timing = review(args.video, windows, detectors, args.out, fps=args.fps, warmup_ms=args.warmup_ms,
+                    cache_path=cache_path, max_frames=args.max_frames or None)
     print(f"Xem {timing['windows']} đoạn, mỗi đoạn {timing['seconds_per_window']['p50']} s (tối đa "
           f"{timing['seconds_per_window']['max']} s); sự kiện: {timing['events_opened']}, loại {timing['dismissed']}")
     print(f"Kết quả: {args.out}")

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
 from ...detectors.yolo_detector import YoloObjectDetector
+from ...pipeline.single_flight import run_single_flight
 
 # COCO keypoint order used by YOLO-pose.
 NOSE, LEFT_EYE, RIGHT_EYE, LEFT_EAR, RIGHT_EAR = 0, 1, 2, 3, 4
@@ -51,6 +53,20 @@ class YoloPoseDetector(YoloObjectDetector):
         for result in self._model.predict(**options):
             people += parse_pose_result(result, frame["frame_size"])
         return people
+
+    async def detect_many(self, frames: Sequence[dict[str, Any]]) -> list[list[dict[str, Any]]]:
+        """The full frame and its tiles in one ``predict`` call: one GPU round trip instead of three."""
+
+        return await run_single_flight(self._inference_lock, self._detect_many_sync, list(frames))
+
+    def _detect_many_sync(self, frames: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
+        self._load()
+        options: dict[str, Any] = {"source": [frame["image"] for frame in frames], "verbose": False,
+                                   "conf": self.confidence_threshold, "imgsz": self.image_size, "classes": [0]}
+        if self.device is not None:
+            options["device"] = self.device
+        results = list(self._model.predict(**options))
+        return [parse_pose_result(result, frame["frame_size"]) for result, frame in zip(results, frames, strict=True)]
 
 
 __all__ = ["YoloPoseDetector", "parse_pose_result"]

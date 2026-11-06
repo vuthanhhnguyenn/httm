@@ -9,3 +9,10 @@ nhận giấy phép AGPL-3.0 tương thích với cách triển khai, hoặc có
 được tải model hoặc video nhạy cảm tự động trong CI. CI chỉ kiểm tra manifest và mã nguồn; binary
 model được cung cấp qua kênh đã được phê duyệt và kiểm tra checksum trước khi chạy.
 
+
+## OpenVINO (phase 2f)
+
+Gói `openvino` (Intel, Apache-2.0) chạy model YOLO đã xuất trên card Intel tích hợp. Thư mục
+`<model>_openvino_model/` là bản xuất cục bộ từ file `.pt` đã kiểm SHA-256, tạo bằng
+`scripts/download_model.py --export-openvino`, nên chịu cùng giấy phép AGPL-3.0 của model gốc. Không đưa
+bản xuất vào Git.

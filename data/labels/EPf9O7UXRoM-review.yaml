@@ -1,0 +1,29 @@
+# Kết quả Nguyên chấm các sự kiện tầng kỹ phase 2e trên clip 1 (2026-11-05, ảnh phase2e/clip1/su-kien-tang-ky.jpg).
+# Mỗi mục là một ô ảnh: type, t_s (giây), heads (toạ độ đầu của các ghế trong ô, chuẩn hoá), verdict.
+# Một sự kiện "opened" khớp mục khi cùng type, lệch <= 1.5 s và đầu cách một trong heads <= 0.05.
+# Dùng bởi scripts/replay_review.py và test hồi quy tầng kỹ.
+video: EPf9O7UXRoM.mp4
+verdicts:
+  - {type: PASSING_OBJECT, t_s: 25.5, heads: [[0.213, 0.356], [0.246, 0.319]], verdict: true}
+  - {type: LOOK_AT_NEIGHBOR, t_s: 27.2, heads: [[0.218, 0.366]], verdict: true}
+  - {type: DOCUMENT_DETECTED, t_s: 45.8, heads: [[0.181, 0.366]], verdict: true}
+  - {type: LOOK_AT_NEIGHBOR, t_s: 47.0, heads: [[0.816, 0.611]], verdict: true}
+  - {type: HEADS_TOGETHER, t_s: 47.4, heads: [[0.814, 0.614]], verdict: true}
+  - {type: LOOK_AT_LAP, t_s: 43.2, heads: [[0.857, 0.669]], verdict: true}
+  - {type: LOOK_AT_LAP, t_s: 51.2, heads: [[0.776, 0.527]], verdict: true}
+  - {type: LOOK_AT_LAP, t_s: 59.0, heads: [[0.76, 0.504]], verdict: true}
+  - {type: LOOK_AT_LAP, t_s: 63.0, heads: [[0.766, 0.5]], verdict: true}
+  - {type: LOOK_AT_LAP, t_s: 3.0, heads: [[0.246, 0.315]], verdict: false}
+  - {type: DOCUMENT_DETECTED, t_s: 10.0, heads: [[0.467, 0.269]], verdict: false}
+  - {type: PASSING_OBJECT, t_s: 17.2, heads: [[0.336, 0.17], [0.288, 0.227]], verdict: false}
+  - {type: PHONE_DETECTED, t_s: 19.0, heads: [[0.44, 0.332]], verdict: false}
+  - {type: PASSING_OBJECT, t_s: 20.1, heads: [[0.334, 0.171], [0.289, 0.234]], verdict: false}
+  - {type: PASSING_OBJECT, t_s: 22.1, heads: [[0.334, 0.172], [0.293, 0.236]], verdict: false}
+  - {type: LOOK_AT_LAP, t_s: 28.2, heads: [[0.777, 0.548]], verdict: false}
+  - {type: PASSING_OBJECT, t_s: 31.3, heads: [[0.197, 0.425], [0.197, 0.426]], verdict: false}
+  - {type: PHONE_DETECTED, t_s: 31.6, heads: [[0.451, 0.717]], verdict: false}
+  - {type: DOCUMENT_DETECTED, t_s: 32.0, heads: [[0.446, 0.708]], verdict: false}
+  - {type: LOOK_AT_LAP, t_s: 54.4, heads: [[0.199, 0.439]], verdict: false}
+  - {type: PHONE_DETECTED, t_s: 56.8, heads: [[0.453, 0.389]], verdict: false}
+  - {type: TURN_AROUND, t_s: 58.8, heads: [[0.198, 0.428]], verdict: false}
+  - {type: PHONE_DETECTED, t_s: 60.8, heads: [[0.454, 0.386]], verdict: false}
