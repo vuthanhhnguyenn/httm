@@ -459,3 +459,78 @@ def test_near_row_hands_a_fifth_of_a_seat_apart_reported() -> None:
     pose = _meeting(a, (0.35, 0.42), (0.395, 0.42))  # 0.045 = 0.18 seat heights
     records = review_window(window(seats, a, 0, 1000, ("HANDS_MEET",)), frames(seats, pose, 0, 1000))
     assert "PASSING_OBJECT" in kinds(records)
+
+
+def _opened(records, kind):
+    return [item for item in records if item["action"] == "opened" and item["type"] == kind]
+
+
+def test_passing_hands_only_evidence() -> None:
+    a, b = uuid4(), uuid4()
+    seats = {a: box(0.3), b: box(0.42)}
+
+    def pose(key, ms):
+        if key == a:
+            return wristed(person(cx=0.3, top=0.3), left=(0.36, 0.42))
+        return wristed(person(cx=0.42, top=0.3), left=(0.375, 0.42))
+
+    records = review_window(window(seats, a, 0, 500, ("HANDS_MEET",)), frames(seats, pose, 0, 500))
+    assert [item["evidence_kind"] for item in _opened(records, "PASSING_OBJECT")] == ["hands_only"]
+
+
+def test_passing_object_between_hands_evidence() -> None:
+    a, b = uuid4(), uuid4()
+    seats = {a: box(0.3), b: box(0.42)}
+
+    def pose(key, ms):
+        if key == a:
+            return wristed(person(cx=0.3, top=0.3), left=(0.36, 0.42))
+        return wristed(person(cx=0.42, top=0.3), left=(0.375, 0.42))
+
+    objects = lambda ms: [ReviewObject("paper", 0.5, Box(0.36, 0.41, 0.02, 0.02), "x")]  # noqa: E731
+    records = review_window(window(seats, a, 0, 500, ("HANDS_MEET",)), frames(seats, pose, 0, 500, objects))
+    assert [item["evidence_kind"] for item in _opened(records, "PASSING_OBJECT")] == ["object_between"]
+
+
+def test_passing_transfer_evidence() -> None:
+    a, b = uuid4(), uuid4()
+    seats = {a: box(0.3), b: box(0.5)}
+    paper = lambda x: ReviewObject("paper", 0.5, Box(x - 0.02, 0.4, 0.04, 0.03), "x")  # noqa: E731
+
+    def objects(ms):
+        if 800 <= ms <= 1000:
+            return [paper(0.3)]
+        if 2500 <= ms <= 2700:
+            return [paper(0.5)]
+        return []
+
+    def pose(key, ms):
+        cx = seats[key].center[0]
+        holding = (key == a and 800 <= ms <= 1000) or (key == b and 2500 <= ms <= 2700)
+        return wristed(person(cx=cx, top=0.3), left=(cx, 0.415) if holding else None)
+
+    records = review_window(window(seats, a, 0, 3000), frames(seats, pose, 0, 3000, objects))
+    assert [item["evidence_kind"] for item in _opened(records, "PASSING_OBJECT")] == ["transfer"]
+
+
+def _phone_run(y: float, confs=(0.5, 0.8, 0.6)):
+    a = uuid4()
+    seats = {a: box(0.3)}
+    pose = lambda key, ms: wristed(person(cx=0.3, top=0.3), left=(0.3, y))  # noqa: E731
+    by_ms = dict(zip((300, 500, 700), confs, strict=True))
+    records = review_window(window(seats, a, 0, 1000),
+                            frames(seats, pose, 0, 1000, lambda ms: [phone(0.3, y, by_ms[ms])] if ms in by_ms else []))
+    return _opened(records, "PHONE_DETECTED")
+
+
+def test_phone_raised_above_desk_edge_with_max_confidence() -> None:
+    (item,) = _phone_run(0.40)
+    assert item["raised"] is True
+    assert item["confidence"] == 0.8
+
+
+def test_phone_on_desk_is_not_raised() -> None:
+    # Desk edge defaults to 0.46 here; 0.43 clears the event gate (0.44) but not the raised margin (0.42).
+    (item,) = _phone_run(0.43)
+    assert item["raised"] is False
+    assert item["confidence"] == 0.8

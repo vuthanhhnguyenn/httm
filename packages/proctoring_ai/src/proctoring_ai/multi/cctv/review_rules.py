@@ -35,6 +35,9 @@ class ReviewRuleConfig:
     phone_frames: int = 3
     # A calculator lies on the desk by the writing hand; a phone in use is held up off the desk.
     phone_raise_heights: float = 0.1
+    # Evidence only (never gates an event): a phone this far (seat heights) above the desk edge is held up,
+    # not just lifted off the desk. Confidence levels are derived from it downstream.
+    phone_raised_heights: float = 0.2
     phone_span_ms: int = 1000
     passing_wrist_widths: float = 0.3
     passing_hold_ms: int = 300
@@ -212,6 +215,7 @@ def review_window(window: SuspectWindow, frames: Sequence[ReviewFrame],
 
     # (a) phone close to a wrist or below the desk, in enough frames within a second.
     hits = []
+    phone_facts: list[tuple[int, bool, float]] = []  # per qualifying frame: (offset, raised, best confidence)
     for i, frame in enumerate(frames):
         wrists = _wrists(frame.poses.get(main))
         # The desk top is where the exam paper lies. A high camera sees the desk at the bottom of the seat
@@ -220,33 +224,45 @@ def review_window(window: SuspectWindow, frames: Sequence[ReviewFrame],
         desk_top = min([lines[main][i], *papers])
         # Above the candidate's own head is the desk of the row in front, seen past their head.
         own_head = head_point(frame.poses[main], box) if frame.poses.get(main) is not None else None
-        ok = any(obj.label == "phone" and id(obj) in alive and obj.confidence >= cfg.phone_min_conf
+        found = [obj for obj in frame.objects
+                 if obj.label == "phone" and id(obj) in alive and obj.confidence >= cfg.phone_min_conf
                  and _inside(obj.bbox.center, box)
                  and not (cfg.calculator_on_paper and _on_paper(obj, frame, box))
                  and (own_head is None or obj.bbox.center[1] > own_head[1])
                  and any(distance(obj.bbox.center, p) < cfg.phone_wrist_widths * width for p in wrists)
-                 and obj.bbox.center[1] < desk_top - cfg.phone_raise_heights * box.height for obj in frame.objects)
-        hits.append((frame.offset_ms, ok))
+                 and obj.bbox.center[1] < desk_top - cfg.phone_raise_heights * box.height]
+        hits.append((frame.offset_ms, bool(found)))
+        if found:
+            raised = any(obj.bbox.center[1] < desk_top - cfg.phone_raised_heights * box.height for obj in found)
+            phone_facts.append((frame.offset_ms, raised, max(obj.confidence for obj in found)))
+
     def needed(t: int) -> int:  # with sparse frames a second may hold fewer than phone_frames frames
         return max(1, min(cfg.phone_frames, sum(1 for s, _ in hits if t - cfg.phone_span_ms < s <= t)))
 
     dense = [(t, sum(1 for s, ok in hits if ok and t - cfg.phone_span_ms < s <= t) >= needed(t)) for t, _ in hits]
-    flag(EventType.PHONE_DETECTED, main, dense, 0)
+    for since, opened, last in _runs(dense, 0, cfg.gap_ms):
+        facts = [item for item in phone_facts if since - cfg.phone_span_ms < item[0] <= last]
+        emit(EventType.PHONE_DETECTED, main, opened, last, raised=any(item[1] for item in facts),
+             confidence=max((item[2] for item in facts), default=0.0))
 
     # (b) passing: wrists of two seats meet, or an object moves from one seat to the other.
     for other in seats:
         if other == main:
             continue
         meet = _hands_meet(frames, main, other, seats, cfg)
-        runs = [run for run in _runs(meet, cfg.passing_hold_ms, cfg.gap_ms)
-                if run[2] - run[0] <= cfg.passing_max_ms or _object_between(frames, main, other, run, cfg)]
+        meets = [(run, _object_between(frames, main, other, run, cfg))
+                 for run in _runs(meet, cfg.passing_hold_ms, cfg.gap_ms)]
+        # (run, evidence): an object seen between the hands, hands alone, or an object changing seats.
+        runs = [(run, "object_between" if between else "hands_only") for run, between in meets
+                if run[2] - run[0] <= cfg.passing_max_ms or between]
         if not runs:
-            runs = _transfers(frames, main, other, seats, cfg, window.start_ms)
-        for _since, opened, last in runs:
+            runs = [(run, "transfer") for run in _transfers(frames, main, other, seats, cfg, window.start_ms)]
+        for (_since, opened, last), evidence in runs:
             # Only the candidate who reaches over is flagged (Nguyên, phase 2d), not the neighbour.
             reacher = _reacher(frames, main, other, seats, opened - cfg.passing_hold_ms, last)
             neighbour = other if reacher == main else main
-            emit(EventType.PASSING_OBJECT, reacher, opened, last, neighbor_seat_id=str(neighbour))
+            emit(EventType.PASSING_OBJECT, reacher, opened, last, neighbor_seat_id=str(neighbour),
+                 evidence_kind=evidence)
 
     # (d) paper or book below the desk or held up at the face.
     moving = _alive(frames, main, box, cfg, by_hand=False)
