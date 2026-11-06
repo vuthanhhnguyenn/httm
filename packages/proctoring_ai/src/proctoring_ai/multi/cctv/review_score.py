@@ -78,7 +78,8 @@ def score_review(records: Iterable[dict[str, Any]], verdicts: Sequence[Verdict],
            if any(event.get("level") == "red" and _matches(event, verdict, max_dt_s, max_head, end)
                   for event, end in shown)}
     return {"true_red": sum(1 for i in red if verdicts[i].verdict),
-            "false_red": sum(1 for i in red if not verdicts[i].verdict), "true_found": sum(1 for i in trues if i in hit), "true_total": len(trues),
+            "false_red": sum(1 for i in red if not verdicts[i].verdict),
+            "true_found": sum(1 for i in trues if i in hit), "true_total": len(trues),
             "true_covered": sum(1 for i in trues if i in covered),
             "false_covered": sum(1 for i in covered if not verdicts[i].verdict),
             "covered_only": [f"{verdicts[i].type}@{verdicts[i].t_s}" for i in trues if i in covered - hit],

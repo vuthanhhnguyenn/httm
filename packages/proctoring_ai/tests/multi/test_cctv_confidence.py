@@ -60,10 +60,65 @@ def test_unknown_type_is_yellow():
     assert _level(_event("SOMETHING_NEW")) == "yellow"
 
 
-def test_merged_takes_level_of_its_alert_and_closed_is_dropped():
+def test_merged_takes_level_of_its_alert_and_other_records_pass_through():
     first = _event("LOOK_AT_NEIGHBOR")
     merged = {**_event("LOOK_AT_NEIGHBOR", 12000), "action": "merged", "merged_into": first["id"]}
     orphan = {**_event("LOOK_AT_NEIGHBOR", 13000), "action": "merged", "merged_into": "gone"}
     out = assign_levels([merged, first, {"action": "closed", "id": first["id"]}, orphan], [], RULES)
-    assert [(r["action"], r["level"]) for r in out] == [("merged", "red"), ("opened", "red"), ("merged", "yellow")]
+    assert [r["action"] for r in out] == ["merged", "opened", "closed", "merged"]
+    assert [r.get("level") for r in out] == ["red", "red", None, "yellow"]
+    assert out[2] == {"action": "closed", "id": first["id"]}
     assert first.get("level") is None  # inputs are copied, not mutated
+
+
+def test_boundaries_are_red():
+    assert _level(_event("PHONE_DETECTED", raised=True, confidence=0.6)) == "red"
+    assert _level(_event("PHONE_DETECTED", raised=True, confidence=None)) == "yellow"
+    fast = {"seat_id": "s1", "video_offset_ms": 13000, "type": "TURN_AROUND"}
+    assert _level(_event("TURN_AROUND"), [fast]) == "red"
+
+
+def test_reasons():
+    (lap,) = assign_levels([_event("LOOK_AT_LAP")], [], RULES)
+    assert lap["level_reason"] == "tư thế không tách được, cần xem lại"
+    (passing,) = assign_levels([_event("PASSING_OBJECT")], [], RULES)
+    assert passing["level"] == "yellow" and passing["level_reason"] == "không rõ bằng chứng"
+
+
+def test_red_if_conditions_combine_with_and():
+    rules = load_confidence_text("X: {red_if: {evidence_kind: [a], fast_agrees_s: 3}}")
+    near = [{"seat_id": "s1", "video_offset_ms": 10000}]
+    ok = {**_event("X"), "evidence_kind": "a"}
+    assert assign_levels([ok], near, rules)[0]["level"] == "red"
+    assert assign_levels([ok], [], rules)[0]["level"] == "yellow"
+    assert assign_levels([{**ok, "evidence_kind": "b"}], near, rules)[0]["level"] == "yellow"
+
+
+def load_confidence_text(text):
+    import tempfile
+
+    path = Path(tempfile.mkdtemp()) / "c.yaml"
+    path.write_text(text, encoding="utf-8")
+    return load_confidence(path)
+
+
+@pytest.mark.parametrize("text", [
+    "[1, 2]",
+    "X: {}",
+    "X: {always: red, red_if: {raised: true}}",
+    "X: {always: green}",
+    "X: {red_if: {}}",
+    "X: {red_if: [raised]}",
+    "X: {red_if: {bogus: 1}}",
+    "X: {red_if: {evidence_kind: a}}",
+    "X: {red_if: {evidence_kind: [1]}}",
+    "X: {red_if: {raised: true, min_confidence: high}}",
+    "X: {red_if: {fast_agrees_s: soon}}",
+    "X: {red_if: {min_confidence: 0.6}}",
+    "X: red",
+])
+def test_bad_config_raises(text):
+    with pytest.raises(ValueError):
+        load_confidence_text(text)
+
+

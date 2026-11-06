@@ -62,7 +62,6 @@ def test_clip1_confidence_levels(split_ms: int | None, max_frames: int | None) -
 
     records = _replay(split_ms, max_frames)
     leveled = assign_levels(records, [], load_confidence(ROOT / "configs/confidence.yaml"))
-    # assign_levels returns only opened/merged; score_review needs the closed ones for "still open at the picture".
-    score = score_review([*leveled, *(r for r in records if r.get("action") == "closed")], load_verdicts(LABELS))
+    score = score_review(leveled, load_verdicts(LABELS))
     assert score["false_red"] == 0, score
     assert score["true_covered"] == 9, score
