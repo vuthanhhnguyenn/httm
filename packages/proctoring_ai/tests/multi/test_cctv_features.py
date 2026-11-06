@@ -113,3 +113,30 @@ def test_clip1_fixture_runs() -> None:
                for line in (FIXTURE / "suspects.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
     rows = video_features("EPf9O7UXRoM", windows[:4], load_cache(FIXTURE / "cache.json.gz"))
     assert rows
+
+
+def test_no_reach_names_the_same_reacher_from_both_seats() -> None:
+    frames = _frames(6000, lambda ms: _kps(0.25, wrist=(0.25, 0.5)), lambda ms: _kps(0.37, wrist=(0.37, 0.5)))
+    rows = video_features("v", _windows(6000), frames)
+    a, b = _rows(rows, A, 0), _rows(rows, B, 0)
+    assert a.reacher is not None and a.reacher == b.reacher
+
+
+def test_pair_features_follow_the_closest_head_not_the_first_neighbour() -> None:
+    """A's wrists are hidden; A leans its head toward C. The head feature and the partner name C, not B."""
+
+    c = uuid4()
+    box_c = Box(0.08, 0.3, 0.1, 0.3)
+    seats = {A: BOX_A, B: BOX_B, c: box_c}
+    windows = [SuspectWindow(A, None, (B, c), 0, 12_000, ("ALL_SEATS",), BOX_A, seats),
+               SuspectWindow(B, None, (A,), 0, 12_000, ("ALL_SEATS",), BOX_B, seats),
+               SuspectWindow(c, None, (A,), 0, 12_000, ("ALL_SEATS",), box_c, seats)]
+    out = []
+    for ms in range(0, 12_000, 200):
+        lean = 5000 <= ms < 8000
+        poses = {A: _kps(0.17 if lean else 0.25), B: _kps(0.37), c: _kps(0.13)}
+        out.append(ReviewFrame(ms, seats, poses, [], 16 / 9))
+    frames = {(str(s), 0, 12_000): out for s in (A, B, c)}
+    row = _rows(video_features("v", windows, frames), A, 5000)
+    assert row.partner == str(c)
+    assert row.values["head_gap_ratio_min"] < 0.6

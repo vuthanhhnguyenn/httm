@@ -75,3 +75,15 @@ def test_meta_lists_features(tmp_path: Path) -> None:
     assert meta["feature_names"] == list(FEATURE_NAMES)
     assert meta["classes"] == list(classes) and meta["videos"] == ["v"]
     assert (tmp_path / "m" / "model.txt").is_file()
+
+
+def test_leave_one_out_keeps_turn_around_when_the_rest_has_enough() -> None:
+    result = _module().leave_one_out({"held": synthetic("held", turn=5, seed=1), "rest": synthetic("rest", turn=12, seed=2)})
+    assert "TURN_AROUND" in result["held"]["_labels"]
+
+
+def test_leave_one_out_skips_a_one_class_fold(capsys) -> None:
+    only_normal = [(row, "NORMAL") for row, _label in synthetic("b", seed=2)]
+    result = _module().leave_one_out({"a": synthetic("a", seed=1), "b": only_normal})
+    assert "a" not in result and "b" in result
+    assert "a" in capsys.readouterr().err

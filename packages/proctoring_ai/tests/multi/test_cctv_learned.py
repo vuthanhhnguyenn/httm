@@ -110,3 +110,29 @@ def test_domain_warning() -> None:
     assert domain_warning(meta, (320, 180), 0.3)
     assert domain_warning(meta, (1280, 720), 0.1)
     assert domain_warning({}, (320, 180), 0.1) is None
+
+
+def test_absence_breaks_the_run() -> None:
+    """Rows 0-7 s and 40-47 s of one seat, high only at 7 s and 40 s: two separate stretches, no event."""
+
+    rows = _rows(n=8) + [FeatureRow("v", A, 40_000 + i * 1000, 43_000 + i * 1000, BOX_A,
+                                    dict.fromkeys(FEATURE_NAMES, 0.0)) for i in range(8)]
+    values = [0.1] * 7 + [0.9] + [0.9] + [0.1] * 7
+    assert _opened(_core().events(rows, _probs("LOOK_AT_NEIGHBOR", values))) == []
+
+
+def test_absence_closes_an_open_event() -> None:
+    rows = _rows(n=4) + [FeatureRow("v", A, 40_000 + i * 1000, 43_000 + i * 1000, BOX_A,
+                                    dict.fromkeys(FEATURE_NAMES, 0.0)) for i in range(4)]
+    records = _core().events(rows, _probs("LOOK_AT_NEIGHBOR", [0.9] * 8))
+    assert len(_opened(records)) == 2
+    assert [r["video_offset_ms"] for r in records if r["action"] == "closed"] == [rows[3].end_ms, rows[7].end_ms]
+
+
+def test_pair_event_from_both_seats_is_one_event() -> None:
+    """Neither seat reached: each named itself. Still one incident."""
+
+    rows = _rows(n=3, partner=str(B), reacher=str(A)) + _rows(B, n=3, box=BOX_B, partner=str(A), reacher=str(B))
+    events = _opened(_core().events(rows, _probs("PASSING_OBJECT", [0.9] * 6)))
+    assert len(events) == 1
+    assert {events[0]["seat_id"], events[0]["neighbor_seat_id"]} == {str(A), str(B)}

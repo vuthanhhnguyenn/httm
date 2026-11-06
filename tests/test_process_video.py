@@ -314,3 +314,21 @@ def test_learned_core_short_video(tmp_path: Path) -> None:
                                fast_runner=_FastRunner([]), core="learned", learned=_AlwaysLooking().core)
     assert [item for item in _events(out) if item["action"] == "opened"] == []
     assert timing["video_s"] > 0
+
+
+def test_learned_core_refuses_without_pose_model(tmp_path: Path) -> None:
+    module = _module()
+    with pytest.raises(module.ProcessError, match="khung xương"):
+        module.process(_video(tmp_path / "in.mp4", seconds=6.0), tmp_path / "o", detectors=_Detectors(pose_ok=False),
+                       fast_runner=_FastRunner([]), core="learned", learned=_AlwaysLooking().core)
+
+
+def test_learned_core_report_shows_domain_warning_and_empty_note(tmp_path: Path) -> None:
+    core = _AlwaysLooking().core
+    core.meta = {"seat_height_median": 0.05}
+    out = tmp_path / "o"
+    _module().process(_video(tmp_path / "in.mp4", seconds=2.0), out, detectors=_SeeingDetectors(),
+                      fast_runner=_FastRunner([]), core="learned", learned=core)
+    report = (out / "report.html").read_text(encoding="utf-8")
+    assert "Cảnh báo" in report and "khác xa lúc train" in report
+    assert "3 giây" in report

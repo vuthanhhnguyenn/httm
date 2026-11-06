@@ -16,7 +16,7 @@ from uuid import uuid4
 
 from proctoring_core.observations import Box
 
-from .features import FEATURE_NAMES, FeatureRow
+from .features import FEATURE_NAMES, STEP_MS, FeatureRow
 
 PAIR_TYPES = ("PASSING_OBJECT", "HEADS_TOGETHER")
 P_OPEN, P_CLOSE = 0.5, 0.35
@@ -90,8 +90,12 @@ class LearnedCore:
                 open_ = False
                 for i, (row, p) in enumerate(items):
                     value = p.get(kind, 0.0)
+                    if open_ and row.start_ms - items[i - 1][0].start_ms > STEP_MS:
+                        found.append(self._event(seat, kind, run))  # the seat was not seen in between
+                        open_, run = False, []
                     if not open_:
-                        nxt = items[i + 1][1].get(kind, 0.0) if i + 1 < len(items) else 0.0
+                        follows = i + 1 < len(items) and items[i + 1][0].start_ms - row.start_ms <= STEP_MS
+                        nxt = items[i + 1][1].get(kind, 0.0) if follows else 0.0
                         if value >= p_open and nxt >= p_open:
                             open_, run = True, [(row, value)]
                     elif value >= p_close:
@@ -140,13 +144,21 @@ class LearnedCore:
 
     @staticmethod
     def _merge(found: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """One event when the same pair event came from both seats' windows (overlapping in time)."""
+        """One event when the same pair event came from both seats' windows (overlapping in time), whichever
+        seat each side named as the owner; the owner of the more probable side is kept."""
+
+        def pair(event: dict[str, Any]) -> tuple[str, ...]:
+            if event["type"] in PAIR_TYPES and event["partner"]:
+                return tuple(sorted((event["owner"], event["partner"])))
+            return (event["owner"], event["partner"] or "")
 
         out: list[dict[str, Any]] = []
-        for event in sorted(found, key=lambda item: (item["type"], item["owner"], item["start"])):
+        for event in sorted(found, key=lambda item: (item["type"], pair(item), item["start"])):
             last = out[-1] if out else None
-            if (last is not None and last["type"] == event["type"] and last["owner"] == event["owner"]
-                    and last["partner"] == event["partner"] and event["start"] <= last["end"]):
+            if (last is not None and last["type"] == event["type"] and pair(last) == pair(event)
+                    and event["start"] <= last["end"]):
+                if event["p"] > last["p"]:
+                    last["owner"], last["partner"] = event["owner"], event["partner"]
                 last["end"] = max(last["end"], event["end"])
                 last["p"] = max(last["p"], event["p"])
             else:

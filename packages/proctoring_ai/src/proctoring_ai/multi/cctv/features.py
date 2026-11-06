@@ -196,7 +196,9 @@ def _row_values(state: _Seat, others: Mapping[UUID, _Seat], neighbours: Sequence
     v["wrist_speed_max"] = speed
     v["reach_out_max"] = reach
 
-    best: tuple[float, float, float, UUID, str] | None = None
+    # Each pair feature is its strongest value over all neighbours; the partner is the neighbour with the
+    # closest wrists, else the closest head, else the strongest lean toward it.
+    pairs: list[tuple[float, float, float, UUID, str]] = []
     for other in neighbours:
         if other not in others:
             continue
@@ -221,13 +223,25 @@ def _row_values(state: _Seat, others: Mapping[UUID, _Seat], neighbours: Sequence
                 head_ratio = min(head_ratio, distance(head, head_point(okps, nb)) / ref)
             side = 1.0 if nb.center[0] >= box.center[0] else -1.0
             lean.append(side * (head[0] - state.head_x_base) / max(box.width, 1e-6))
-        if best is None or gap < best[0]:
-            best = (gap, head_ratio, _mean(lean), other, str(seat) if mine >= theirs else str(other))
-    if best is None:
+        # A tie (neither reached) goes to the smaller seat id, so both seats' rows name the same reacher.
+        if mine != theirs:
+            reacher_id = str(seat) if mine > theirs else str(other)
+        else:
+            reacher_id = min(str(seat), str(other))
+        pairs.append((gap, head_ratio, _mean(lean), other, reacher_id))
+    if not pairs:
         v["wrist_gap_min"], v["head_gap_ratio_min"], v["lean_toward"] = FAR, FAR, 0.0
         partner = reacher = None
     else:
-        v["wrist_gap_min"], v["head_gap_ratio_min"], v["lean_toward"] = best[0], best[1], best[2]
+        v["wrist_gap_min"] = min(item[0] for item in pairs)
+        v["head_gap_ratio_min"] = min(item[1] for item in pairs)
+        v["lean_toward"] = max(item[2] for item in pairs)
+        if v["wrist_gap_min"] < FAR:
+            best = min(pairs, key=lambda item: item[0])
+        elif v["head_gap_ratio_min"] < FAR:
+            best = min(pairs, key=lambda item: item[1])
+        else:
+            best = max(pairs, key=lambda item: item[2])
         partner, reacher = str(best[3]), best[4]
 
     def objects(labels: tuple[str, ...]) -> tuple[float, float, float, float]:

@@ -99,11 +99,13 @@ def leave_one_out(pairs_by_video: Mapping[str, Pairs]) -> dict[str, dict[str, An
     result: dict[str, dict[str, Any]] = {}
     for video, held in pairs_by_video.items():
         rest = [pair for other, items in pairs_by_video.items() if other != video for pair in items]
-        held_pairs = _merge_rare(held) if any(label == "TURN_AROUND" for _r, label in rest) else list(held)
+        if len({label for _row, label in rest}) < 2:
+            print(f"Bỏ qua lượt để riêng {video}: các video còn lại chỉ có 1 lớp nhãn.", file=sys.stderr)
+            continue
         booster, classes = train(rest)
         merged = "TURN_AROUND" not in classes
-        labels = ["LOOK_AT_NEIGHBOR" if merged and label == "TURN_AROUND" else label for _row, label in held_pairs]
-        probs = predict(booster, classes, [row for row, _ in held_pairs])
+        labels = ["LOOK_AT_NEIGHBOR" if merged and label == "TURN_AROUND" else label for _row, label in held]
+        probs = predict(booster, classes, [row for row, _ in held])
         result[video] = {**_metrics(probs, labels), "_probs": probs, "_labels": labels}
     return result
 
@@ -167,8 +169,8 @@ def main(argv: list[str] | None = None) -> int:
     every = [pair for items in data.values() for pair in items]
     booster, classes = train(every)
     thresholds: dict[str, tuple[float, float]] = {}
-    if len(data) >= 2:
-        loo = leave_one_out(data)
+    loo = leave_one_out(data) if len(data) >= 2 else {}
+    if loo:
         if args.leave_one_out:
             for video, metrics in loo.items():
                 print(f"\n== {video} (để riêng) ==")
@@ -179,7 +181,7 @@ def main(argv: list[str] | None = None) -> int:
         probs = [p for m in loo.values() for p in m["_probs"]]
         truth = [t for m in loo.values() for t in m["_labels"]]
     else:
-        print("Chỉ có 1 video có nhãn: ngưỡng chọn trên chính dữ liệu train (lạc quan).", file=sys.stderr)
+        print("Không chấm được video nào để riêng: ngưỡng chọn trên chính dữ liệu train (lạc quan).", file=sys.stderr)
         probs, truth = predict(booster, classes, [row for row, _ in every]), [label for _row, label in every]
     for name in classes:
         if name != "NORMAL":

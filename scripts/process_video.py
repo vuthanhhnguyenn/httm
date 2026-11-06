@@ -229,6 +229,9 @@ def _learned_pass(video: Path, out: Path, video_s: float, detectors: Any, learne
     from proctoring_ai.multi.cctv.features import video_features, write_csv
     from proctoring_ai.multi.cctv.learned import domain_warning
 
+    kinds: Mapping[str, str] = getattr(detectors, "kinds", {}) or {}
+    if not any(kind == "pose" for kind in kinds.values()):
+        raise ProcessError("lõi học cần model khung xương nhưng không nạp được; xem dòng trạng thái model ở trên.")
     windows, frames, stats = _sibling("build_timeline").timeline_pass(video, out, video_s, detectors,
                                                                       share_iou=share_iou, batch=batch)
     rows = video_features(video.stem, windows, frames)
@@ -249,6 +252,9 @@ def _learned_pass(video: Path, out: Path, video_s: float, detectors: Any, learne
     warning = domain_warning(learned.meta, size, heights[len(heights) // 2] if heights else None)
     if warning:
         print(warning, file=sys.stderr)
+    if not rows:
+        stats["note"] = ("Lõi học không có cửa sổ nào để chấm: video ngắn hơn 3 giây hoặc không thấy ai ngồi "
+                         "ở ghế nào.")
     stats.update(windows=len(windows), rows=len(rows))
     return per_window, frames, stats, records, warning
 
@@ -383,6 +389,8 @@ def process(video: Path, out: Path, *, quality: str = "max", device: str | None 
                        **({"model": model.name} if model is not None else {})}}
         if warning:
             timing["domain_warning"] = warning
+        if deep_stats.get("note"):
+            timing["note"] = deep_stats["note"]
         if rendered.get("error"):
             timing["render_error"] = rendered["error"]
         return timing

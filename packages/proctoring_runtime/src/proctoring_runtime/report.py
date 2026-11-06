@@ -14,6 +14,7 @@ CSV_COLUMNS = ["level", "type", "label_vi", "time_s", "seat_id", "reason", "evid
 _CSS = """
 body{font-family:system-ui,sans-serif;margin:0;padding:12px;background:#f5f5f5;color:#222}
 video{width:100%;max-height:60vh;background:#000}
+.note{background:#fff4d6;border-left:4px solid #d9a400;padding:6px 10px;margin:6px 0}
 .bar{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0;align-items:center}
 .bar button,.bar select{padding:6px 10px;font-size:15px}
 .red{color:#b00020;font-weight:600}.yellow{color:#9a6700;font-weight:600}
@@ -99,6 +100,8 @@ def write_report(
         if key in timing and _num(timing[key]):
             parts.append(f"{label}: {_num(timing[key])}{suffix}")
     summary = " | ".join(e(p) for p in parts)
+    notes = "".join(f'<p class="note">{e(str(timing[key]))}</p>' for key in ("domain_warning", "note")
+                    if timing.get(key))
 
     types = sorted({(r["type"], r["label"]) for r in rows})
     options = '<option value="">Tất cả loại</option>' + "".join(
@@ -127,7 +130,7 @@ def write_report(
         '<!DOCTYPE html><html lang="vi"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         f"<title>Báo cáo sự kiện - {e(video_name)}</title><style>{_CSS}</style></head><body>"
-        f"<h1>Báo cáo sự kiện: {e(video_name)}</h1><p>{summary}</p>"
+        f"<h1>Báo cáo sự kiện: {e(video_name)}</h1><p>{summary}</p>{notes}"
         '<video id="vid" controls preload="metadata" src="annotated.mp4"></video>'
         '<div class="bar"><button data-lv="all">Tất cả</button>'
         '<button data-lv="red">Đỏ</button><button data-lv="yellow">Vàng</button>'
