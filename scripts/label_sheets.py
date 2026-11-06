@@ -15,6 +15,7 @@ import json
 import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import Any
 from uuid import UUID
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,7 +34,7 @@ from proctoring_core.observations import Box  # noqa: E402
 TILE = 360  # long side of one of the six tiles, pixels
 
 
-def _tile(image, region: Box, seat: Box, label: str):
+def _tile(image: Any, region: Box, seat: Box, label: str) -> Any:
     crop, transform = crop_image(image, region, long_side=TILE)
     width, height = transform.frame_size
     x0 = int((seat.x * width - transform.x0) * transform.scale)
