@@ -4,14 +4,16 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
-from typing import Any
+from typing import Any, TypeVar
+
+T = TypeVar("T")  # not PEP 695: Kaggle images may run Python 3.11
 
 
 class InferenceBusyError(RuntimeError):
     """Raised when the previous call for an analyzer is still running."""
 
 
-async def run_single_flight[T](lock: Any, callback: Callable[..., T], *args: Any) -> T:
+async def run_single_flight(lock: Any, callback: Callable[..., T], *args: Any) -> T:  # noqa: UP047
     """Run at most one native call at a time, even if its waiter times out."""
 
     if not lock.acquire(blocking=False):

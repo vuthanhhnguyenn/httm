@@ -12,11 +12,29 @@ _FONTS = ("C:/Windows/Fonts/arial.ttf", "C:/Windows/Fonts/segoeui.ttf",
           "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf", "/Library/Fonts/Arial Unicode.ttf")
 
 
+def font_paths() -> list[str]:
+    """System fonts first, then matplotlib's bundled DejaVuSans (always present on Kaggle images)."""
+
+    import importlib.util
+    from pathlib import Path
+
+    paths = list(_FONTS)
+    try:
+        spec = importlib.util.find_spec("matplotlib")
+    except (ImportError, ValueError):
+        spec = None
+    if spec is not None and spec.origin:
+        bundled = Path(spec.origin).parent / "mpl-data" / "fonts" / "ttf" / "DejaVuSans.ttf"
+        if bundled.is_file():
+            paths.append(str(bundled))
+    return paths
+
+
 @lru_cache(maxsize=16)
 def _font(size: int) -> Any:
     from PIL import ImageFont
 
-    for path in _FONTS:
+    for path in font_paths():
         try:
             return ImageFont.truetype(path, size)
         except OSError:

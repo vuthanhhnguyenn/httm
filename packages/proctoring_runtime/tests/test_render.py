@@ -168,3 +168,17 @@ def test_unclassified_shown_briefly_with_short_label() -> None:
     unclassified = by_label["Nghi vấn chưa rõ"]
     assert (unclassified.start, unclassified.end) == (1000, 3000)  # not the whole 10 s window
     assert max(e.end for e in by_label.values()) == 11000  # other types still last until closed
+
+
+def test_font_paths_fall_back_to_matplotlib_dejavu(tmp_path: Path, monkeypatch) -> None:
+    import importlib.util
+    from types import SimpleNamespace
+
+    from proctoring_runtime import text
+
+    font = tmp_path / "matplotlib" / "mpl-data" / "fonts" / "ttf" / "DejaVuSans.ttf"
+    font.parent.mkdir(parents=True)
+    font.write_bytes(b"")
+    monkeypatch.setattr(importlib.util, "find_spec",
+                        lambda name: SimpleNamespace(origin=str(tmp_path / "matplotlib" / "__init__.py")))
+    assert text.font_paths()[-1] == str(font)
