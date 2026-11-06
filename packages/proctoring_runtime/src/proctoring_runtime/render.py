@@ -34,6 +34,9 @@ class _Event:
     counted: bool = True  # False for ``merged`` repeats: drawn, but not a distinct alert
 
 
+SHORT_LABELS = {"UNCLASSIFIED_SUSPECT": "Nghi vấn chưa rõ"}
+
+
 def _collect_events(events: list[dict[str, Any]], min_show_ms: int) -> list[_Event]:
     """One entry per alert id: opened time, level, and end = max(closed, opened + min_show_ms)."""
 
@@ -53,8 +56,13 @@ def _collect_events(events: list[dict[str, Any]], min_show_ms: int) -> list[_Eve
         seen.add(key)
         start = int(item["video_offset_ms"])
         # A merged repeat has its own id and no closed record: show it for min_show_ms from its own time.
-        end = max(closed.get(key, start), start + min_show_ms) if action == "opened" else start + min_show_ms
-        out.append(_Event(str(item.get("seat_id", "")), event_name(str(item.get("type", ""))),
+        kind = str(item.get("type", ""))
+        brief = action != "opened" or kind == "UNCLASSIFIED_SUSPECT"
+        # An unclassified window spans the whole suspect window; on video it only flags the start (the report
+        # keeps the row), so long yellow boxes do not crowd the frame.
+        end = start + min_show_ms if brief else max(closed.get(key, start), start + min_show_ms)
+        label = SHORT_LABELS.get(kind) or event_name(kind)
+        out.append(_Event(str(item.get("seat_id", "")), label,
                           item.get("level") == "red", start, end, counted=action == "opened"))
     out.sort(key=lambda e: e.start)
     return out

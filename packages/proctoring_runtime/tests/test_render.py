@@ -153,3 +153,18 @@ def test_odd_dimensions_encode_with_libx264(tmp_path: Path) -> None:
     video = make_video(tmp_path / "in.mp4", 6, 10, size=(161, 121))
     result = render_video(video, tmp_path / "out.mp4", [], [])
     assert result["encoder"] == "libx264" and result["error"] is None and result["frames"] == 6
+
+
+def test_unclassified_shown_briefly_with_short_label() -> None:
+    from proctoring_runtime.render import _collect_events
+    events = [{"action": "opened", "id": "u", "seat_id": "1", "type": "UNCLASSIFIED_SUSPECT", "level": "yellow",
+               "video_offset_ms": 1000},
+              {"action": "closed", "id": "u", "seat_id": "1", "type": "UNCLASSIFIED_SUSPECT",
+               "video_offset_ms": 11000},
+              {"action": "opened", "id": "p", "seat_id": "1", "type": "PHONE_DETECTED", "level": "red",
+               "video_offset_ms": 1000},
+              {"action": "closed", "id": "p", "seat_id": "1", "type": "PHONE_DETECTED", "video_offset_ms": 11000}]
+    by_label = {e.name: e for e in _collect_events(events, 2000)}
+    unclassified = by_label["Nghi vấn chưa rõ"]
+    assert (unclassified.start, unclassified.end) == (1000, 3000)  # not the whole 10 s window
+    assert max(e.end for e in by_label.values()) == 11000  # other types still last until closed
