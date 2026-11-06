@@ -65,3 +65,36 @@ def test_clip1_confidence_levels(split_ms: int | None, max_frames: int | None) -
     score = score_review(leveled, load_verdicts(LABELS))
     assert score["false_red"] == 0, score
     assert score["true_covered"] == 9, score
+
+
+def _process_video_module():
+    spec = importlib.util.spec_from_file_location("process_video", ROOT / "scripts" / "process_video.py")
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_clip1_process_video_passes_after_deep_tier() -> None:
+    """process_video's own rules pass (per window, one deduper, REVIEW_SKIPPED for empty windows) and levels,
+    from the clip 1 model outputs: every true picture on screen, no false one red, at most 7 false alerts."""
+
+    from proctoring_ai.multi.cctv.confidence import load_confidence
+    from proctoring_ai.multi.cctv.review_cache import load_cache
+    from proctoring_ai.multi.cctv.review_score import load_verdicts, score_review
+    from proctoring_ai.multi.cctv.suspects import SuspectWindow
+
+    module = _process_video_module()
+    windows = [SuspectWindow.from_json(json.loads(line))
+               for line in (FIXTURE / "suspects.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+    per_window = module.review_records(windows, load_cache(FIXTURE / "cache.json.gz"))
+    records = module.finish_records(per_window, [], load_confidence(ROOT / "configs/confidence.yaml"))
+    assert all("level" in r and r.get("label_vi") for r in records if r.get("action") in ("opened", "merged"))
+    score = score_review(records, load_verdicts(LABELS))
+    assert score["true_covered"] == 9, score
+    assert score["false_red"] == 0, score
+    assert score["false_opened"] <= 7, score
+    golden = json.loads((FIXTURE / "opened_golden.json").read_text())["offline"]
+    opened = sorted([r["type"], r["video_offset_ms"]] for r in records
+                    if r.get("action") == "opened" and r["type"] != "REVIEW_SKIPPED")
+    assert opened == golden  # the same events replay_review gives
