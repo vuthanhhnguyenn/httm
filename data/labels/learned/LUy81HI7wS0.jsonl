@@ -1,0 +1,202 @@
+{"video": "LUy81HI7wS0", "seat_box": [0.17205, 0.4239, 0.1235, 0.2396], "start_ms": 10000, "end_ms": 16000, "label": "NORMAL", "labeler": "claude-zoom", "note": "sheet 0"}
+{"video": "LUy81HI7wS0", "seat_box": [0.17205, 0.4239, 0.1235, 0.2396], "start_ms": 66000, "end_ms": 71000, "label": "NORMAL", "labeler": "claude-zoom", "note": "sheet 1"}
+{"video": "LUy81HI7wS0", "seat_box": [0.17205, 0.4239, 0.1235, 0.2396], "start_ms": 88000, "end_ms": 93000, "label": "NORMAL", "labeler": "claude-zoom", "note": "sheet 2"}
+{"video": "LUy81HI7wS0", "seat_box": [0.4024, 0.5318, 0.1271, 0.3334], "start_ms": 14000, "end_ms": 19000, "label": "NORMAL", "labeler": "claude-zoom", "note": "sheet 3"}
+{"video": "LUy81HI7wS0", "seat_box": [0.4024, 0.5318, 0.1271, 0.3334], "start_ms": 48000, "end_ms": 54000, "label": "UNSURE", "labeler": "claude-zoom", "note": "sheet 4"}
+{"video": "LUy81HI7wS0", "seat_box": [0.4024, 0.5318, 0.1271, 0.3334], "start_ms": 79000, "end_ms": 91000, "label": "NORMAL", "labeler": "claude-zoom", "note": "sheet 5"}
+{"video": "LUy81HI7wS0", "seat_box": [0.47985, 0.2951, 0.09985, 0.2861], "start_ms": 0, "end_ms": 5000, "label": "UNSURE", "labeler": "claude-zoom", "note": "sheet 6"}
+{"video": "LUy81HI7wS0", "seat_box": [0.47985, 0.2951, 0.09985, 0.2861], "start_ms": 11000, "end_ms": 16000, "label": "NORMAL", "labeler": "claude-zoom", "note": "sheet 7"}
+{"video": "LUy81HI7wS0", "seat_box": [0.47985, 0.2951, 0.09985, 0.2861], "start_ms": 25000, "end_ms": 31000, "label": "UNSURE", "labeler": "claude-zoom", "note": "sheet 8"}
+{"video": "LUy81HI7wS0", "seat_box": [0.47985, 0.2951, 0.09985, 0.2861], "start_ms": 51000, "end_ms": 56000, "label": "UNSURE", "labeler": "claude-zoom", "note": "sheet 9"}
+{"video": "LUy81HI7wS0", "seat_box": [0.47985, 0.2951, 0.09985, 0.2861], "start_ms": 69000, "end_ms": 76000, "label": "UNSURE", "labeler": "claude-zoom", "note": "sheet 10"}
+{"video": "LUy81HI7wS0", "seat_box": [0.1481, 0.2341, 0.07565, 0.19305], "start_ms": 8000, "end_ms": 13000, "label": "LOOK_AT_NEIGHBOR", "labeler": "claude-zoom", "note": "sheet 11"}
+{"video": "LUy81HI7wS0", "seat_box": [0.1481, 0.2341, 0.07565, 0.19305], "start_ms": 6000, "end_ms": 18000, "label": "UNSURE", "labeler": "claude-zoom", "note": "sheet 11 rest"}
+{"video": "LUy81HI7wS0", "seat_box": [0.1481, 0.2341, 0.07565, 0.19305], "start_ms": 23000, "end_ms": 28000, "label": "NORMAL", "labeler": "claude-zoom", "note": "sheet 12"}
+{"video": "LUy81HI7wS0", "seat_box": [0.1481, 0.2341, 0.07565, 0.19305], "start_ms": 84000, "end_ms": 90000, "label": "NORMAL", "labeler": "claude-zoom", "note": "sheet 13"}
+{"video": "LUy81HI7wS0", "seat_box": [0.2684, 0.0851, 0.0658, 0.1958], "start_ms": 3000, "end_ms": 6000, "label": "UNSURE", "labeler": "claude-zoom", "note": "sheet 14"}
+{"video": "LUy81HI7wS0", "seat_box": [0.2684, 0.0851, 0.0658, 0.1958], "start_ms": 9000, "end_ms": 12000, "label": "UNSURE", "labeler": "claude-zoom", "note": "sheet 15"}
+{"video": "LUy81HI7wS0", "seat_box": [0.2684, 0.0851, 0.0658, 0.1958], "start_ms": 13000, "end_ms": 23000, "label": "UNSURE", "labeler": "claude-zoom", "note": "sheet 16"}
+{"video": "LUy81HI7wS0", "seat_box": [0.2684, 0.0851, 0.0658, 0.1958], "start_ms": 40000, "end_ms": 45000, "label": "NORMAL", "labeler": "claude-zoom", "note": "sheet 17"}
+{"video": "LUy81HI7wS0", "seat_box": [0.2684, 0.0851, 0.0658, 0.1958], "start_ms": 48000, "end_ms": 57000, "label": "NORMAL", "labeler": "claude-zoom", "note": "sheet 18"}
+{"video": "LUy81HI7wS0", "seat_box": [0.2684, 0.0851, 0.0658, 0.1958], "start_ms": 66000, "end_ms": 71000, "label": "NORMAL", "labeler": "claude-zoom", "note": "sheet 19"}
+{"video": "LUy81HI7wS0", "seat_box": [0.3575, 0.1532, 0.0805, 0.2139], "start_ms": 0, "end_ms": 3000, "label": "NORMAL", "labeler": "claude-zoom", "note": "sheet 20"}
+{"video": "LUy81HI7wS0", "seat_box": [0.3575, 0.1532, 0.0805, 0.2139], "start_ms": 44000, "end_ms": 49000, "label": "NORMAL", "labeler": "claude-zoom", "note": "sheet 21"}
+{"video": "LUy81HI7wS0", "seat_box": [0.3575, 0.1532, 0.0805, 0.2139], "start_ms": 84000, "end_ms": 90000, "label": "NORMAL", "labeler": "claude-zoom", "note": "sheet 22"}
+{"video": "LUy81HI7wS0", "seat_box": [0.3575, 0.1532, 0.0805, 0.2139], "start_ms": 100000, "end_ms": 103000, "label": "NORMAL", "labeler": "claude-zoom", "note": "sheet 23"}
+{"video": "LUy81HI7wS0", "seat_box": [0.2697, 0.2667, 0.1057, 0.2287], "start_ms": 0, "end_ms": 4000, "label": "UNSURE", "labeler": "claude-zoom", "note": "sheet 24"}
+{"video": "LUy81HI7wS0", "seat_box": [0.2697, 0.2667, 0.1057, 0.2287], "start_ms": 81000, "end_ms": 91000, "label": "NORMAL", "labeler": "claude-zoom", "note": "sheet 25"}
+{"video": "LUy81HI7wS0", "seat_box": [0.0445, 0.3893, 0.0952, 0.243], "start_ms": 8000, "end_ms": 13000, "label": "NORMAL", "labeler": "claude-zoom", "note": "sheet 26"}
+{"video": "LUy81HI7wS0", "seat_box": [0.0445, 0.3893, 0.0952, 0.243], "start_ms": 40000, "end_ms": 45000, "label": "NORMAL", "labeler": "claude-zoom", "note": "sheet 27"}
+{"video": "LUy81HI7wS0", "seat_box": [0.0445, 0.3893, 0.0952, 0.243], "start_ms": 63000, "end_ms": 68000, "label": "NORMAL", "labeler": "claude-zoom", "note": "sheet 28"}
+{"video": "LUy81HI7wS0", "seat_box": [0.0445, 0.3893, 0.0952, 0.243], "start_ms": 97000, "end_ms": 102000, "label": "NORMAL", "labeler": "claude-zoom", "note": "sheet 29"}
+{"video": "LUy81HI7wS0", "seat_box": [0.5253, 0.17245, 0.08035, 0.1711], "start_ms": 0, "end_ms": 8000, "label": "UNSURE", "labeler": "claude-zoom", "note": "sheet 30"}
+{"video": "LUy81HI7wS0", "seat_box": [0.5253, 0.17245, 0.08035, 0.1711], "start_ms": 19000, "end_ms": 31000, "label": "UNSURE", "labeler": "claude-zoom", "note": "sheet 31"}
+{"video": "LUy81HI7wS0", "seat_box": [0.5253, 0.17245, 0.08035, 0.1711], "start_ms": 49000, "end_ms": 55000, "label": "UNSURE", "labeler": "claude-zoom", "note": "sheet 32"}
+{"video": "LUy81HI7wS0", "seat_box": [0.202, 0.154, 0.0741, 0.2067], "start_ms": 22000, "end_ms": 28000, "label": "NORMAL", "labeler": "claude-zoom", "note": "sheet 33"}
+{"video": "LUy81HI7wS0", "seat_box": [0.202, 0.154, 0.0741, 0.2067], "start_ms": 29000, "end_ms": 34000, "label": "NORMAL", "labeler": "claude-zoom", "note": "sheet 34"}
+{"video": "LUy81HI7wS0", "seat_box": [0.202, 0.154, 0.0741, 0.2067], "start_ms": 35000, "end_ms": 41000, "label": "NORMAL", "labeler": "claude-zoom", "note": "sheet 35"}
+{"video": "LUy81HI7wS0", "seat_box": [0.202, 0.154, 0.0741, 0.2067], "start_ms": 49000, "end_ms": 54000, "label": "NORMAL", "labeler": "claude-zoom", "note": "sheet 36"}
+{"video": "LUy81HI7wS0", "seat_box": [0.2684, 0.0851, 0.0658, 0.1958], "start_ms": 87000, "end_ms": 90000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.202, 0.154, 0.0741, 0.2067], "start_ms": 57000, "end_ms": 60000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.3575, 0.1532, 0.0805, 0.2139], "start_ms": 23000, "end_ms": 26000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.17205, 0.4239, 0.1235, 0.2396], "start_ms": 45000, "end_ms": 48000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.1481, 0.2341, 0.07565, 0.19305], "start_ms": 28000, "end_ms": 31000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.2697, 0.2667, 0.1057, 0.2287], "start_ms": 35000, "end_ms": 38000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.3575, 0.1532, 0.0805, 0.2139], "start_ms": 97000, "end_ms": 100000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.3575, 0.1532, 0.0805, 0.2139], "start_ms": 7000, "end_ms": 10000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.202, 0.154, 0.0741, 0.2067], "start_ms": 83000, "end_ms": 86000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.1481, 0.2341, 0.07565, 0.19305], "start_ms": 73000, "end_ms": 76000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.3575, 0.1532, 0.0805, 0.2139], "start_ms": 88000, "end_ms": 91000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.2684, 0.0851, 0.0658, 0.1958], "start_ms": 56000, "end_ms": 59000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.0445, 0.3893, 0.0952, 0.243], "start_ms": 20000, "end_ms": 23000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.47985, 0.2951, 0.09985, 0.2861], "start_ms": 74000, "end_ms": 77000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.2697, 0.2667, 0.1057, 0.2287], "start_ms": 28000, "end_ms": 31000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.4024, 0.5318, 0.1271, 0.3334], "start_ms": 66000, "end_ms": 69000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.1481, 0.2341, 0.07565, 0.19305], "start_ms": 51000, "end_ms": 54000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.4024, 0.5318, 0.1271, 0.3334], "start_ms": 67000, "end_ms": 70000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.202, 0.154, 0.0741, 0.2067], "start_ms": 54000, "end_ms": 57000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.4024, 0.5318, 0.1271, 0.3334], "start_ms": 6000, "end_ms": 9000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.0445, 0.3893, 0.0952, 0.243], "start_ms": 59000, "end_ms": 62000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.1481, 0.2341, 0.07565, 0.19305], "start_ms": 16000, "end_ms": 19000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.2697, 0.2667, 0.1057, 0.2287], "start_ms": 57000, "end_ms": 60000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.5253, 0.17245, 0.08035, 0.1711], "start_ms": 90000, "end_ms": 93000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.0445, 0.3893, 0.0952, 0.243], "start_ms": 39000, "end_ms": 42000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.4024, 0.5318, 0.1271, 0.3334], "start_ms": 74000, "end_ms": 77000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.1481, 0.2341, 0.07565, 0.19305], "start_ms": 80000, "end_ms": 83000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.4024, 0.5318, 0.1271, 0.3334], "start_ms": 10000, "end_ms": 13000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.202, 0.154, 0.0741, 0.2067], "start_ms": 14000, "end_ms": 17000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.17205, 0.4239, 0.1235, 0.2396], "start_ms": 82000, "end_ms": 85000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.5253, 0.17245, 0.08035, 0.1711], "start_ms": 68000, "end_ms": 71000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.2684, 0.0851, 0.0658, 0.1958], "start_ms": 5000, "end_ms": 8000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.3575, 0.1532, 0.0805, 0.2139], "start_ms": 79000, "end_ms": 82000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.2697, 0.2667, 0.1057, 0.2287], "start_ms": 93000, "end_ms": 96000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.4024, 0.5318, 0.1271, 0.3334], "start_ms": 12000, "end_ms": 15000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.2684, 0.0851, 0.0658, 0.1958], "start_ms": 45000, "end_ms": 48000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.3575, 0.1532, 0.0805, 0.2139], "start_ms": 37000, "end_ms": 40000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.1481, 0.2341, 0.07565, 0.19305], "start_ms": 90000, "end_ms": 93000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.0445, 0.3893, 0.0952, 0.243], "start_ms": 51000, "end_ms": 54000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.5253, 0.17245, 0.08035, 0.1711], "start_ms": 11000, "end_ms": 14000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.47985, 0.2951, 0.09985, 0.2861], "start_ms": 55000, "end_ms": 58000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.2697, 0.2667, 0.1057, 0.2287], "start_ms": 77000, "end_ms": 80000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.202, 0.154, 0.0741, 0.2067], "start_ms": 90000, "end_ms": 93000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.3575, 0.1532, 0.0805, 0.2139], "start_ms": 49000, "end_ms": 52000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.2697, 0.2667, 0.1057, 0.2287], "start_ms": 45000, "end_ms": 48000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.1481, 0.2341, 0.07565, 0.19305], "start_ms": 29000, "end_ms": 32000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.17205, 0.4239, 0.1235, 0.2396], "start_ms": 70000, "end_ms": 73000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.2697, 0.2667, 0.1057, 0.2287], "start_ms": 73000, "end_ms": 76000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.17205, 0.4239, 0.1235, 0.2396], "start_ms": 18000, "end_ms": 21000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.4024, 0.5318, 0.1271, 0.3334], "start_ms": 4000, "end_ms": 7000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.202, 0.154, 0.0741, 0.2067], "start_ms": 3000, "end_ms": 6000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.3575, 0.1532, 0.0805, 0.2139], "start_ms": 1000, "end_ms": 4000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.5253, 0.17245, 0.08035, 0.1711], "start_ms": 95000, "end_ms": 98000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.5253, 0.17245, 0.08035, 0.1711], "start_ms": 48000, "end_ms": 51000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.0445, 0.3893, 0.0952, 0.243], "start_ms": 73000, "end_ms": 76000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.17205, 0.4239, 0.1235, 0.2396], "start_ms": 1000, "end_ms": 4000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.0445, 0.3893, 0.0952, 0.243], "start_ms": 52000, "end_ms": 55000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.2697, 0.2667, 0.1057, 0.2287], "start_ms": 17000, "end_ms": 20000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.2684, 0.0851, 0.0658, 0.1958], "start_ms": 8000, "end_ms": 11000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.47985, 0.2951, 0.09985, 0.2861], "start_ms": 100000, "end_ms": 103000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.202, 0.154, 0.0741, 0.2067], "start_ms": 72000, "end_ms": 75000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.1481, 0.2341, 0.07565, 0.19305], "start_ms": 100000, "end_ms": 103000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.5253, 0.17245, 0.08035, 0.1711], "start_ms": 88000, "end_ms": 91000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.17205, 0.4239, 0.1235, 0.2396], "start_ms": 71000, "end_ms": 74000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.47985, 0.2951, 0.09985, 0.2861], "start_ms": 38000, "end_ms": 41000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.0445, 0.3893, 0.0952, 0.243], "start_ms": 0, "end_ms": 3000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.47985, 0.2951, 0.09985, 0.2861], "start_ms": 78000, "end_ms": 81000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.47985, 0.2951, 0.09985, 0.2861], "start_ms": 95000, "end_ms": 98000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.4024, 0.5318, 0.1271, 0.3334], "start_ms": 69000, "end_ms": 72000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.2697, 0.2667, 0.1057, 0.2287], "start_ms": 68000, "end_ms": 71000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.3575, 0.1532, 0.0805, 0.2139], "start_ms": 54000, "end_ms": 57000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.4024, 0.5318, 0.1271, 0.3334], "start_ms": 2000, "end_ms": 5000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.17205, 0.4239, 0.1235, 0.2396], "start_ms": 92000, "end_ms": 95000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.1481, 0.2341, 0.07565, 0.19305], "start_ms": 94000, "end_ms": 97000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.2697, 0.2667, 0.1057, 0.2287], "start_ms": 32000, "end_ms": 35000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.2697, 0.2667, 0.1057, 0.2287], "start_ms": 3000, "end_ms": 6000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.4024, 0.5318, 0.1271, 0.3334], "start_ms": 31000, "end_ms": 34000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.1481, 0.2341, 0.07565, 0.19305], "start_ms": 71000, "end_ms": 74000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.2697, 0.2667, 0.1057, 0.2287], "start_ms": 76000, "end_ms": 79000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.1481, 0.2341, 0.07565, 0.19305], "start_ms": 61000, "end_ms": 64000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.5253, 0.17245, 0.08035, 0.1711], "start_ms": 91000, "end_ms": 94000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.4024, 0.5318, 0.1271, 0.3334], "start_ms": 47000, "end_ms": 50000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.2697, 0.2667, 0.1057, 0.2287], "start_ms": 72000, "end_ms": 75000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.2684, 0.0851, 0.0658, 0.1958], "start_ms": 7000, "end_ms": 10000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.2697, 0.2667, 0.1057, 0.2287], "start_ms": 65000, "end_ms": 68000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.47985, 0.2951, 0.09985, 0.2861], "start_ms": 54000, "end_ms": 57000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.0445, 0.3893, 0.0952, 0.243], "start_ms": 43000, "end_ms": 46000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.202, 0.154, 0.0741, 0.2067], "start_ms": 4000, "end_ms": 7000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.0445, 0.3893, 0.0952, 0.243], "start_ms": 24000, "end_ms": 27000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.1481, 0.2341, 0.07565, 0.19305], "start_ms": 57000, "end_ms": 60000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.3575, 0.1532, 0.0805, 0.2139], "start_ms": 51000, "end_ms": 54000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.202, 0.154, 0.0741, 0.2067], "start_ms": 15000, "end_ms": 18000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.0445, 0.3893, 0.0952, 0.243], "start_ms": 33000, "end_ms": 36000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.202, 0.154, 0.0741, 0.2067], "start_ms": 100000, "end_ms": 103000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.1481, 0.2341, 0.07565, 0.19305], "start_ms": 91000, "end_ms": 94000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.0445, 0.3893, 0.0952, 0.243], "start_ms": 12000, "end_ms": 15000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.47985, 0.2951, 0.09985, 0.2861], "start_ms": 98000, "end_ms": 101000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.1481, 0.2341, 0.07565, 0.19305], "start_ms": 60000, "end_ms": 63000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.47985, 0.2951, 0.09985, 0.2861], "start_ms": 31000, "end_ms": 34000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.47985, 0.2951, 0.09985, 0.2861], "start_ms": 36000, "end_ms": 39000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.47985, 0.2951, 0.09985, 0.2861], "start_ms": 34000, "end_ms": 37000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.17205, 0.4239, 0.1235, 0.2396], "start_ms": 37000, "end_ms": 40000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.0445, 0.3893, 0.0952, 0.243], "start_ms": 53000, "end_ms": 56000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.5253, 0.17245, 0.08035, 0.1711], "start_ms": 36000, "end_ms": 39000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.202, 0.154, 0.0741, 0.2067], "start_ms": 55000, "end_ms": 58000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.3575, 0.1532, 0.0805, 0.2139], "start_ms": 83000, "end_ms": 86000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.17205, 0.4239, 0.1235, 0.2396], "start_ms": 77000, "end_ms": 80000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.4024, 0.5318, 0.1271, 0.3334], "start_ms": 0, "end_ms": 3000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.5253, 0.17245, 0.08035, 0.1711], "start_ms": 63000, "end_ms": 66000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.4024, 0.5318, 0.1271, 0.3334], "start_ms": 57000, "end_ms": 60000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.4024, 0.5318, 0.1271, 0.3334], "start_ms": 77000, "end_ms": 80000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.17205, 0.4239, 0.1235, 0.2396], "start_ms": 43000, "end_ms": 46000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.202, 0.154, 0.0741, 0.2067], "start_ms": 33000, "end_ms": 36000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.202, 0.154, 0.0741, 0.2067], "start_ms": 2000, "end_ms": 5000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.5253, 0.17245, 0.08035, 0.1711], "start_ms": 67000, "end_ms": 70000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.2684, 0.0851, 0.0658, 0.1958], "start_ms": 93000, "end_ms": 96000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.2697, 0.2667, 0.1057, 0.2287], "start_ms": 49000, "end_ms": 52000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.1481, 0.2341, 0.07565, 0.19305], "start_ms": 45000, "end_ms": 48000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.2697, 0.2667, 0.1057, 0.2287], "start_ms": 46000, "end_ms": 49000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.47985, 0.2951, 0.09985, 0.2861], "start_ms": 92000, "end_ms": 95000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.47985, 0.2951, 0.09985, 0.2861], "start_ms": 66000, "end_ms": 69000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.5253, 0.17245, 0.08035, 0.1711], "start_ms": 79000, "end_ms": 82000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.0445, 0.3893, 0.0952, 0.243], "start_ms": 26000, "end_ms": 29000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.3575, 0.1532, 0.0805, 0.2139], "start_ms": 22000, "end_ms": 25000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.0445, 0.3893, 0.0952, 0.243], "start_ms": 16000, "end_ms": 19000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.1481, 0.2341, 0.07565, 0.19305], "start_ms": 44000, "end_ms": 47000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.3575, 0.1532, 0.0805, 0.2139], "start_ms": 57000, "end_ms": 60000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.2697, 0.2667, 0.1057, 0.2287], "start_ms": 6000, "end_ms": 9000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.5253, 0.17245, 0.08035, 0.1711], "start_ms": 40000, "end_ms": 43000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.5253, 0.17245, 0.08035, 0.1711], "start_ms": 12000, "end_ms": 15000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.2684, 0.0851, 0.0658, 0.1958], "start_ms": 55000, "end_ms": 58000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.17205, 0.4239, 0.1235, 0.2396], "start_ms": 94000, "end_ms": 97000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.1481, 0.2341, 0.07565, 0.19305], "start_ms": 99000, "end_ms": 102000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.5253, 0.17245, 0.08035, 0.1711], "start_ms": 85000, "end_ms": 88000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.4024, 0.5318, 0.1271, 0.3334], "start_ms": 38000, "end_ms": 41000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.3575, 0.1532, 0.0805, 0.2139], "start_ms": 98000, "end_ms": 101000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.5253, 0.17245, 0.08035, 0.1711], "start_ms": 99000, "end_ms": 102000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.0445, 0.3893, 0.0952, 0.243], "start_ms": 78000, "end_ms": 81000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.2684, 0.0851, 0.0658, 0.1958], "start_ms": 11000, "end_ms": 14000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.47985, 0.2951, 0.09985, 0.2861], "start_ms": 37000, "end_ms": 40000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.47985, 0.2951, 0.09985, 0.2861], "start_ms": 99000, "end_ms": 102000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.17205, 0.4239, 0.1235, 0.2396], "start_ms": 20000, "end_ms": 23000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.1481, 0.2341, 0.07565, 0.19305], "start_ms": 40000, "end_ms": 43000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.4024, 0.5318, 0.1271, 0.3334], "start_ms": 39000, "end_ms": 42000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.47985, 0.2951, 0.09985, 0.2861], "start_ms": 76000, "end_ms": 79000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.2684, 0.0851, 0.0658, 0.1958], "start_ms": 73000, "end_ms": 76000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.47985, 0.2951, 0.09985, 0.2861], "start_ms": 10000, "end_ms": 13000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.202, 0.154, 0.0741, 0.2067], "start_ms": 47000, "end_ms": 50000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.3575, 0.1532, 0.0805, 0.2139], "start_ms": 29000, "end_ms": 32000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.202, 0.154, 0.0741, 0.2067], "start_ms": 82000, "end_ms": 85000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.202, 0.154, 0.0741, 0.2067], "start_ms": 66000, "end_ms": 69000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.4024, 0.5318, 0.1271, 0.3334], "start_ms": 73000, "end_ms": 76000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.47985, 0.2951, 0.09985, 0.2861], "start_ms": 75000, "end_ms": 78000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.17205, 0.4239, 0.1235, 0.2396], "start_ms": 50000, "end_ms": 53000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.0445, 0.3893, 0.0952, 0.243], "start_ms": 7000, "end_ms": 10000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.0445, 0.3893, 0.0952, 0.243], "start_ms": 83000, "end_ms": 86000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.2697, 0.2667, 0.1057, 0.2287], "start_ms": 59000, "end_ms": 62000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.202, 0.154, 0.0741, 0.2067], "start_ms": 76000, "end_ms": 79000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.202, 0.154, 0.0741, 0.2067], "start_ms": 71000, "end_ms": 74000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.17205, 0.4239, 0.1235, 0.2396], "start_ms": 31000, "end_ms": 34000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.202, 0.154, 0.0741, 0.2067], "start_ms": 5000, "end_ms": 8000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.5253, 0.17245, 0.08035, 0.1711], "start_ms": 6000, "end_ms": 9000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.202, 0.154, 0.0741, 0.2067], "start_ms": 28000, "end_ms": 31000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "LUy81HI7wS0", "seat_box": [0.0445, 0.3893, 0.0952, 0.243], "start_ms": 46000, "end_ms": 49000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
