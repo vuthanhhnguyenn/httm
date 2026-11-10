@@ -11,7 +11,7 @@ from __future__ import annotations
 import importlib
 from pathlib import Path
 
-DEVICES = ("auto", "cuda", "intel:gpu", "cpu")
+DEVICES = ("auto", "cuda", "intel:gpu", "intel:cpu", "cpu")
 
 
 def openvino_dir(model_path: Path) -> Path:
@@ -29,7 +29,7 @@ def _cuda_available() -> bool:
         return False
 
 
-def _intel_gpu_problem(model_path: Path) -> str:
+def _openvino_problem(model_path: Path) -> str:
     try:
         openvino = importlib.import_module("openvino")
     except ImportError:
@@ -38,6 +38,14 @@ def _intel_gpu_problem(model_path: Path) -> str:
         return "chưa cài gói openvino"
     if not openvino_dir(model_path).is_dir():
         return f"chưa xuất model OpenVINO (chạy scripts/download_model.py --export-openvino) cho {model_path.name}"
+    return ""
+
+
+def _intel_gpu_problem(model_path: Path) -> str:
+    problem = _openvino_problem(model_path)
+    if problem:
+        return problem
+    openvino = importlib.import_module("openvino")
     try:
         available = list(openvino.Core().available_devices)
     except Exception as exc:
@@ -55,6 +63,9 @@ def resolve_device(wanted: str, model_path: Path) -> tuple[str, Path, str]:
     if wanted == "intel:gpu":
         problem = _intel_gpu_problem(model_path)
         return ("intel:gpu", openvino_dir(model_path), "") if not problem else ("cpu", model_path, f"cpu: {problem}")
+    if wanted == "intel:cpu":  # OpenVINO on the CPU: several times faster than PyTorch there
+        problem = _openvino_problem(model_path)
+        return ("intel:cpu", openvino_dir(model_path), "") if not problem else ("cpu", model_path, f"cpu: {problem}")
     if wanted == "cuda":
         return ("cuda:0", model_path, "") if _cuda_available() else ("cpu", model_path, "cpu: không có CUDA")
     if wanted.isdigit() or wanted.startswith("cuda:"):  # an explicit card index

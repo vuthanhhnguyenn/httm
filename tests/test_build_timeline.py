@@ -71,3 +71,37 @@ def test_timing_has_ratio(tmp_path: Path) -> None:
     assert timing["seats"] == 2 and timing["ratio"] > 0
     for key in ("video_s", "fast_s", "timeline_s", "total_s", "crops", "crops_shared"):
         assert key in timing, key
+
+
+class _Counting(_Detectors):
+    def __init__(self) -> None:
+        super().__init__()
+        self.crops = 0
+
+    def pose_many(self, crops, transforms):
+        self.crops += len(crops)
+        return [[] for _ in crops]
+
+
+def test_chunks_give_the_same_timeline(tmp_path: Path) -> None:
+    out = tmp_path / "tl"
+    _module().build(_video(tmp_path / "in.mp4"), out, detectors=_Detectors(), fast_runner=_fast, chunk_seats=1)
+    assert len(load_cache(out / "timeline.json.gz")) == 2
+
+
+def test_resume_skips_seats_already_done(tmp_path: Path) -> None:
+    import gzip
+
+    module, video, out = _module(), _video(tmp_path / "in.mp4"), tmp_path / "tl"
+    module.build(video, out, detectors=_Detectors(), fast_runner=_fast)
+    cache = out / "timeline.json.gz"
+    with gzip.open(cache, "rt", encoding="utf-8") as handle:
+        first = handle.readline()
+    with gzip.open(cache, "wt", encoding="utf-8") as handle:  # seat B lost, and a line cut off mid-write
+        handle.write(first + '{"key": ["x"')
+    detectors = _Counting()
+    module.build(video, out, detectors=detectors, fast_runner=_fast, reuse_fast=True, resume=True)
+    assert len(load_cache(cache)) == 2
+    again = _Counting()
+    module.build(video, out, detectors=again, fast_runner=_fast, reuse_fast=True, resume=True)
+    assert detectors.crops > 0 and again.crops == 0
