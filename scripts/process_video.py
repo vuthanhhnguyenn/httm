@@ -32,6 +32,7 @@ from proctoring_ai.multi.cctv.confidence import (  # noqa: E402
     ConfidenceRules,
     assign_levels,
     load_confidence,
+    require_sustained,
 )
 from proctoring_ai.multi.cctv.review_cache import CacheKey, window_key  # noqa: E402
 from proctoring_ai.multi.cctv.review_dedupe import ReviewDeduper  # noqa: E402
@@ -219,6 +220,29 @@ def _deep_pass(video: Path, windows: list[SuspectWindow], detectors: Any, cache_
     return per_window, frames, stats
 
 
+def _require_pose(detectors: Any) -> None:
+    kinds: Mapping[str, str] = getattr(detectors, "kinds", {}) or {}
+    if not any(kind == "pose" for kind in kinds.values()):
+        raise ProcessError("cần model khung xương nhưng không nạp được; xem dòng trạng thái model ở trên.")
+
+
+def _all_seats_pass(video: Path, out: Path, video_s: float, detectors: Any, share_iou: float,
+                    batch: int | None, resume: bool = False) -> tuple[WindowRecords, dict[CacheKey, list[ReviewFrame]], dict[str, Any]]:
+    """Every seat through the deep tier for the whole video (``build_timeline.timeline_pass``), then the
+    hand-written rules per seat. ``resume`` (with ``--reuse-fast``, so the seats are the same) keeps the seats
+    an earlier run already wrote to ``timeline.json.gz``."""
+
+    _require_pose(detectors)
+    windows, frames, stats = _sibling("build_timeline").timeline_pass(video, out, video_s, detectors,
+                                                                      share_iou=share_iou, batch=batch,
+                                                                      resume=resume)
+    began = time.perf_counter()
+    per_window = review_records(windows, frames)
+    stats.update(windows=len(windows), rules_s=round(time.perf_counter() - began, 3), skipped=0,
+                 models=dict(getattr(detectors, "status", {}) or {}))
+    return per_window, frames, stats
+
+
 def _learned_pass(video: Path, out: Path, video_s: float, detectors: Any, learned: Any, share_iou: float,
                   batch: int | None) -> tuple[WindowRecords, dict[CacheKey, list[ReviewFrame]], dict[str, Any],
                                               list[dict[str, Any]], str | None]:
@@ -229,9 +253,7 @@ def _learned_pass(video: Path, out: Path, video_s: float, detectors: Any, learne
     from proctoring_ai.multi.cctv.features import video_features, write_csv
     from proctoring_ai.multi.cctv.learned import domain_warning
 
-    kinds: Mapping[str, str] = getattr(detectors, "kinds", {}) or {}
-    if not any(kind == "pose" for kind in kinds.values()):
-        raise ProcessError("lõi học cần model khung xương nhưng không nạp được; xem dòng trạng thái model ở trên.")
+    _require_pose(detectors)
     windows, frames, stats = _sibling("build_timeline").timeline_pass(video, out, video_s, detectors,
                                                                       share_iou=share_iou, batch=batch)
     rows = video_features(video.stem, windows, frames)
@@ -300,13 +322,17 @@ def process(video: Path, out: Path, *, quality: str = "max", device: str | None 
             device2: str | None = None, detectors: Any = None, fast_runner: FastRunner | None = None,
             batch: int | None = None, ffmpeg: str | None = "ffmpeg", half: bool = True,
             share_iou: float = SHARE_IOU, reuse_fast: bool = False, core: str = "rules",
-            model: Path | None = None, learned: Any = None) -> dict[str, Any]:
+            model: Path | None = None, learned: Any = None, all_seats: bool = False) -> dict[str, Any]:
     """Run the three passes; returns what ``timing.json`` holds. ``detectors`` / ``fast_runner`` replace the
     real models and fast tier (tests). Raises ``ProcessError`` when the video cannot be read.
 
     ``core="learned"`` (phase 3): the deep tier looks at every seat for the whole video and a trained model
     (``model``: a ``train_core.py`` folder; ``learned``: an already loaded ``LearnedCore``, for tests) decides
-    the events instead of the hand-written rules."""
+    the events instead of the hand-written rules.
+
+    ``all_seats`` (rules core): the deep tier looks at every seat for the whole video instead of only the fast
+    tier's suspect windows; a red alert must last at least 3 s and alerts under 1 s are dropped
+    (``require_sustained``)."""
 
     if quality not in QUALITY_IMGSZ:
         raise ProcessError(f"--quality chỉ nhận {', '.join(QUALITY_IMGSZ)}")
@@ -344,7 +370,7 @@ def process(video: Path, out: Path, *, quality: str = "max", device: str | None 
 
     # Pass 2: deep tier over whole windows.
     began = time.perf_counter()
-    if detectors is None and (windows or core == "learned"):
+    if detectors is None and (windows or core == "learned" or all_seats):
         detectors = build_detectors(quality, device, device2, batch, half=half)
     devices = dict(getattr(detectors, "devices", {}) or {}) if detectors is not None else {}
     reasons = dict(getattr(detectors, "reasons", {}) or {}) if detectors is not None else {}
@@ -358,6 +384,9 @@ def process(video: Path, out: Path, *, quality: str = "max", device: str | None 
     if core == "learned":
         per_window, frames, deep_stats, records, warning = _learned_pass(video, out, video_s, detectors, learned,
                                                                          share_iou, batch)
+    elif all_seats:
+        per_window, frames, deep_stats = _all_seats_pass(video, out, video_s, detectors, share_iou, batch,
+                                                          resume=reuse_fast)
     else:
         per_window, frames, deep_stats = _deep_pass(video, windows, detectors, out / "review_cache.json.gz", batch,
                                                     share_iou)
@@ -369,6 +398,8 @@ def process(video: Path, out: Path, *, quality: str = "max", device: str | None 
     began = time.perf_counter()
     if core != "learned":
         records = finish_records(per_window, fast_events, load_confidence(ROOT / "configs" / "confidence.yaml"))
+        if all_seats:
+            records = require_sustained(records)
     deep_stats["evidence"] = _evidence(video, out, per_window, records, frames)
     with (out / "events.jsonl").open("w", encoding="utf-8") as handle:
         handle.writelines(json.dumps(item, ensure_ascii=False, default=str) + "\n" for item in records)
@@ -385,7 +416,7 @@ def process(video: Path, out: Path, *, quality: str = "max", device: str | None 
             "render_s": round(render_s, 3), "report_s": round(report_s, 3), "total_s": round(total_s, 3),
             "ratio": round(ratio, 3), "over_budget": ratio > BUDGET_RATIO, "devices": devices,
             "device_reasons": reasons, "deep_stats": deep_stats, "encoder": rendered.get("encoder"),
-            "config": {"quality": quality, "half": half, "share_iou": share_iou, "core": core,
+            "config": {"quality": quality, "half": half, "share_iou": share_iou, "core": core, "all_seats": all_seats,
                        **({"model": model.name} if model is not None else {})}}
         if warning:
             timing["domain_warning"] = warning
@@ -429,13 +460,16 @@ def main(argv: list[str] | None = None, *, fast_runner: FastRunner | None = None
     parser.add_argument("--core", choices=CORES, default="rules",
                         help="learned: lõi học phase 3 (mọi ghế, model train từ nhãn); cần --model")
     parser.add_argument("--model", type=Path, default=None, help="thư mục model của train_core.py (với --core learned)")
+    parser.add_argument("--all-seats", action="store_true",
+                        help="tầng kỹ xem mọi ghế suốt video (bắt sót ít hơn, chậm gấp ~2); đỏ phải kéo dài >= 3 s")
     parser.add_argument("--reuse-fast", action="store_true",
                         help="dùng lại tầng nhanh đã có trong --out (so cấu hình tầng kỹ trên cùng đoạn nghi vấn)")
     args = parser.parse_args(argv)
     try:
         process(args.video, args.out, quality=args.quality, device=args.device, device2=args.device2,
                 fast_runner=fast_runner, batch=args.batch, half=not args.fp32, share_iou=args.share_iou,
-                reuse_fast=args.reuse_fast, core=args.core, model=args.model)
+                reuse_fast=args.reuse_fast, core=args.core, model=args.model,
+                all_seats=args.all_seats)
     except ProcessError as exc:
         print(str(exc), file=sys.stderr)
         return 1

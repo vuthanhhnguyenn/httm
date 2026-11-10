@@ -20,3 +20,21 @@
 ## Conclusion
 The learned core cannot beat the rules until there are more labelled exam videos (target from the spec:
 5+ videos with several examples of each behaviour). Keep `--core rules` as default.
+
+## Rules core over every seat (`process_video.py --all-seats`), clip 1
+The same timeline run through the hand-written rules instead of only the fast tier's suspect windows, with
+`require_sustained` (red must last >= 3.2 s, alerts under 1 s dropped except phones). Scored against
+Nguyên's 23 verdicts; "flagged" = any alert on that student within 2 s of the judged moment. The 17 alerts
+nobody judged were checked by Claude on zoomed crops.
+
+| Run | True events flagged | False pictures flagged | Red alerts |
+|---|---|---|---|
+| Kaggle 2x T4, suspect windows (2026-11-06) | 5/9 | - | - |
+| Saved suspect-window cache, rules replay | 8/9 | 7/14 | 0 (before levels) |
+| All seats, no red rule | 8/9 | 3/14 | 9 (at least 4 false: students writing) |
+| **All seats + `require_sustained`** | **8/9** | **3/14** | **2, both true** (26.4 s, 47.0 s) |
+
+The 3.2 s threshold was picked on clip 1 itself: optimistic until checked on another video. Cost: every seat
+is cropped (6821 crops for clip 1 against 2721 for suspect windows), about twice the deep-tier time; on a
+T4 roughly 5x the video length at 960 px, about 2.5x at `--quality balanced`. Outputs in project files
+`phase3/all-seats-clip1/`.

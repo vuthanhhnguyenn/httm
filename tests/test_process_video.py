@@ -243,7 +243,7 @@ def test_fp32_and_share_iou_reach_the_deep_tier(tmp_path: Path, monkeypatch: pyt
                        fast_runner=_FastRunner([_window()])) == 0
     assert built == {"half": False} and seen == {"share_iou": 1.1}
     saved = json.loads((tmp_path / "o" / "timing.json").read_text(encoding="utf-8"))
-    assert saved["config"] == {"quality": "max", "half": False, "share_iou": 1.1, "core": "rules"}
+    assert saved["config"] == {"quality": "max", "half": False, "share_iou": 1.1, "core": "rules", "all_seats": False}
 
 
 def test_reuse_fast_skips_the_fast_tier(tmp_path: Path) -> None:
@@ -332,3 +332,27 @@ def test_learned_core_report_shows_domain_warning_and_empty_note(tmp_path: Path)
     report = (out / "report.html").read_text(encoding="utf-8")
     assert "Cảnh báo" in report and "khác xa lúc train" in report
     assert "3 giây" in report
+
+
+def test_all_seats_looks_at_every_seat_without_suspects(tmp_path: Path) -> None:
+    out, detectors = tmp_path / "o", _SeeingDetectors()
+    timing = _module().process(_video(tmp_path / "in.mp4", seconds=4.0), out, detectors=detectors,
+                               fast_runner=_FastRunner([]), all_seats=True)
+    assert detectors.calls > 0 and (out / "timeline.json.gz").is_file()
+    assert timing["config"]["all_seats"] is True
+    assert (out / "report.html").is_file() and (out / "annotated.mp4").is_file()
+
+
+def test_all_seats_refuses_without_pose_model(tmp_path: Path) -> None:
+    module = _module()
+    with pytest.raises(module.ProcessError, match="khung xương"):
+        module.process(_video(tmp_path / "in.mp4"), tmp_path / "o", detectors=_Detectors(pose_ok=False),
+                       fast_runner=_FastRunner([]), all_seats=True)
+
+
+def test_all_seats_reuse_fast_keeps_the_timeline(tmp_path: Path) -> None:
+    module, video, out = _module(), _video(tmp_path / "in.mp4", seconds=4.0), tmp_path / "o"
+    module.process(video, out, detectors=_SeeingDetectors(), fast_runner=_FastRunner([]), all_seats=True)
+    again = _SeeingDetectors()
+    module.process(video, out, detectors=again, fast_runner=_FastRunner([]), all_seats=True, reuse_fast=True)
+    assert again.calls == 0
