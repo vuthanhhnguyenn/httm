@@ -1,0 +1,13 @@
+# Nguyên xem video clip 1 (bản đỏ 3,2 s) ngày 2026-11-11 và nhận xét. Toạ độ đầu lấy từ cảnh báo tương ứng
+# (hoặc ước lượng từ ảnh chụp màn hình khi hệ thống bỏ sót). verdict: true = có hành vi cần giám thị xem.
+# "should_type" là loại sự kiện đúng theo Nguyên (khác loại hệ thống báo thì ghi rõ).
+video: EPf9O7UXRoM.mp4
+verdicts:
+  - {type: LOOK_AT_LAP, t_s: 23.0, heads: [[0.851, 0.661]], verdict: false}            # ảnh 1: không nhìn đùi
+  - {type: LOOK_AT_NEIGHBOR, t_s: 24.0, heads: [[0.414, 0.467]], verdict: true}         # ảnh 2: quay sang, bị sót (toạ độ ước lượng)
+  - {type: LOOK_AT_NEIGHBOR, t_s: 27.0, heads: [[0.21, 0.402]], verdict: true}          # ảnh 3: báo chụm đầu là sai loại; đúng là nhìn sang bên cạnh
+  - {type: HEADS_TOGETHER, t_s: 44.0, heads: [[0.253, 0.269]], verdict: false}          # ảnh 4: chụm đầu sai do người ngồi trước/sau
+  - {type: HEADS_TOGETHER, t_s: 42.2, heads: [[0.487, 0.238]], verdict: false}          # ảnh 4: chụm đầu sai do người ngồi trước/sau
+  - {type: LOOK_AT_NEIGHBOR, t_s: 44.0, heads: [[0.21, 0.40]], verdict: true}           # ảnh 4: áo xanh quay sang, bị sót
+  - {type: HEADS_TOGETHER, t_s: 68.0, heads: [[0.694, 0.206]], verdict: false}          # ảnh 5: người ngồi trước/sau
+  - {type: PASSING_OBJECT, t_s: 64.0, heads: [[0.754, 0.496]], verdict: true}           # ảnh 6: hai người trao đổi bài (hệ thống báo nhầm loại là nhìn đùi)
