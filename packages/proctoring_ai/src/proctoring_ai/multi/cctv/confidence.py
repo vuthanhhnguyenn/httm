@@ -126,13 +126,13 @@ def assign_levels(review: list[dict[str, Any]], fast: list[dict[str, Any]],
     return out
 
 
-def require_sustained(records: list[dict[str, Any]], *, min_ms: int = 1000, red_ms: int = 3200,
+def require_sustained(records: list[dict[str, Any]], *, min_ms: int = 1000, red_ms: int = 2000,
                       keep: Sequence[str] = ("PHONE_DETECTED",),
                       min_ms_by_type: Mapping[str, int] | None = None) -> list[dict[str, Any]]:
     """For the all-seats deep tier, where every seat is watched and blips add up: an alert shorter than
     ``min_ms`` (or its type's entry in ``min_ms_by_type``) is dropped (with its closed and merged rows) unless its
-    type is in ``keep``; a red alert shorter than ``red_ms`` becomes yellow. Thresholds measured on clip 1
-    (2026-11-10): the true red alerts lasted 3.4 s and 9 s, the false ones 3.0 s or less."""
+    type is in ``keep``; a red alert shorter than ``red_ms`` becomes yellow. ``red_ms`` is 2 s by Nguyên's
+    decision (2026-11-11); it was 3.2 s, measured on clip 1 (true reds 3.4 s and 9 s, false ones 3.0 s or less)."""
 
     ends = {str(item.get("id")): int(item.get("video_offset_ms", 0)) for item in records
             if item.get("action") == "closed"}
@@ -148,7 +148,7 @@ def require_sustained(records: list[dict[str, Any]], *, min_ms: int = 1000, red_
                 continue
             if item.get("level") == "red" and length < red_ms:
                 item["level"] = "yellow"  # in place: evidence pictures look the records up by identity
-                item["level_reason"] = f"đỏ cần kéo dài ít nhất {red_ms // 1000} giây; chỉ {length / 1000:.1f} s"
+                item["level_reason"] = f"đỏ cần kéo dài ít nhất {red_ms / 1000:g} giây; chỉ {length / 1000:.1f} s"
         out.append(item)
     return [item for item in out if str(item.get("id")) not in drop and str(item.get("merged_into")) not in drop]
 

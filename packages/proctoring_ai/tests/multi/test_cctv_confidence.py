@@ -133,7 +133,7 @@ def _pair(kind: str, start: int, end: int, level: str = "red") -> list[dict]:
 def test_require_sustained_drops_blips_and_demotes_short_reds() -> None:
     from proctoring_ai.multi.cctv.confidence import require_sustained
 
-    records = (_pair("HEADS_TOGETHER", 0, 3000) + _pair("LOOK_AT_NEIGHBOR", 5000, 14000)
+    records = (_pair("HEADS_TOGETHER", 0, 1800) + _pair("LOOK_AT_NEIGHBOR", 5000, 7000)
                + _pair("LOOK_AT_LAP", 20000, 20400, "yellow") + _pair("PHONE_DETECTED", 30000, 30000, "yellow")
                + [{"action": "merged", "id": "m", "merged_into": "LOOK_AT_LAP20000", "video_offset_ms": 21000}])
     out = require_sustained(records)
@@ -141,7 +141,7 @@ def test_require_sustained_drops_blips_and_demotes_short_reds() -> None:
     assert opened == {"HEADS_TOGETHER": "yellow", "LOOK_AT_NEIGHBOR": "red", "PHONE_DETECTED": "yellow"}
     assert not any(r.get("id") == "LOOK_AT_LAP20000" or r.get("merged_into") == "LOOK_AT_LAP20000" for r in out)
     demoted = next(r for r in out if r["type"] == "HEADS_TOGETHER" and r["action"] == "opened")
-    assert "3 giây" in demoted["level_reason"]
+    assert "2 giây" in demoted["level_reason"] and "1.8 s" in demoted["level_reason"]
 
 
 def test_require_sustained_minimum_per_type() -> None:

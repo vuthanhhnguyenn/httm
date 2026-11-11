@@ -20,6 +20,7 @@ Cột "Thời gian luật" lấy `deep_stats.rules_s` trong `timing.json` (tần
 | Quay đầu 1,5/1/0,75 s: 1,5 s (chọn, giữ mặc định) | 7/9 | 4/5 | 2/14 | 2 | 14 | 2,8 | `ReviewRuleConfig.turn_hold_ms` (chỉ tầng kỹ; tầng nhanh giữ `CctvRuleConfig`). Lọc "ít nhất 1 s" của lượt mọi ghế nay theo loại (`require_sustained(min_ms_by_type=...)`): các loại quay đầu chỉ cần bằng giữ quay đầu khi nó < 1 s. Clip 2: 6 cảnh báo, đỏ 3. |
 | Quay đầu 1,5/1/0,75 s: 1 s (thử) | 7/9 | 4/5 | 2/14 | 2 | 16 | - | Thêm 1 LOOK_AT_NEIGHBOR và 1 TURN_AROUND, cả hai không phủ nhãn nào. Replay: 9/9 vẫn phủ, golden đổi. Clip 2: 11 cảnh báo (LOOK_AT_NEIGHBOR 7, TURN_AROUND 3, HEADS 1), đỏ 2. |
 | Quay đầu 1,5/1/0,75 s: 0,75 s (thử) | 7/9 | 4/5 | 2/14 | 2 | 16 | - | Như 1 s trên clip 1. Clip 2: 12 cảnh báo (LOOK_AT_NEIGHBOR 8), đỏ 2. Đúng/đã chấm bằng nhau ở cả ba mức, nên giữ 1,5 s (ít cảnh báo nhất, golden không đổi). |
+| Đỏ từ 2 s | 7/9 | 4/5 | 2/14 | 7 | 14 | - | `require_sustained(red_ms)` 3200 -> 2000 (Nguyên quyết). Đỏ clip 1: 2 -> 7. Trước: cả 2 đỏ (LOOK_AT_NEIGHBOR 47,0 s; HEADS 26,4 s) đều phủ nhãn đúng. Sau: 5 đỏ mới (LOOK_AT_NEIGHBOR 49,0 s; HEADS 37,6/42,2/44,0/67,6 s) không phủ nhãn nào (đúng lẫn nhầm), tức chưa được chấm; 37,6/49,0/67,6 nằm trên tờ chấm rộng, chưa có kết luận. Chỉ 2/7 đỏ nằm trên nhãn đúng. Clip 2: đỏ 3 -> 3 (cả ba LOOK_AT_NEIGHBOR đã dài >= 3,2 s), 6 cảnh báo. |
 
 Clip 2 (`LUy81HI7wS0`, tập giữ lại) đã chạy một lần để có `events.jsonl` cho Task 2: đỏ 3, vàng 3, tổng 11,7 s cho
 video 103,2 s. Chưa có nhãn nên chưa có số chấm.
