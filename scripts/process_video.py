@@ -56,8 +56,20 @@ REVIEW_FPS = 5.0
 WARMUP_MS = 6000
 SHARE_IOU = 0.7  # crops of one frame overlapping at least this much share one model run; > 1 turns it off
 SUSTAINED_MS = 1000  # all-seats: an alert shorter than this is a blip (require_sustained min_ms)
+TURN_TYPES = ("LOOK_AT_NEIGHBOR", "HEAD_TURN_LEFT", "HEAD_TURN_RIGHT", "TURN_AROUND")
 DEFAULT_DEVICE = "cuda"
 CORES = ("rules", "learned")
+
+
+
+def sustained_by_type(turn_hold_ms: int) -> dict[str, int]:
+    """Per-type ``require_sustained`` minimum: a deep-tier turn hold shorter than ``SUSTAINED_MS`` must not be
+    undone by the blip filter, so head turns then need only that hold."""
+
+    return dict.fromkeys(TURN_TYPES, min(SUSTAINED_MS, turn_hold_ms))
+
+
+SUSTAINED_MS_BY_TYPE = sustained_by_type(ReviewRuleConfig().turn_hold_ms)
 
 FastRunner = Callable[[Path, Path, Path], None]
 WindowRecords = list[tuple[SuspectWindow, list[dict[str, Any]]]]
@@ -159,7 +171,7 @@ def review_records(windows: Sequence[SuspectWindow], frames: Mapping[CacheKey, l
                 print(f"Đoạn {window_key(window)}: luật tầng kỹ lỗi ({exc}); chưa kiểm tra kỹ.", file=sys.stderr)
                 found = [skipped_record(window, "error")]
         if sustained_ms is not None:
-            found = require_sustained(found, min_ms=sustained_ms)
+            found = require_sustained(found, min_ms=sustained_ms, min_ms_by_type=SUSTAINED_MS_BY_TYPE)
         out.append((window, dedupe.admit(found)))
     return out
 
@@ -407,7 +419,7 @@ def process(video: Path, out: Path, *, quality: str = "max", device: str | None 
     if core != "learned":
         records = finish_records(per_window, fast_events, load_confidence(ROOT / "configs" / "confidence.yaml"))
         if all_seats and not keep_blips:
-            records = require_sustained(records, min_ms=SUSTAINED_MS)
+            records = require_sustained(records, min_ms=SUSTAINED_MS, min_ms_by_type=SUSTAINED_MS_BY_TYPE)
     deep_stats["evidence"] = _evidence(video, out, per_window, records, frames)
     with (out / "events.jsonl").open("w", encoding="utf-8") as handle:
         handle.writelines(json.dumps(item, ensure_ascii=False, default=str) + "\n" for item in records)

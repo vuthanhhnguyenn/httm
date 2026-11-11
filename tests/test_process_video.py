@@ -394,3 +394,24 @@ def test_dropped_blip_does_not_swallow_a_later_alert(monkeypatch: pytest.MonkeyP
     frames = {module.window_key(window): [module.ReviewFrame(1000, {SEAT_A: BOX_A}, {}, [])]}
     found = module.review_records([window], frames, sustained_ms=1000)[0][1]
     assert [(r["action"], r["id"]) for r in found] == [("opened", "lap"), ("closed", "lap")]
+
+
+def test_sustained_minimum_follows_a_short_turn_hold() -> None:
+    module = _module()
+    turns = {"LOOK_AT_NEIGHBOR", "HEAD_TURN_LEFT", "HEAD_TURN_RIGHT", "TURN_AROUND"}
+    assert module.sustained_by_type(750) == dict.fromkeys(turns, 750)
+    assert module.sustained_by_type(1500) == dict.fromkeys(turns, 1000)
+
+
+def test_short_turn_kept_when_turn_hold_is_short(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _module()
+    window = SuspectWindow(SEAT_A, None, (), 0, 70000, ("ALL_SEATS",), BOX_A, {SEAT_A: BOX_A})
+    base = {"id": "look", "type": "LOOK_AT_NEIGHBOR", "seat_id": str(SEAT_A), "stage": "review"}
+    look = [{"action": "opened", "video_offset_ms": 5000, "head": [0.3, 0.35], **base},
+            {"action": "closed", "video_offset_ms": 5800, **base}]
+    monkeypatch.setattr(module, "review_window", lambda *_args, **_kwargs: [dict(r) for r in look])
+    frames = {module.window_key(window): [module.ReviewFrame(1000, {SEAT_A: BOX_A}, {}, [])]}
+    monkeypatch.setattr(module, "SUSTAINED_MS_BY_TYPE", module.sustained_by_type(1500))
+    assert module.review_records([window], frames, sustained_ms=1000)[0][1] == []
+    monkeypatch.setattr(module, "SUSTAINED_MS_BY_TYPE", module.sustained_by_type(750))
+    assert [r["action"] for r in module.review_records([window], frames, sustained_ms=1000)[0][1]] == ["opened", "closed"]

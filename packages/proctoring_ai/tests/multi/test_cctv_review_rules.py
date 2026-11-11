@@ -721,3 +721,21 @@ def test_near_row_wrist_inside_neighbour_seat_is_passing() -> None:
 
     records = review_window(window(seats, a, 0, 1000, ("HANDS_MEET",)), frames(seats, reach, 0, 1000))
     assert "PASSING_OBJECT" in kinds(records)
+
+
+def _short_turn(cfg: ReviewRuleConfig | None = None):
+    a, b = uuid4(), uuid4()
+    seats = {a: box(0.3), b: box(0.45)}
+
+    def pose(key, ms):  # a looks at b for 1.2 s
+        return person(cx=seats[key].center[0], top=0.3, nose_dx=0.6 if key == a and 8000 <= ms < 9200 else 0.0)
+
+    return review_window(window(seats, a, 7000, 10_000, ("HEAD_AWAY",)), frames(seats, pose, 0, 10_000), cfg)
+
+
+def test_turn_shorter_than_review_turn_hold_is_ignored() -> None:
+    assert "LOOK_AT_NEIGHBOR" not in kinds(_short_turn())
+
+
+def test_review_turn_hold_reaches_head_rules() -> None:
+    assert "LOOK_AT_NEIGHBOR" in kinds(_short_turn(ReviewRuleConfig(turn_hold_ms=1000)))

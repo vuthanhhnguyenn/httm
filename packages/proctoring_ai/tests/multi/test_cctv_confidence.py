@@ -142,3 +142,12 @@ def test_require_sustained_drops_blips_and_demotes_short_reds() -> None:
     assert not any(r.get("id") == "LOOK_AT_LAP20000" or r.get("merged_into") == "LOOK_AT_LAP20000" for r in out)
     demoted = next(r for r in out if r["type"] == "HEADS_TOGETHER" and r["action"] == "opened")
     assert "3 giây" in demoted["level_reason"]
+
+
+def test_require_sustained_minimum_per_type() -> None:
+    from proctoring_ai.multi.cctv.confidence import require_sustained
+
+    records = (_pair("LOOK_AT_NEIGHBOR", 0, 800, "yellow") + _pair("TURN_AROUND", 2000, 2600, "yellow")
+               + _pair("HEADS_TOGETHER", 5000, 5800, "yellow"))
+    out = require_sustained(records, min_ms_by_type={"LOOK_AT_NEIGHBOR": 750, "TURN_AROUND": 750})
+    assert sorted(r["type"] for r in out if r["action"] == "opened") == ["LOOK_AT_NEIGHBOR"]

@@ -88,6 +88,9 @@ class ReviewRuleConfig:
     # 0.36-0.46 for real laps). The desk line alone cannot tell: the seat box ends at the desk edge, so a
     # writer's hands sit below its default line and never teach it. None: off.
     lap_forearm_drop: float | None = 0.25
+    # Hold of the head-turn rules (LOOK_AT_NEIGHBOR, HEAD_TURN_*, TURN_AROUND) in the deep tier only; the fast
+    # tier keeps CctvRuleConfig's own default.
+    turn_hold_ms: int = 1500
 
 
 @dataclass(frozen=True, slots=True)
@@ -504,7 +507,8 @@ def _transfers(frames: Sequence[ReviewFrame], a: UUID, b: UUID, seats: Mapping[U
 
 def _head_rules(window: SuspectWindow, frames: Sequence[ReviewFrame], seats: Mapping[UUID, Box],
                 cfg: ReviewRuleConfig) -> list[dict[str, Any]]:
-    rules = CctvSeatRules(config=replace(CctvRuleConfig(), home_min_ms=cfg.home_min_ms), roles=_AllCandidates())
+    rules = CctvSeatRules(config=replace(CctvRuleConfig(), home_min_ms=cfg.home_min_ms, turn_hold_ms=cfg.turn_hold_ms),
+                          roles=_AllCandidates())
     keep = {EventType.LOOK_AT_NEIGHBOR.value, EventType.HEAD_TURN_LEFT.value, EventType.HEAD_TURN_RIGHT.value,
             EventType.TURN_AROUND.value, EventType.HEADS_TOGETHER.value}
     seat_objs = [Seat(seat_id, (window.runtime_track_id or 0) if seat_id == window.seat_id else 0, box, box.center, 1.0,
