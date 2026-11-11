@@ -182,6 +182,7 @@ def review_offline(video: Path, windows: list[SuspectWindow], detectors: Any, *,
     cursors = [FrameCursor(window.start_ms - warmup_ms, _end_ms(window, duration_ms), fps) for window in windows]
     frames: list[list[ReviewFrame]] = [[] for _ in windows]
     limit = max(1, int(batch_size or getattr(detectors, "batch_size", 0) or DEFAULT_BATCH))
+    by_body = (config or ReviewRuleConfig()).assign_by_body
     models = _Models(detectors, parallel)
     queue: list[_Crop] = []
     stats: dict[str, Any] = {"crops": 0, "crops_shared": 0, "frames": 0, "decode_s": 0.0}
@@ -197,7 +198,7 @@ def review_offline(video: Path, windows: list[SuspectWindow], detectors: Any, *,
                 own = regions[index]
                 mine_objects = list(objects) if item.region == own else \
                     [obj for obj in objects if _inside(obj.bbox.center, own)]
-                frames[index].append(ReviewFrame(item.offset_ms, seats[index], assign_poses(seats[index], found),
+                frames[index].append(ReviewFrame(item.offset_ms, seats[index], assign_poses(seats[index], found, by_body=by_body),
                                                  mine_objects, item.aspect))
         queue.clear()
 

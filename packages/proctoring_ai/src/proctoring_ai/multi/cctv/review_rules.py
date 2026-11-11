@@ -25,6 +25,11 @@ from .roles import CANDIDATE
 from .rules import CctvRuleConfig, CctvSeatRules
 from .suspects import CctvSuspectConfig, DeskLine, SuspectWindow
 
+# assign_poses: a person fills a seat only with this share of their body box inside it, and not with the
+# head higher than this many seat heights above the seat's top.
+ASSIGN_MIN_OVERLAP = 0.5
+BACK_ROW_HEIGHTS = 0.1
+
 _TIMING = FrameTiming(0.0, 0.0, 0.0, {}, 0.0, 0.0, 0, 0, False)
 
 
@@ -91,6 +96,8 @@ class ReviewRuleConfig:
     # Hold of the head-turn rules (LOOK_AT_NEIGHBOR, HEAD_TURN_*, TURN_AROUND) in the deep tier only; the fast
     # tier keeps CctvRuleConfig's own default.
     turn_hold_ms: int = 1500
+    # Seats take people by body overlap and shoulders (assign_poses); False: the old nearest-head rule.
+    assign_by_body: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,8 +124,8 @@ def _person_head(item: Mapping[str, Any]) -> tuple[float, float] | None:
     return None
 
 
-def assign_poses(seats: Mapping[UUID, Box], people: Sequence[Mapping[str, Any]]) -> dict[UUID, Keypoints]:
-    """Each seat takes the person whose head is inside its box and nearest its usual head place."""
+def _assign_by_head(seats: Mapping[UUID, Box], people: Sequence[Mapping[str, Any]]) -> dict[UUID, Keypoints]:
+    """The old rule: each seat takes the person whose head is inside its box and nearest its usual head place."""
 
     out: dict[UUID, Keypoints] = {}
     taken: set[int] = set()
@@ -137,6 +144,60 @@ def assign_poses(seats: Mapping[UUID, Box], people: Sequence[Mapping[str, Any]])
         if best is not None:
             taken.add(best)
             out[seat_id] = people[best]["keypoints"]
+    return out
+
+
+def _overlap_share(person: Box, seat: Box) -> float:
+    """Share of the person's box that lies inside the seat box."""
+
+    width = min(person.x + person.width, seat.x + seat.width) - max(person.x, seat.x)
+    height = min(person.y + person.height, seat.y + seat.height) - max(person.y, seat.y)
+    area = person.width * person.height
+    return width * height / area if width > 0 and height > 0 and area > 0 else 0.0
+
+
+def _seat_score(box: Box, item: Mapping[str, Any]) -> float | None:
+    """How well a person fits a seat, or None when they cannot be its occupant."""
+
+    head = _person_head(item)
+    if head is None or head[1] < box.y - BACK_ROW_HEIGHTS * box.height:
+        return None  # a head above the seat is somebody in the row behind
+    body = Box.parse(item.get("bbox"))
+    if body is None:  # no body box: the head must be inside the seat
+        if not (box.x <= head[0] <= box.x + box.width and box.y <= head[1] <= box.y + box.height):
+            return None
+        share = 1.0
+    else:
+        share = _overlap_share(body, box)
+        if share < ASSIGN_MIN_OVERLAP:
+            return None
+    score = share - distance(head, (box.x + box.width / 2, box.y + 0.25 * box.height)) / box.height
+    if (pair := shoulders(item["keypoints"])) is not None:
+        mid_y = (pair[0][1] + pair[1][1]) / 2
+        if box.y <= mid_y <= box.y + box.height / 2:
+            score += 1.0
+    return score
+
+
+def assign_poses(seats: Mapping[UUID, Box], people: Sequence[Mapping[str, Any]], *,
+                 by_body: bool = True) -> dict[UUID, Keypoints]:
+    """Each seat gets one person and each person one seat, best score first (greedy over every pair).
+
+    The score rewards body-box overlap with the seat and shoulders in its upper half, and penalises the
+    head's distance from the usual head place, so a back-row head poking into a seat box does not take it.
+    ``by_body=False`` is the old nearest-head rule."""
+
+    if not by_body:
+        return _assign_by_head(seats, people)
+    pairs = [(score, seat_id, index) for seat_id, box in seats.items() for index, item in enumerate(people)
+             if (score := _seat_score(box, item)) is not None]
+    pairs.sort(key=lambda pair: -pair[0])
+    out: dict[UUID, Keypoints] = {}
+    taken: set[int] = set()
+    for _, seat_id, index in pairs:
+        if seat_id not in out and index not in taken:
+            out[seat_id] = people[index]["keypoints"]
+            taken.add(index)
     return out
 
 

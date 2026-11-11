@@ -65,7 +65,7 @@ def analyse_window(window: SuspectWindow, images: Sequence[tuple[int, Any]], det
         objects = detectors.objects_many(list(crops), list(transforms))
         for (offset, image), found, things in zip(images, people, objects, strict=True):
             height, width = image.shape[:2]
-            frames.append(ReviewFrame(offset, seats, assign_poses(seats, found), things, width / height))
+            frames.append(ReviewFrame(offset, seats, assign_poses(seats, found, by_body=(config or ReviewRuleConfig()).assign_by_body), things, width / height))
     earlier = [frame for frame in context if not frames or frame.offset_ms < frames[0].offset_ms]
     return review_window(window, [*earlier, *frames], config), frames
 

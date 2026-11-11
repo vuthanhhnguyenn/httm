@@ -175,6 +175,38 @@ def test_faceless_neighbour_does_not_take_the_seat() -> None:
     assert assigned[a] is own and assigned[b] is neighbour
 
 
+def _bbox(x: float, y: float, w: float, h: float) -> dict:
+    return {"x": x, "y": y, "width": w, "height": h}
+
+
+def test_back_row_head_inside_seat_does_not_take_it() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}  # x 0.25-0.35, y 0.3-0.5
+    back = {"keypoints": person(cx=0.3, top=0.3), "bbox": _bbox(0.25, 0.2, 0.1, 0.18)}  # head pokes in, body above
+    own = {"keypoints": person(cx=0.3, top=0.36), "bbox": _bbox(0.25, 0.32, 0.1, 0.18)}
+    assert assign_poses(seats, [back, own])[a] is own["keypoints"]
+    assert a not in assign_poses(seats, [back])
+    assert assign_poses(seats, [back, own], by_body=False)[a] is back["keypoints"]  # the old rule
+
+
+def test_two_overlapping_people_get_two_seats() -> None:
+    a, b = uuid4(), uuid4()
+    seats = {a: box(0.3), b: box(0.38)}  # boxes overlap by 0.02
+    left = {"keypoints": person(cx=0.3, top=0.3), "bbox": _bbox(0.23, 0.3, 0.14, 0.2)}
+    right = {"keypoints": person(cx=0.38, top=0.3), "bbox": _bbox(0.31, 0.3, 0.14, 0.2)}
+    assigned = assign_poses(seats, [right, left])
+    assert assigned[a] is left["keypoints"] and assigned[b] is right["keypoints"]
+
+
+def test_person_without_bbox_falls_back_to_head_inside() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    inside = {"keypoints": person(cx=0.3, top=0.3)}
+    outside = {"keypoints": person(cx=0.6, top=0.3)}
+    assert assign_poses(seats, [outside, inside])[a] is inside["keypoints"]
+    assert a not in assign_poses(seats, [outside])
+
+
 def test_paper_flicker_between_desks_is_not_passing() -> None:
     a, b = uuid4(), uuid4()
     seats = {a: box(0.3), b: box(0.42)}
