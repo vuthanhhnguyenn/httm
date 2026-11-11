@@ -96,8 +96,9 @@ class ReviewRuleConfig:
     # Hold of the head-turn rules (LOOK_AT_NEIGHBOR, HEAD_TURN_*, TURN_AROUND) in the deep tier only; the fast
     # tier keeps CctvRuleConfig's own default.
     turn_hold_ms: int = 1500
-    # Seats take people by body overlap and shoulders (assign_poses); False: the old nearest-head rule.
-    assign_by_body: bool = True
+    # Seats take people by body overlap and shoulders (assign_poses); False: the old head-inside-the-box rule.
+    # Off by default: measured on clip 1 with the timeline rebuilt it catches 5/9 labels against 7/9 (stop rule).
+    assign_by_body: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,11 +149,14 @@ def _assign_by_head(seats: Mapping[UUID, Box], people: Sequence[Mapping[str, Any
 
 
 def _overlap_share(person: Box, seat: Box) -> float:
-    """Share of the person's box that lies inside the seat box."""
+    """Share of the person's box that lies inside the seat box. Only the part of the person down to the seat's
+    bottom counts: seat boxes are about as tall as head and shoulders, while a seated person's box runs on
+    down behind the desk (clip 1: 0.27 against a 0.16 seat), and that must not count against them."""
 
+    bottom = min(person.y + person.height, seat.y + seat.height)
     width = min(person.x + person.width, seat.x + seat.width) - max(person.x, seat.x)
-    height = min(person.y + person.height, seat.y + seat.height) - max(person.y, seat.y)
-    area = person.width * person.height
+    height = bottom - max(person.y, seat.y)
+    area = person.width * (bottom - person.y)
     return width * height / area if width > 0 and height > 0 and area > 0 else 0.0
 
 

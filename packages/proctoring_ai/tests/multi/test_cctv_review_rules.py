@@ -221,10 +221,17 @@ def test_shoulders_in_upper_half_break_a_tie() -> None:
 def test_body_mostly_outside_the_seat_is_rejected() -> None:
     a = uuid4()
     seats = {a: box(0.3)}
-    # Head inside the seat, but only 40% of the body box lies in it.
-    mostly_out = {"keypoints": person(cx=0.3, top=0.3), "bbox": _bbox(0.25, 0.3, 0.1, 0.5)}
+    # Head inside the seat, but the body box lies mostly beside it (30% of its width inside).
+    mostly_out = {"keypoints": person(cx=0.3, top=0.3), "bbox": _bbox(0.32, 0.3, 0.1, 0.2)}
     assert a not in assign_poses(seats, [mostly_out])
     assert a in assign_poses(seats, [mostly_out], by_body=False)
+
+
+def test_body_running_down_behind_the_desk_still_takes_the_seat() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}  # y 0.3-0.5
+    tall = {"keypoints": person(cx=0.3, top=0.3), "bbox": _bbox(0.25, 0.32, 0.1, 0.5)}  # runs far below the seat
+    assert assign_poses(seats, [tall])[a] is tall["keypoints"]
 
 
 def test_paper_flicker_between_desks_is_not_passing() -> None:
