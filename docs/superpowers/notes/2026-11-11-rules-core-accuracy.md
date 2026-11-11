@@ -35,3 +35,20 @@ video 103,2 s. Chưa có nhãn nên chưa có số chấm.
 Clip 2 sau bước 1 (tập giữ lại, chưa có nhãn): 6 cảnh báo mở (TURN_AROUND 2, LOOK_AT_NEIGHBOR 3, HEADS_TOGETHER 1),
 đỏ 3, vàng 3, không có LOOK_AT_LAP; giống hệt trước bước 1. Kiểm tĩnh cổ tay: replay cho thấy dao động khung xương của
 ca lap thật (0,25 đến 0,88 bề rộng ghế) lớn hơn ca nhầm 3.0 (0,16), nên tắt mặc định (`lap_still_widths=None`).
+
+## Lõi v2 (kế hoạch 2026-11-11-rules-core-v2)
+
+Clip 1 (14 nhãn đúng, 27 nhãn sai), timeline dựng lại có lưu người thô (`clip1-v2`):
+
+| Cấu hình | Bắt được | Đúng/đã chấm | Đúng loại | Nhầm bị phủ | Đỏ | Cảnh báo |
+|---|---|---|---|---|---|---|
+| P0: phát lại gán cũ (`--reassign old`) | 10/14 | 5/13 | 4 | 9/27 | 7 | 14 |
+| P1: gán theo track, cửa sổ 20 s | 7/14 | 5/10 | 3 | 6/27 | 10 | 15 |
+| P1 cửa sổ 3 s | 6/14 | 4/9 | 3 | 6/27 | 3 | 11 |
+| P1 cửa sổ 60 s | 7/14 | 4/8 | 2 | 5/27 | 7 | 12 |
+| P1 20 s + chụm đầu cùng hàng | 4/14 | 3/7 | 2 | 4/27 | 3 | 7 |
+
+Cổng P0 đạt (phát lại cũ ra đúng kết quả clip 1 hiện tại). Cổng P1 **không đạt**: mất 3 nhãn (LAP 59,0; LAP 63,0;
+PASSING 64,0), đều là một đoạn hai người đàn ông trao bài ở ghế 52d38d: người ngồi thật có tay dưới bàn, còn cảnh báo
+cũ nằm trên người nghiêng sang. Độ đúng/đã chấm tăng (5/10) nhưng bắt được tụt quá 1, nên `--reassign tracked` chỉ là
+tuỳ chọn dòng lệnh, không bật mặc định.
