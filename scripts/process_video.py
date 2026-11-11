@@ -254,7 +254,7 @@ def _all_seats_pass(video: Path, out: Path, video_s: float, detectors: Any, shar
     _require_pose(detectors)
     windows, frames, stats = _sibling("build_timeline").timeline_pass(video, out, video_s, detectors,
                                                                       share_iou=share_iou, batch=batch,
-                                                                      resume=resume)
+                                                                      resume=resume, config=config)
     began = time.perf_counter()
     per_window = review_records(windows, frames, config=config, sustained_ms=sustained_ms)
     stats.update(windows=len(windows), rules_s=round(time.perf_counter() - began, 3), skipped=0,

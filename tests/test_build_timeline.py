@@ -105,3 +105,24 @@ def test_resume_skips_seats_already_done(tmp_path: Path) -> None:
     again = _Counting()
     module.build(video, out, detectors=again, fast_runner=_fast, reuse_fast=True, resume=True)
     assert detectors.crops > 0 and again.crops == 0
+
+
+def test_timeline_pass_forwards_the_review_config(tmp_path: Path, monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    from proctoring_ai.multi.cctv.review_rules import ReviewRuleConfig
+
+    module = _module()
+    seen: list[object] = []
+
+    def fake_review_offline(video, windows, detectors, **kwargs):
+        seen.append(kwargs.get("config"))
+        return SimpleNamespace(stats={})
+
+    monkeypatch.setattr(module, "review_offline", fake_review_offline)
+    out = tmp_path / "tl"
+    out.mkdir()
+    _fast(tmp_path / "in.mp4", out / "fast", out / "tracks.jsonl")
+    config = ReviewRuleConfig(assign_by_body=False)
+    module.timeline_pass(_video(tmp_path / "in.mp4"), out, 4.0, _Detectors(), share_iou=0.7, config=config)
+    assert seen == [config]

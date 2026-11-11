@@ -67,7 +67,7 @@ def _keep_good_lines(cache_path: Path) -> set[str]:
 
 def timeline_pass(video: Path, out: Path, video_s: float, detectors: Any, *, share_iou: float,
                   batch: int | None = None, chunk_seats: int | None = None,
-                  resume: bool = False) -> tuple[list[Any], dict[Any, list[Any]], dict[str, Any]]:
+                  resume: bool = False, config: Any = None) -> tuple[list[Any], dict[Any, list[Any]], dict[str, Any]]:
     """All-seat windows from ``out/tracks.jsonl`` through ``review_offline``; the cache goes to
     ``out/timeline.json.gz``. Returns the windows, their analysed frames and the run's stats.
 
@@ -95,7 +95,8 @@ def timeline_pass(video: Path, out: Path, video_s: float, detectors: Any, *, sha
                   end="\n" if done_frames >= total else "", flush=True)
 
         result = review_offline(video, chunk, detectors, fps=pv.REVIEW_FPS, warmup_ms=0, share_iou=share_iou,
-                                cache_path=cache_path, parallel=True, batch_size=batch, on_progress=progress)
+                                cache_path=cache_path, parallel=True, batch_size=batch, on_progress=progress,
+                                config=config)
         for key, value in result.stats.items():
             if isinstance(value, (int, float)) and not isinstance(value, bool):
                 stats[key] = round(stats.get(key, 0) + value, 3)

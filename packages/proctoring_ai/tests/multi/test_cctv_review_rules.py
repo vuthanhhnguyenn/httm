@@ -207,6 +207,26 @@ def test_person_without_bbox_falls_back_to_head_inside() -> None:
     assert a not in assign_poses(seats, [outside])
 
 
+def test_shoulders_in_upper_half_break_a_tie() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}  # y 0.3-0.5, upper half ends at 0.4
+    # Same head place and body box; the first person's shoulders sit at 0.38 (upper half), the second's at 0.44.
+    high = {"keypoints": person(cx=0.3, top=0.3), "bbox": _bbox(0.25, 0.3, 0.1, 0.2)}
+    low_kps = person(cx=0.3, top=0.3)
+    low_kps[5][1] = low_kps[6][1] = 0.44
+    low = {"keypoints": low_kps, "bbox": _bbox(0.25, 0.3, 0.1, 0.2)}
+    assert assign_poses(seats, [low, high])[a] is high["keypoints"]
+
+
+def test_body_mostly_outside_the_seat_is_rejected() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    # Head inside the seat, but only 40% of the body box lies in it.
+    mostly_out = {"keypoints": person(cx=0.3, top=0.3), "bbox": _bbox(0.25, 0.3, 0.1, 0.5)}
+    assert a not in assign_poses(seats, [mostly_out])
+    assert a in assign_poses(seats, [mostly_out], by_body=False)
+
+
 def test_paper_flicker_between_desks_is_not_passing() -> None:
     a, b = uuid4(), uuid4()
     seats = {a: box(0.3), b: box(0.42)}
