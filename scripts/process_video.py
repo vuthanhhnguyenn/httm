@@ -18,6 +18,7 @@ import shutil
 import sys
 import time
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import replace
 from functools import cache
 from pathlib import Path
 from typing import Any
@@ -68,7 +69,7 @@ def sustained_by_type(turn_hold_ms: int) -> dict[str, int]:
     return dict.fromkeys(TURN_TYPES, min(SUSTAINED_MS, turn_hold_ms))
 
 
-REVIEW_CONFIG = ReviewRuleConfig()  # the deep-tier rules ``process`` runs (all-seats pass and its blip filter)
+REVIEW_CONFIG = ReviewRuleConfig(yaw_source="hhp", yaw_threshold_deg=30.0, turn_hold_ms=800)  # the deep-tier rules ``process`` runs (all-seats pass and its blip filter)
 
 FastRunner = Callable[[Path, Path, Path], None]
 WindowRecords = list[tuple[SuspectWindow, list[dict[str, Any]]]]
@@ -510,9 +511,18 @@ def main(argv: list[str] | None = None, *, fast_runner: FastRunner | None = None
                         help="chạy thêm model khung xương trên ảnh cắt lật ngang rồi ghép (chậm hơn, khung xương ổn định hơn)")
     parser.add_argument("--reassign", choices=["old", "tracked"], default=None,
                         help="với --all-seats: gán lại người vào ghế từ người thô đã lưu trong timeline.json.gz")
+    parser.add_argument("--yaw-source", choices=["index", "hhp"], default=None,
+                        help="với --all-seats: hướng đầu từ chỉ số mũi–vai (mặc định) hoặc từ HHP-Net (độ)")
+    parser.add_argument("--yaw-threshold-deg", type=float, default=None, help="ngưỡng lệch yaw (độ) khi --yaw-source hhp")
+    parser.add_argument("--turn-hold-ms", type=int, default=None, help="giữ quay đầu tối thiểu (ms) ở tầng kỹ")
     parser.add_argument("--reuse-fast", action="store_true",
                         help="dùng lại tầng nhanh đã có trong --out (so cấu hình tầng kỹ trên cùng đoạn nghi vấn)")
     args = parser.parse_args(argv)
+    global REVIEW_CONFIG
+    changes = {key: value for key, value in (("yaw_source", args.yaw_source), ("yaw_threshold_deg", args.yaw_threshold_deg),
+                                             ("turn_hold_ms", args.turn_hold_ms)) if value is not None}
+    if changes:
+        REVIEW_CONFIG = replace(REVIEW_CONFIG, **changes)
     try:
         process(args.video, args.out, quality=args.quality, device=args.device, device2=args.device2,
                 fast_runner=fast_runner, batch=args.batch, half=not args.fp32, share_iou=args.share_iou,

@@ -97,6 +97,10 @@ class ReviewRuleConfig:
     # Hold of the head-turn rules (LOOK_AT_NEIGHBOR, HEAD_TURN_*, TURN_AROUND) in the deep tier only; the fast
     # tier keeps CctvRuleConfig's own default.
     turn_hold_ms: int = 1500
+    # Head direction source for the turn rules: ``index`` (default) or ``hhp`` (head_pose.hhp_yaw_pitch), with
+    # ``yaw_threshold_deg`` degrees away from the seat's own median.
+    yaw_source: str = "index"
+    yaw_threshold_deg: float = 25.0
     # Seats take people by body overlap and shoulders (assign_poses); False: the old head-inside-the-box rule.
     # Off by default: measured on clip 1 with the timeline rebuilt it catches 5/9 labels against 7/9 (stop rule).
     assign_by_body: bool = False
@@ -580,7 +584,8 @@ def _transfers(frames: Sequence[ReviewFrame], a: UUID, b: UUID, seats: Mapping[U
 
 def _head_rules(window: SuspectWindow, frames: Sequence[ReviewFrame], seats: Mapping[UUID, Box],
                 cfg: ReviewRuleConfig) -> list[dict[str, Any]]:
-    rules = CctvSeatRules(config=replace(CctvRuleConfig(), home_min_ms=cfg.home_min_ms, turn_hold_ms=cfg.turn_hold_ms),
+    rules = CctvSeatRules(config=replace(CctvRuleConfig(), home_min_ms=cfg.home_min_ms, turn_hold_ms=cfg.turn_hold_ms,
+                                         yaw_source=cfg.yaw_source, yaw_threshold_deg=cfg.yaw_threshold_deg),
                           roles=_AllCandidates())
     keep = {EventType.LOOK_AT_NEIGHBOR.value, EventType.HEAD_TURN_LEFT.value, EventType.HEAD_TURN_RIGHT.value,
             EventType.TURN_AROUND.value, EventType.HEADS_TOGETHER.value}

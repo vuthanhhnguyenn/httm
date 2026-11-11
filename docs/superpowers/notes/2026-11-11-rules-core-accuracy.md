@@ -55,3 +55,20 @@ cũ nằm trên người nghiêng sang. Độ đúng/đã chấm tăng (5/10) nh
 tuỳ chọn dòng lệnh, không bật mặc định.
 
 Nguyên nhân phần lớn mất nhãn của P1: cùng một người bị phát hiện hai lần (hai hộp gần trùng) thành hai track và chia phiếu của ghế; bỏ người trùng đưa bắt được từ 7 lên 8/14, vẫn thấp hơn 10/14 và nhầm bị phủ tăng (10/27), nên vẫn chỉ là tuỳ chọn.
+
+### Góc đầu HHP-Net (P2), clip 1, gán cũ (`--reassign old`)
+
+| Cấu hình | Bắt được | Đúng/đã chấm | Đúng loại | Nhầm bị phủ | Đỏ | Cảnh báo |
+|---|---|---|---|---|---|---|
+| Chỉ số mũi–vai, giữ 1,5 s (trước) | 10/14 | 5/13 | 4 | 9/27 | 7 | 14 |
+| HHP 25°, giữ 0,8 s | 11/14 | 7/14 | 5 | 8/27 | 10 | 19 |
+| **HHP 30°, giữ 0,8 s (chọn)** | 11/14 | 7/14 | 5 | 8/27 | 9 | 18 |
+| HHP 35°, giữ 0,8 s | 11/14 | 6/13 | 4 | 8/27 | 8 | 17 |
+| HHP 20°, giữ 0,8 s | 11/14 | 7/14 | 5 | 8/27 | 11 | 21 |
+| HHP 30°, giữ 1,2 s | 10/14 | 5/12 | 3 | 8/27 | 7 | 16 |
+| HHP 25°, giữ 1,5 s | 10/14 | 5/12 | 3 | 8/27 | 8 | 16 |
+
+Thêm được nhãn LOOK_AT_NEIGHBOR giây 24,0 (quay ngang bị sót trước đây), không mất nhãn nào. 25° và 30° cho cùng
+kết quả nên 30° nằm trong vùng ổn định (đã quét 20/25/30/35). Giữ lâu hơn 1,2 s làm mất lợi ích. ONNX lệch bản
+SavedModel tối đa 0,68° trên 1003 khung (ngưỡng quay 30°, nên chấp nhận). Tham số chọn trên clip 1 (tập dev) nên số
+này lạc quan; chỉ số cuối cùng phải đo trên clip 2.

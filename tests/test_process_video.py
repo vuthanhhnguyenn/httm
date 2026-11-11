@@ -440,6 +440,7 @@ def test_final_blip_filter_follows_the_review_config(tmp_path: Path, monkeypatch
             {"action": "closed", "video_offset_ms": 1800, **base}]
     monkeypatch.setattr(module, "finish_records", lambda *_args, **_kwargs: [dict(r) for r in look])
     video = _video(tmp_path / "in.mp4", seconds=4.0)
+    monkeypatch.setattr(module, "REVIEW_CONFIG", module.ReviewRuleConfig(turn_hold_ms=1500))
     module.process(video, tmp_path / "default", detectors=_SeeingDetectors(), fast_runner=_FastRunner([]),
                    all_seats=True)
     assert [e for e in _events(tmp_path / "default") if e["action"] == "opened"] == []
