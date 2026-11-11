@@ -64,8 +64,9 @@ class ReviewRuleConfig:
     # keypoints jitter by more than a hand's width.
     passing_wrist_heights: float = 0.2  # wrists closer than this x the smaller seat box height (25.5 s: 0.13-0.2)
     passing_wrist_conf: float = 0.5
-    far_row_height: float = 0.12  # seat boxes lower than this (frame heights) are far rows
-    far_row_inside_frames: int = 2  # far rows also need a wrist inside the other seat this often
+    # Hands alone (nothing seen between them) also need a wrist inside the other seat in this many frames of
+    # the meeting: two neighbours writing at the shared desk edge keep their hands close but each on their own side.
+    passing_inside_frames: int = 2
     # Two people's wrists on the very same spot is one arm the pose model gave to both, not two hands.
     same_arm_heights: float = 0.03
     # A handover takes about a second; hands side by side for longer, with nothing between them, are two
@@ -302,7 +303,8 @@ def review_window(window: SuspectWindow, frames: Sequence[ReviewFrame],
                  for run in _runs(meet, cfg.passing_hold_ms, cfg.gap_ms)]
         # (run, evidence): an object seen between the hands, hands alone, or an object changing seats.
         runs = [(run, "object_between" if between else "hands_only") for run, between in meets
-                if run[2] - run[0] <= cfg.passing_max_ms or between]
+                if between or (run[2] - run[0] <= cfg.passing_max_ms
+                               and _crossed_frames(frames, main, other, seats, run, cfg) >= cfg.passing_inside_frames)]
         if not runs:
             runs = [(run, "transfer") for run in _transfers(frames, main, other, seats, cfg, window.start_ms)]
         for (_since, opened, last), evidence in runs:
@@ -355,22 +357,19 @@ def _hands_meet(frames: Sequence[ReviewFrame], a: UUID, b: UUID, seats: Mapping[
                 cfg: ReviewRuleConfig) -> list[tuple[int, bool]]:
     height = min(seats[a].height, seats[b].height)
     reach = cfg.passing_wrist_heights * height
-    far = height < cfg.far_row_height
-    inside = sum(1 for f in frames
-                 if any(_inside(p, seats[b]) for p in _wrists(f.poses.get(a), cfg.passing_wrist_conf))
-                 or any(_inside(q, seats[a]) for q in _wrists(f.poses.get(b), cfg.passing_wrist_conf)))
-    out: list[tuple[int, bool]] = []
     same_arm = cfg.same_arm_heights * height
-    for f in frames:
-        pairs = [(p, q) for p in _wrists(f.poses.get(a), cfg.passing_wrist_conf)
-                 for q in _wrists(f.poses.get(b), cfg.passing_wrist_conf) if same_arm <= distance(p, q) < reach]
-        ok = bool(pairs)
-        if ok and far:
-            between = any(distance(obj.bbox.center, ((p[0] + q[0]) / 2, (p[1] + q[1]) / 2)) < reach
-                          for p, q in pairs for obj in f.objects)
-            ok = between or inside >= cfg.far_row_inside_frames
-        out.append((f.offset_ms, ok))
-    return out
+    return [(f.offset_ms, any(same_arm <= distance(p, q) < reach
+                              for p in _wrists(f.poses.get(a), cfg.passing_wrist_conf)
+                              for q in _wrists(f.poses.get(b), cfg.passing_wrist_conf))) for f in frames]
+
+
+def _crossed_frames(frames: Sequence[ReviewFrame], a: UUID, b: UUID, seats: Mapping[UUID, Box],
+                    run: tuple[int, int, int], cfg: ReviewRuleConfig) -> int:
+    """Frames of the run in which a wrist of one seat is inside the other seat's box."""
+
+    return sum(1 for f in frames if run[0] <= f.offset_ms <= run[2]
+               and (any(_inside(p, seats[b]) for p in _wrists(f.poses.get(a), cfg.passing_wrist_conf))
+                    or any(_inside(q, seats[a]) for q in _wrists(f.poses.get(b), cfg.passing_wrist_conf))))
 
 
 def _object_between(frames: Sequence[ReviewFrame], a: UUID, b: UUID, run: tuple[int, int, int],

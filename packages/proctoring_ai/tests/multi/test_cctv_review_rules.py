@@ -65,12 +65,12 @@ def test_phone_two_frames_only_dismissed() -> None:
 
 def test_passing_by_wrists_reports_only_the_window_seat_when_nobody_reaches_over() -> None:
     a, b = uuid4(), uuid4()
-    seats = {a: box(0.3), b: box(0.42)}
+    seats = {a: box(0.3), b: box(0.38)}  # overlapping seat boxes, midline x = 0.34
 
-    def pose(key, ms):
+    def pose(key, ms):  # each wrist is inside the other's box but short of the midline
         if key == a:
-            return wristed(person(cx=0.3, top=0.3), left=(0.36, 0.42))
-        return wristed(person(cx=0.42, top=0.3), left=(0.375, 0.42))
+            return wristed(person(cx=0.3, top=0.3), left=(0.335, 0.42))
+        return wristed(person(cx=0.38, top=0.3), left=(0.35, 0.42))
 
     records = review_window(window(seats, a, 0, 500, ("HANDS_MEET",)), frames(seats, pose, 0, 500))
     passing = [item for item in records if item["action"] == "opened" and item["type"] == "PASSING_OBJECT"]
@@ -378,7 +378,7 @@ def test_far_row_wrist_inside_other_seat_reported() -> None:
 
 def test_near_row_hands_meet_reported() -> None:
     a, b, seats = _pair(0.25)
-    pose = _meeting(a, (0.35, 0.42), (0.36, 0.42))
+    pose = _meeting(a, (0.37, 0.42), (0.38, 0.42))  # touching across the border: a's hand is in b's seat
     records = review_window(window(seats, a, 0, 1000, ("HANDS_MEET",)), frames(seats, pose, 0, 1000))
     assert "PASSING_OBJECT" in kinds(records)
 
@@ -569,7 +569,7 @@ def test_document_below_desk_needs_a_hand_on_it() -> None:
 def test_near_row_hands_a_fifth_of_a_seat_apart_reported() -> None:
     # Clip 1 at 25.5 s (true): the handover wrists stayed 0.13-0.2 seat heights apart.
     a, b, seats = _pair(0.25)
-    pose = _meeting(a, (0.35, 0.42), (0.395, 0.42))  # 0.045 = 0.18 seat heights
+    pose = _meeting(a, (0.375, 0.42), (0.42, 0.42))  # 0.045 = 0.18 seat heights, a's hand in b's seat
     records = review_window(window(seats, a, 0, 1000, ("HANDS_MEET",)), frames(seats, pose, 0, 1000))
     assert "PASSING_OBJECT" in kinds(records)
 
@@ -584,8 +584,8 @@ def test_passing_hands_only_evidence() -> None:
 
     def pose(key, ms):
         if key == a:
-            return wristed(person(cx=0.3, top=0.3), left=(0.36, 0.42))
-        return wristed(person(cx=0.42, top=0.3), left=(0.375, 0.42))
+            return wristed(person(cx=0.3, top=0.3), left=(0.33, 0.42))
+        return wristed(person(cx=0.42, top=0.3), left=(0.345, 0.42))  # b's hand is in a's seat
 
     records = review_window(window(seats, a, 0, 500, ("HANDS_MEET",)), frames(seats, pose, 0, 500))
     assert [item["evidence_kind"] for item in _opened(records, "PASSING_OBJECT")] == ["hands_only"]
@@ -701,3 +701,23 @@ def test_single_sighting_on_paper_does_not_crash() -> None:
 
 def test_phone_paper_fraction_above_one_switches_the_rule_off() -> None:
     assert len(_phone_over_paper({100, 300, 500, 700}, ReviewRuleConfig(phone_paper_fraction=1.01))) == 1
+
+
+def test_near_row_hands_meet_without_crossing_is_not_passing() -> None:
+    # Two neighbours writing at the shared desk edge: wrists close, each in their own seat.
+    a, b, seats = _pair(0.25)
+    pose = _meeting(a, (0.345, 0.42), (0.365, 0.42))
+    records = review_window(window(seats, a, 0, 1000, ("HANDS_MEET",)), frames(seats, pose, 0, 1000))
+    assert "PASSING_OBJECT" not in kinds(records)
+
+
+def test_near_row_wrist_inside_neighbour_seat_is_passing() -> None:
+    a, b, seats = _pair(0.25)
+    pose = _meeting(a, (0.345, 0.42), (0.365, 0.42))
+    crossed = _meeting(a, (0.375, 0.42), (0.385, 0.42))
+
+    def reach(key, ms):  # a's hand goes into b's seat for two frames of the meeting
+        return crossed(key, ms) if ms in (400, 500) else pose(key, ms)
+
+    records = review_window(window(seats, a, 0, 1000, ("HANDS_MEET",)), frames(seats, reach, 0, 1000))
+    assert "PASSING_OBJECT" in kinds(records)
