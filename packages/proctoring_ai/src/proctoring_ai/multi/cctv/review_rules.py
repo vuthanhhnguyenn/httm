@@ -57,7 +57,9 @@ class ReviewRuleConfig:
     object_track_iou: float = 0.3  # same object in consecutive sightings
     object_wrist_widths: float = 0.6  # "in the hand": centre this close to a wrist, in seat widths
     object_move_widths: float = 0.5  # or it travelled this far, in its own widths
-    calculator_on_paper: bool = False  # a "phone" on the seat's own paper is a calculator (set if 31.6 stays)
+    # A "phone" lying on the seat's own paper in at least this share of the frames it is seen in is a
+    # calculator, not a phone. Above 1 switches the rule off.
+    phone_paper_fraction: float = 0.6
     # Hands meeting is judged against the people's size, not the frame: far rows are tiny and their
     # keypoints jitter by more than a hand's width.
     passing_wrist_heights: float = 0.2  # wrists closer than this x the smaller seat box height (25.5 s: 0.13-0.2)
@@ -245,11 +247,11 @@ def review_window(window: SuspectWindow, frames: Sequence[ReviewFrame],
 
     box = seats[main]
     width = box.width
-    alive = _alive(frames, main, box, cfg)
+    alive = _alive(frames, main, box, cfg) - _calculators(frames, box, cfg)
 
     # (a) phone close to a wrist or below the desk, in enough frames within a second.
     hits = []
-    phone_facts: list[tuple[int, bool, float]] = []  # per qualifying frame: (offset, raised, best confidence)
+    phone_facts: list[tuple[int, bool, float, float]] = []  # per qualifying frame: (offset, raised, conf, aspect)
     for i, frame in enumerate(frames):
         wrists = _wrists(frame.poses.get(main))
         # The desk top is where the exam paper lies. A high camera sees the desk at the bottom of the seat
@@ -261,14 +263,14 @@ def review_window(window: SuspectWindow, frames: Sequence[ReviewFrame],
         found = [obj for obj in frame.objects
                  if obj.label == "phone" and id(obj) in alive and obj.confidence >= cfg.phone_min_conf
                  and _inside(obj.bbox.center, box)
-                 and not (cfg.calculator_on_paper and _on_paper(obj, frame, box))
                  and (own_head is None or obj.bbox.center[1] > own_head[1])
                  and any(distance(obj.bbox.center, p) < cfg.phone_wrist_widths * width for p in wrists)
                  and obj.bbox.center[1] < desk_top - cfg.phone_raise_heights * box.height]
         hits.append((frame.offset_ms, bool(found)))
         if found:
             raised = any(obj.bbox.center[1] < desk_top - cfg.phone_raised_heights * box.height for obj in found)
-            phone_facts.append((frame.offset_ms, raised, max(obj.confidence for obj in found)))
+            phone_facts.append((frame.offset_ms, raised, max(obj.confidence for obj in found),
+                                max(obj.bbox.height / max(obj.bbox.width, 1e-6) for obj in found)))
 
     def needed(t: int) -> int:  # with sparse frames a second may hold fewer than phone_frames frames
         return max(1, min(cfg.phone_frames, sum(1 for s, _ in hits if t - cfg.phone_span_ms < s <= t)))
@@ -277,7 +279,8 @@ def review_window(window: SuspectWindow, frames: Sequence[ReviewFrame],
     for since, opened, last in _runs(dense, 0, cfg.gap_ms):
         facts = [item for item in phone_facts if since - cfg.phone_span_ms < item[0] <= last]
         emit(EventType.PHONE_DETECTED, main, opened, last, raised=any(item[1] for item in facts),
-             confidence=max((item[2] for item in facts), default=0.0))
+             confidence=max((item[2] for item in facts), default=0.0),
+             aspect=round(max((item[3] for item in facts), default=0.0), 2))
 
     # (b) passing: wrists of two seats meet, or an object moves from one seat to the other.
     for other in seats:
@@ -401,6 +404,25 @@ def _alive(frames: Sequence[ReviewFrame], main: UUID, box: Box, cfg: ReviewRuleC
         if (held and by_hand) or moved:
             out |= {id(obj) for obj, _ in track}
     return out
+
+
+def _calculators(frames: Sequence[ReviewFrame], box: Box, cfg: ReviewRuleConfig) -> set[int]:
+    """``id()`` of the "phone" objects that lie on the seat's paper in ``phone_paper_fraction`` of the frames
+    they are seen in (linked frame to frame by IoU, as in ``_alive``): a calculator, not a phone."""
+
+    tracks: list[list[tuple[ReviewObject, bool]]] = []
+    for frame in frames:
+        for obj in frame.objects:
+            if obj.label != "phone" or not _inside(obj.bbox.center, box):
+                continue
+            item = (obj, _on_paper(obj, frame, box))
+            match = next((t for t in tracks if _iou(t[-1][0].bbox, obj.bbox) > cfg.object_track_iou), None)
+            if match is None:
+                tracks.append([item])
+            else:
+                match.append(item)
+    return {id(obj) for track in tracks if sum(on for _, on in track) / len(track) >= cfg.phone_paper_fraction
+            for obj, _ in track}
 
 
 def _on_paper(obj: ReviewObject, frame: ReviewFrame, box: Box) -> bool:

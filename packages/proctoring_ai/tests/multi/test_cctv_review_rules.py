@@ -4,7 +4,12 @@ from uuid import uuid4
 
 from cctv_kps import person
 from proctoring_ai.multi.cctv.review_detectors import ReviewObject
-from proctoring_ai.multi.cctv.review_rules import ReviewFrame, ReviewRuleConfig, assign_poses, review_window
+from proctoring_ai.multi.cctv.review_rules import (
+    ReviewFrame,
+    ReviewRuleConfig,
+    assign_poses,
+    review_window,
+)
 from proctoring_ai.multi.cctv.suspects import SuspectWindow
 from proctoring_core.observations import Box
 
@@ -612,3 +617,38 @@ def test_head_rules_use_one_event_loop_per_window(monkeypatch) -> None:
     records = review_window(window(seats, a, 7000, 10_000, ("HEAD_AWAY",)), frames(seats, pose, 0, 10_000))
     assert kinds(records) == ["LOOK_AT_NEIGHBOR"]
     assert len(made) <= 1
+
+
+def _phone_over_paper(on_paper_ms, cfg: ReviewRuleConfig | None = None, sightings=(100, 300, 500, 700, 900)):
+    """A phone held at the wrist in every sighting; the seat's paper is under it only at ``on_paper_ms``.
+    The paper is tall, so its grown top edge sits just above the phone and the desk-top gate still lets it through."""
+
+    a = uuid4()
+    seats = {a: box(0.3)}
+    pose = lambda key, ms: wristed(person(cx=0.3, top=0.3), left=(0.3, 0.337))  # noqa: E731
+    paper = ReviewObject("paper", 0.8, Box(0.25, 0.36, 0.1, 0.26), "yolo11x")
+
+    def objects(ms):
+        if ms not in sightings:
+            return []
+        return [phone(0.3, 0.337), *([paper] if ms in on_paper_ms else [])]
+
+    records = review_window(window(seats, a, 0, 1000), frames(seats, pose, 0, 1000, objects), cfg)
+    return _opened(records, "PHONE_DETECTED")
+
+
+def test_phone_on_paper_most_of_the_time_is_calculator() -> None:
+    assert _phone_over_paper({100, 300, 500, 700}) == []
+
+
+def test_phone_lifted_off_paper_is_phone() -> None:
+    (item,) = _phone_over_paper({100})
+    assert item["aspect"] == 1.0
+
+
+def test_single_sighting_on_paper_does_not_crash() -> None:
+    assert _phone_over_paper({500}, sightings=(500,)) == []
+
+
+def test_phone_paper_fraction_above_one_switches_the_rule_off() -> None:
+    assert len(_phone_over_paper({100, 300, 500, 700}, ReviewRuleConfig(phone_paper_fraction=1.01))) == 1
