@@ -249,7 +249,7 @@ def _require_pose(detectors: Any) -> None:
 def _all_seats_pass(video: Path, out: Path, video_s: float, detectors: Any, share_iou: float,
                     batch: int | None, resume: bool = False, sustained_ms: int | None = None,
                     config: ReviewRuleConfig | None = None,
-                    pose_flip: bool = False) -> tuple[WindowRecords, dict[CacheKey, list[ReviewFrame]], dict[str, Any]]:
+                    pose_flip: bool = False, reassign: str | None = None) -> tuple[WindowRecords, dict[CacheKey, list[ReviewFrame]], dict[str, Any]]:
     """Every seat through the deep tier for the whole video (``build_timeline.timeline_pass``), then the
     hand-written rules per seat. ``resume`` (with ``--reuse-fast``, so the seats are the same) keeps the seats
     an earlier run already wrote to ``timeline.json.gz``. ``sustained_ms``: see ``review_records``."""
@@ -259,6 +259,11 @@ def _all_seats_pass(video: Path, out: Path, video_s: float, detectors: Any, shar
                                                                       share_iou=share_iou, batch=batch,
                                                                       resume=resume, config=config,
                                                                       pose_flip=pose_flip)
+    if reassign:
+        from proctoring_ai.multi.cctv.reassign import assigner_named, reassign_frames
+
+        assigner = assigner_named(reassign)
+        frames = {key: reassign_frames(items, assigner) for key, items in frames.items()}
     began = time.perf_counter()
     per_window = review_records(windows, frames, config=config, sustained_ms=sustained_ms)
     stats.update(windows=len(windows), rules_s=round(time.perf_counter() - began, 3), skipped=0,
@@ -347,7 +352,7 @@ def process(video: Path, out: Path, *, quality: str = "max", device: str | None 
             batch: int | None = None, ffmpeg: str | None = "ffmpeg", half: bool = True,
             share_iou: float = SHARE_IOU, reuse_fast: bool = False, core: str = "rules",
             model: Path | None = None, learned: Any = None, all_seats: bool = False,
-            keep_blips: bool = False, pose_flip: bool = False) -> dict[str, Any]:
+            keep_blips: bool = False, pose_flip: bool = False, reassign: str | None = None) -> dict[str, Any]:
     """Run the three passes; returns what ``timing.json`` holds. ``detectors`` / ``fast_runner`` replace the
     real models and fast tier (tests). Raises ``ProcessError`` when the video cannot be read.
 
@@ -417,7 +422,7 @@ def process(video: Path, out: Path, *, quality: str = "max", device: str | None 
         per_window, frames, deep_stats = _all_seats_pass(video, out, video_s, detectors, share_iou, batch,
                                                           resume=reuse_fast,
                                                           sustained_ms=None if keep_blips else SUSTAINED_MS,
-                                                          config=REVIEW_CONFIG, pose_flip=pose_flip)
+                                                          config=REVIEW_CONFIG, pose_flip=pose_flip, reassign=reassign)
     else:
         per_window, frames, deep_stats = _deep_pass(video, windows, detectors, out / "review_cache.json.gz", batch,
                                                     share_iou, pose_flip)
@@ -499,6 +504,8 @@ def main(argv: list[str] | None = None, *, fast_runner: FastRunner | None = None
                         help="với --all-seats: giữ cả cảnh báo ngắn (không lọc theo độ dài), để chọn ô cho tờ chấm")
     parser.add_argument("--pose-flip", action="store_true",
                         help="chạy thêm model khung xương trên ảnh cắt lật ngang rồi ghép (chậm hơn, khung xương ổn định hơn)")
+    parser.add_argument("--reassign", choices=["old"], default=None,
+                        help="với --all-seats: gán lại người vào ghế từ người thô đã lưu trong timeline.json.gz")
     parser.add_argument("--reuse-fast", action="store_true",
                         help="dùng lại tầng nhanh đã có trong --out (so cấu hình tầng kỹ trên cùng đoạn nghi vấn)")
     args = parser.parse_args(argv)
@@ -506,7 +513,7 @@ def main(argv: list[str] | None = None, *, fast_runner: FastRunner | None = None
         process(args.video, args.out, quality=args.quality, device=args.device, device2=args.device2,
                 fast_runner=fast_runner, batch=args.batch, half=not args.fp32, share_iou=args.share_iou,
                 reuse_fast=args.reuse_fast, core=args.core, model=args.model,
-                all_seats=args.all_seats, keep_blips=args.keep_blips, pose_flip=args.pose_flip)
+                all_seats=args.all_seats, keep_blips=args.keep_blips, pose_flip=args.pose_flip, reassign=args.reassign)
     except ProcessError as exc:
         print(str(exc), file=sys.stderr)
         return 1

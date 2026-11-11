@@ -100,3 +100,18 @@ def test_score_review_counts_red_events():
                {**_opened("PHONE_DETECTED", 30000, (0.7, 0.4)), "level": "yellow"}]
     score = score_review(records, verdicts)
     assert score["true_red"] == 1 and score["false_red"] == 1
+
+
+def test_reassign_frames_replays_the_old_rule_and_keeps_frames_without_people():
+    from proctoring_ai.multi.cctv.reassign import assigner_named, reassign_frames
+
+    seat = uuid4()
+    box = Box(0.3, 0.3, 0.2, 0.3)
+    face = [[0.4, 0.38, 0.9]] * 5 + [[0.4, 0.5, 0.9]] * 12
+    person = {"bbox": {"x": 0.33, "y": 0.34, "width": 0.14, "height": 0.3}, "keypoints": face}
+    marker = [[0.9, 0.9, 0.9]] * 17
+    with_people = ReviewFrame(1000, {seat: box}, {}, [], 16 / 9, [person])
+    without = ReviewFrame(1100, {seat: box}, {seat: marker}, [], 16 / 9)
+    got = reassign_frames([with_people, without], assigner_named("old"))
+    assert got[0].poses[seat] == face
+    assert got[1].poses[seat] == marker
