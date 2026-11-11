@@ -34,7 +34,7 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(score, ensure_ascii=False, indent=2))
         return 0
     print(f"bắt được {score['caught']}/{score['true_total']}, đúng {score['alerts_correct']}/{score['alerts_judged']} "
-          f"đã chấm, nhầm bị phủ {score['false_flagged']}/{score['false_total']}, đỏ {score['red']}, "
+          f"đã chấm, đúng loại {score['alerts_type_correct']}, nhầm bị phủ {score['false_flagged']}/{score['false_total']}, đỏ {score['red']}, "
           f"tổng cảnh báo {score['alerts']}")
     for kind, row in sorted(score["by_type"].items()):
         print(f"  {kind:<24} {row['alerts']:>4} cảnh báo, {row['correct']:>4} đúng")

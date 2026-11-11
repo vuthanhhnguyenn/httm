@@ -53,3 +53,15 @@ def test_load_verdicts_skips_unjudged_entries(tmp_path):
                     "  - {type: LOOK_AT_LAP, t_s: 2.0, heads: [[0.5, 0.5]], verdict: null}\n"
                     "  - {type: PHONE_DETECTED, t_s: 3.0, heads: [[0.1, 0.1]], verdict: false}\n", encoding="utf-8")
     assert [(v.t_s, v.verdict) for v in load_verdicts(path)] == [(1.0, True), (3.0, False)]
+
+
+def test_type_correct_counts_alerts_whose_true_label_has_the_same_type():
+    v = [Verdict("LOOK_AT_NEIGHBOR", 10.0, ((0.5, 0.5),), True), Verdict("HEADS_TOGETHER", 30.0, ((0.2, 0.2),), False),
+         Verdict("HEADS_TOGETHER", 50.0, ((0.8, 0.8),), True)]
+    recs = [opened("a", "HEADS_TOGETHER", 10000, (0.5, 0.5)),  # right place, wrong type
+            opened("b", "HEADS_TOGETHER", 30000, (0.2, 0.2)),  # same type, but a false label
+            opened("c", "HEADS_TOGETHER", 50000, (0.8, 0.8)),
+            opened("d", "LOOK_AT_NEIGHBOR", 10000, (0.5, 0.5))]
+    s = score_alerts(recs, v)
+    assert (s["alerts_correct"], s["alerts_type_correct"]) == (3, 2)
+    assert s["by_type"]["HEADS_TOGETHER"] == {"alerts": 3, "correct": 2}  # old keys unchanged

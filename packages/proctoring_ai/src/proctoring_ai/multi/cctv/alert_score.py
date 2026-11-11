@@ -3,7 +3,8 @@
 Cảnh báo = bản ghi ``opened`` có ``head``, loại khác ``UNCLASSIFIED_SUSPECT`` / ``REVIEW_SKIPPED``. Nó phủ một
 nhãn khi đầu cách một đầu của nhãn <= ``max_head`` và thời điểm nhãn nằm trong [mở - pad_s, đóng + pad_s]
 (thiếu bản ghi ``closed`` thì đóng = mở + 3 s). Không xét loại. Đúng nếu phủ ít nhất một nhãn đúng, nhầm nếu
-chỉ phủ nhãn nhầm, chưa chấm nếu không phủ nhãn nào.
+chỉ phủ nhãn nhầm, chưa chấm nếu không phủ nhãn nào. Đúng loại (``alerts_type_correct``) nếu một nhãn đúng
+mà nó phủ có cùng loại với nó.
 """
 
 from __future__ import annotations
@@ -45,7 +46,7 @@ def score_alerts(records: Iterable[dict[str, Any]], verdicts: Sequence[Verdict],
     windows = alert_windows(records)
     alerts = [alert for alert, _, _ in windows]
     hit: set[int] = set()
-    correct = judged = 0
+    correct = judged = type_correct = 0
     by_type: dict[str, dict[str, int]] = {}
     for alert, start, end in windows:
         found = covered_labels(alert, start, end, verdicts, max_head=max_head, pad_s=pad_s)
@@ -57,12 +58,15 @@ def score_alerts(records: Iterable[dict[str, Any]], verdicts: Sequence[Verdict],
         if any(verdicts[i].verdict for i in found):
             correct += 1
             row["correct"] += 1
+        if any(verdicts[i].verdict and verdicts[i].type == alert.get("type") for i in found):
+            type_correct += 1
     return {
         "caught": sum(1 for i in hit if verdicts[i].verdict),
         "true_total": sum(1 for v in verdicts if v.verdict),
         "alerts": len(alerts),
         "alerts_correct": correct,
         "alerts_judged": judged,
+        "alerts_type_correct": type_correct,
         "false_flagged": sum(1 for i in hit if not verdicts[i].verdict),
         "false_total": sum(1 for v in verdicts if not v.verdict),
         "red": sum(1 for a in alerts if a.get("level") == "red"),
