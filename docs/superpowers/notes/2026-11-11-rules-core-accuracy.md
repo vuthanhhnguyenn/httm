@@ -15,3 +15,9 @@ Cột "Thời gian luật" lấy `deep_stats.rules_s` trong `timing.json` (tần
 
 Clip 2 (`LUy81HI7wS0`, tập giữ lại) đã chạy một lần để có `events.jsonl` cho Task 2: đỏ 3, vàng 3, tổng 11,7 s cho
 video 103,2 s. Chưa có nhãn nên chưa có số chấm.
+| Bước 1: LAP (mặc định, không kiểm tĩnh) | 8/9 | 5/6 | 3/14 | 2 | 20 | 3,0 | Khuỷu tay thấp cho cổ tay khuất; giấy nằm trên bàn chặn LAP. Trùng số gốc (replay: 9/9, golden không đổi). |
+| Bước 1: LAP, `lap_still_widths=0,5` (thử) | 8/9 | 5/6 | 3/14 | 2 | 19 | - | Bớt 1 cảnh báo nhưng replay chỉ còn 8/9 (mất 59.0 và 63.0), nên không chọn. |
+
+Clip 2 sau bước 1 (tập giữ lại, chưa có nhãn): 6 cảnh báo mở (TURN_AROUND 2, LOOK_AT_NEIGHBOR 3, HEADS_TOGETHER 1),
+đỏ 3, vàng 3, không có LOOK_AT_LAP; giống hệt trước bước 1. Kiểm tĩnh cổ tay: replay cho thấy dao động khung xương của
+ca lap thật (0,25 đến 0,88 bề rộng ghế) lớn hơn ca nhầm 3.0 (0,16), nên tắt mặc định (`lap_still_widths=None`).

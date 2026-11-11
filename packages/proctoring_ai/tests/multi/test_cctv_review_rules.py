@@ -4,7 +4,7 @@ from uuid import uuid4
 
 from cctv_kps import person
 from proctoring_ai.multi.cctv.review_detectors import ReviewObject
-from proctoring_ai.multi.cctv.review_rules import ReviewFrame, assign_poses, review_window
+from proctoring_ai.multi.cctv.review_rules import ReviewFrame, ReviewRuleConfig, assign_poses, review_window
 from proctoring_ai.multi.cctv.suspects import SuspectWindow
 from proctoring_core.observations import Box
 
@@ -405,12 +405,71 @@ def test_both_hands_below_desk_is_lap() -> None:
     assert "LOOK_AT_LAP" in kinds(records)
 
 
-def test_hands_hidden_is_lap() -> None:
+def _elbowed(pose_at, y: float = 0.55, conf: float = 0.9):
+    """Both elbows at height ``y`` (COCO 7 and 8) on top of ``pose_at``'s keypoints."""
+
+    def pose(key, ms):
+        kps = pose_at(key, ms)
+        if kps is not None:
+            kps[7] = [kps[5][0], y, conf]
+            kps[8] = [kps[6][0], y, conf]
+        return kps
+
+    return pose
+
+
+def test_hands_hidden_with_low_elbows_is_lap() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    records = review_window(window(seats, a, 0, 4000, ("HEAD_DOWN_HANDS_LOW",)),
+                            frames(seats, _elbowed(_lap(None, None)), 0, 4000))
+    assert "LOOK_AT_LAP" in kinds(records)
+
+
+def test_hands_hidden_without_elbows_is_not_lap() -> None:
     a = uuid4()
     seats = {a: box(0.3)}
     records = review_window(window(seats, a, 0, 4000, ("HEAD_DOWN_HANDS_LOW",)),
                             frames(seats, _lap(None, None), 0, 4000))
+    assert "LOOK_AT_LAP" not in kinds(records)
+
+
+def test_wrist_on_exam_paper_below_line_is_not_lap() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    paper = ReviewObject("paper", 0.6, Box(0.25, 0.33, 0.1, 0.16), "yolo11x")  # lies on the desk, centre above the line
+    records = review_window(window(seats, a, 0, 4000, ("HEAD_DOWN_HANDS_LOW",)),
+                            frames(seats, _lap((0.28, 0.5), (0.32, 0.5)), 0, 4000, lambda ms: [paper]))
+    assert "LOOK_AT_LAP" not in kinds(records)
+
+
+def test_paper_in_lap_does_not_block_lap() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    paper = ReviewObject("paper", 0.6, Box(0.25, 0.42, 0.1, 0.09), "yolo11x")  # centre below the line
+    records = review_window(window(seats, a, 0, 4000, ("HEAD_DOWN_HANDS_LOW",)),
+                            frames(seats, _lap((0.28, 0.5), (0.32, 0.5)), 0, 4000, lambda ms: [paper]))
     assert "LOOK_AT_LAP" in kinds(records)
+
+
+def test_wrist_moving_along_the_line_is_not_lap() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+
+    def pose(_key, ms):
+        return wristed(person(cx=0.3, top=0.3, bent=True), left=(0.26 + 0.08 * ms / 4000, 0.55), right=(0.32, 0.55))
+
+    records = review_window(window(seats, a, 0, 4000, ("HEAD_DOWN_HANDS_LOW",)), frames(seats, pose, 0, 4000),
+                            ReviewRuleConfig(lap_still_widths=0.15))
+    assert "LOOK_AT_LAP" not in kinds(records)
+
+
+def test_empty_seat_gives_no_lap() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    records = review_window(window(seats, a, 0, 4000, ("HEAD_DOWN_HANDS_LOW",)),
+                            frames(seats, lambda key, ms: None, 0, 4000))
+    assert "LOOK_AT_LAP" not in kinds(records)
 
 
 def test_passing_ignores_one_arm_given_to_both_people() -> None:

@@ -19,7 +19,7 @@ from proctoring_core.types import EventType
 from ..pipeline import FrameTiming, MultiFrameResult
 from ..tracker import Seat, TrackerUpdate
 from .head import Keypoints, distance, head_lift, head_point, point, shoulders
-from .pose_detector import LEFT_WRIST, RIGHT_WRIST
+from .pose_detector import LEFT_ELBOW, LEFT_WRIST, RIGHT_ELBOW, RIGHT_WRIST
 from .review_detectors import ReviewObject, _iou
 from .roles import CANDIDATE
 from .rules import CctvRuleConfig, CctvSeatRules
@@ -69,9 +69,17 @@ class ReviewRuleConfig:
     # A handover takes about a second; hands side by side for longer, with nothing between them, are two
     # neighbours resting on a shared desk edge.
     passing_max_ms: int = 3000
-    # LOOK_AT_LAP: no hand of the candidate on the desk. A writer always has one hand on the paper; a hand
-    # the camera cannot see is under the desk, so hidden hands count as low (phase 1 lap rule needed one seen).
-    lap_needs_both_wrists: bool = True
+    # LOOK_AT_LAP: no hand of the candidate on the desk. A writer always has one hand on the paper, but a
+    # writer's hand is often hidden by the arm or the desk too, so a hidden wrist counts as under the desk
+    # only when the same-side elbow is seen below the desk line.
+    lap_hidden_needs_low_elbow: bool = True
+    # A run is kept only if every visible wrist moved at most this many seat widths (a hand sliding along the
+    # desk edge is writing, not resting in the lap).
+    # None: off (pose jitter of a real lap is as large as a writer's slide).
+    lap_still_widths: float | None = None
+    # A wrist inside paper or a book lying on the desk (box centre above the desk line) is writing, even when
+    # the wrist sits below the line; paper in the lap does not block.
+    lap_paper_blocks: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,6 +135,32 @@ def _inside(p: tuple[float, float], box: Box) -> bool:
 
 def _wrists(kps: Keypoints | None, min_conf: float = 0.4) -> list[tuple[float, float]]:
     return [p for index in (LEFT_WRIST, RIGHT_WRIST) if (p := point(kps, index, min_conf))]
+
+
+def _hands_under_desk(kps: Keypoints, line: float, frame: ReviewFrame, box: Box, cfg: ReviewRuleConfig) -> bool:
+    """No wrist above the desk line or on the seat's paper; a wrist the camera lost needs its elbow below it."""
+
+    for wrist_index, elbow_index in ((LEFT_WRIST, LEFT_ELBOW), (RIGHT_WRIST, RIGHT_ELBOW)):
+        wrist = point(kps, wrist_index, 0.4)
+        if wrist is not None:
+            if wrist[1] <= line or (cfg.lap_paper_blocks and _point_on_paper(wrist, frame, box, line)):
+                return False
+        elif cfg.lap_hidden_needs_low_elbow:
+            elbow = point(kps, elbow_index, 0.4)
+            if elbow is None or elbow[1] <= line:
+                return False
+    return True
+
+
+def _lap_still(frames: Sequence[ReviewFrame], seat: UUID, since: int, last: int, limit: float) -> bool:
+    """Every wrist seen in [since, last] stayed within ``limit`` of its own other positions."""
+
+    for index in (LEFT_WRIST, RIGHT_WRIST):
+        seen = [p for frame in frames if since <= frame.offset_ms <= last
+                and (p := point(frame.poses.get(seat), index, 0.4)) is not None]
+        if any(distance(a, b) > limit for n, a in enumerate(seen) for b in seen[n + 1:]):
+            return False
+    return True
 
 
 def _runs(samples: Sequence[tuple[int, bool]], hold_ms: int, gap_ms: int) -> list[tuple[int, int, int]]:
@@ -279,14 +313,15 @@ def review_window(window: SuspectWindow, frames: Sequence[ReviewFrame],
         document.append((frame.offset_ms, ok))
     flag(EventType.DOCUMENT_DETECTED, main, document, cfg.document_hold_ms)
 
-    # (d) head down with the visible hands below the desk for a long time.
+    # (d) head down with the hands under the desk for a long time.
     lap = []
     for i, frame in enumerate(frames):
-        wrists = _wrists(frame.poses.get(main))
-        low = all(p[1] > lines[main][i] for p in wrists)
-        seen = bool(wrists) or cfg.lap_needs_both_wrists
-        lap.append((frame.offset_ms, down[main][i] and seen and low))
-    flag(EventType.LOOK_AT_LAP, main, lap, cfg.lap_hold_ms)
+        kps = frame.poses.get(main)
+        lap.append((frame.offset_ms, down[main][i] and kps is not None and _hands_under_desk(
+            kps, lines[main][i], frame, box, cfg)))
+    for _since, opened, last in _runs(lap, cfg.lap_hold_ms, cfg.gap_ms):
+        if cfg.lap_still_widths is None or _lap_still(frames, main, _since, last, width * cfg.lap_still_widths):
+            emit(EventType.LOOK_AT_LAP, main, opened, last)
 
     # (c) head turns: the fast tier's own rules on the big model's keypoints.
     records += _head_rules(window, frames, seats, cfg)
@@ -369,12 +404,18 @@ def _alive(frames: Sequence[ReviewFrame], main: UUID, box: Box, cfg: ReviewRuleC
 
 
 def _on_paper(obj: ReviewObject, frame: ReviewFrame, box: Box) -> bool:
+    return _point_on_paper(obj.bbox.center, frame, box)
+
+
+def _point_on_paper(p: tuple[float, float], frame: ReviewFrame, box: Box, line: float | None = None) -> bool:
     for paper in frame.objects:
         if paper.label not in ("book", "paper") or not _inside(paper.bbox.center, box):
             continue
+        if line is not None and paper.bbox.center[1] > line:
+            continue
         b = paper.bbox
         grown = Box(b.x - 0.1 * b.width, b.y - 0.1 * b.height, 1.2 * b.width, 1.2 * b.height)
-        if _inside(obj.bbox.center, grown):
+        if _inside(p, grown):
             return True
     return False
 
@@ -450,7 +491,7 @@ def _head_rules_loop(window: SuspectWindow, frames: Sequence[ReviewFrame], rules
     for frame in frames:
         update = TrackerUpdate(seat_objs, [], [], [], 0, 0)
         result = MultiFrameResult(frame.offset_ms // 100, frame.offset_ms, update, {}, {}, {}, [], _TIMING,
-                                  {key: list(map(list, kps)) for key, kps in frame.poses.items()})
+                                  {key: list(map(list, kps)) for key, kps in frame.poses.items() if kps is not None})
         size = (round(1000 * frame.frame_aspect), 1000)
         if frame.offset_ms >= window.start_ms and warm:
             for key, item in warm.items():  # still open when the window starts
