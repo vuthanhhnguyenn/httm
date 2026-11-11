@@ -209,7 +209,9 @@ def review_offline(video: Path, windows: list[SuspectWindow], detectors: Any, *,
                 mine_objects = list(objects) if item.region == own else \
                     [obj for obj in objects if _inside(obj.bbox.center, own)]
                 frames[index].append(ReviewFrame(item.offset_ms, seats[index], assign_poses(seats[index], found, by_body=by_body),
-                                                 mine_objects, item.aspect))
+                                                 mine_objects, item.aspect,
+                                                 [person for person in found if (body := Box.parse(person.get("bbox")))
+                                                  is not None and _inside(body.center, own)]))
         queue.clear()
 
     pending = [index for index, cursor in enumerate(cursors) if not cursor.done]

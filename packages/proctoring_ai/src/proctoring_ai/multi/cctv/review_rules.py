@@ -113,6 +113,9 @@ class ReviewFrame:
     poses: Mapping[UUID, Keypoints]
     objects: Sequence[ReviewObject]
     frame_aspect: float = 16 / 9
+    # Every person the pose model found in the crop (``bbox`` and ``keypoints``), kept so seat assignment can be
+    # replayed without running the models again. Empty in caches written before this field existed.
+    people: Sequence[Mapping[str, Any]] = ()
 
 
 def _person_head(item: Mapping[str, Any]) -> tuple[float, float] | None:
