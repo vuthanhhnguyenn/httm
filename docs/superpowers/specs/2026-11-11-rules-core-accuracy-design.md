@@ -140,7 +140,7 @@ trước khi sang bước sau.
 
 ## 5. Kiểm thử
 
-- Mỗi luật mới có test đơn vị với khung giả trong `tests/test_cctv_review_rules.py`, theo kiểu test hiện
+- Mỗi luật mới có test đơn vị với khung giả trong `tests/test_multi_replay.py` (nơi đang test `review_window`), theo kiểu test hiện
   có: một ca bị bắt, một ca người viết không bị bắt.
 - `assign_poses`: ca đầu hàng sau lọt vào ô ghế.
 - TTA: ghép điểm lật đúng cặp trái-phải; ảnh đối xứng cho ra cùng điểm.
