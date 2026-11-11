@@ -68,3 +68,10 @@ def test_assign_tracked_without_people_keeps_frames():
     seat = uuid4()
     frame = ReviewFrame(0, {seat: Box(0.3, 0.3, 0.2, 0.3)}, {seat: [[0.1, 0.1, 0.9]] * 17}, [], 16 / 9)
     assert assign_tracked([frame])[0].poses == frame.poses
+
+
+def test_distinct_people_drops_a_duplicate_detection():
+    from proctoring_ai.multi.cctv.person_tracks import distinct_people
+
+    a, b, other = _person(0.1), _person(0.101), _person(0.5)
+    assert distinct_people([a, b, other]) == [a, other]

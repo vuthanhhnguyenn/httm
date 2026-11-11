@@ -92,6 +92,21 @@ def link_people(frames_people: Sequence[Sequence[Mapping[str, Any]]], offsets_ms
     return out
 
 
+def distinct_people(people: Sequence[Mapping[str, Any]], *, max_iou: float = 0.6) -> list[Mapping[str, Any]]:
+    """The same person found twice (a duplicate detection) once: of two boxes overlapping more than ``max_iou`` the
+    first stays. Duplicates would otherwise become two tracks and split a seat's votes."""
+
+    kept: list[Mapping[str, Any]] = []
+    boxes: list[Box | None] = []
+    for person in people:
+        box = Box.parse(person.get("bbox"))
+        if box is not None and any(other is not None and _iou(box, other) > max_iou for other in boxes):
+            continue
+        kept.append(person)
+        boxes.append(box)
+    return kept
+
+
 def assign_tracked(frames: Sequence[ReviewFrame], *, window_ms: int = 20000) -> list[ReviewFrame]:
     """Seat owners from tracks. Each frame's nearest-head choice (the old rule) is a vote for a track; a seat's owner
     at time t is the track with most votes within ``window_ms`` around t. The seat's pose in a frame is the owner's
@@ -100,7 +115,7 @@ def assign_tracked(frames: Sequence[ReviewFrame], *, window_ms: int = 20000) -> 
 
     if not any(frame.people for frame in frames):
         return list(frames)
-    ordered = sorted(frames, key=lambda frame: frame.offset_ms)
+    ordered = [replace(frame, people=distinct_people(frame.people)) for frame in sorted(frames, key=lambda f: f.offset_ms)]
     ids = link_people([frame.people for frame in ordered], [frame.offset_ms for frame in ordered])
     votes: list[dict[UUID, int]] = []
     for frame, track_ids in zip(ordered, ids, strict=True):

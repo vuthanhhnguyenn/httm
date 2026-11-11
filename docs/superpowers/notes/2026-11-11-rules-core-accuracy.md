@@ -44,6 +44,7 @@ Clip 1 (14 nhãn đúng, 27 nhãn sai), timeline dựng lại có lưu người 
 |---|---|---|---|---|---|---|
 | P0: phát lại gán cũ (`--reassign old`) | 10/14 | 5/13 | 4 | 9/27 | 7 | 14 |
 | P1: gán theo track, cửa sổ 20 s | 7/14 | 5/10 | 3 | 6/27 | 10 | 15 |
+| P1 20 s + bỏ người trùng (`distinct_people`) | 8/14 | 5/13 | 3 | 10/27 | 6 | 17 |
 | P1 cửa sổ 3 s | 6/14 | 4/9 | 3 | 6/27 | 3 | 11 |
 | P1 cửa sổ 60 s | 7/14 | 4/8 | 2 | 5/27 | 7 | 12 |
 | P1 20 s + chụm đầu cùng hàng | 4/14 | 3/7 | 2 | 4/27 | 3 | 7 |
@@ -52,3 +53,5 @@ Cổng P0 đạt (phát lại cũ ra đúng kết quả clip 1 hiện tại). C�
 PASSING 64,0), đều là một đoạn hai người đàn ông trao bài ở ghế 52d38d: người ngồi thật có tay dưới bàn, còn cảnh báo
 cũ nằm trên người nghiêng sang. Độ đúng/đã chấm tăng (5/10) nhưng bắt được tụt quá 1, nên `--reassign tracked` chỉ là
 tuỳ chọn dòng lệnh, không bật mặc định.
+
+Nguyên nhân phần lớn mất nhãn của P1: cùng một người bị phát hiện hai lần (hai hộp gần trùng) thành hai track và chia phiếu của ghế; bỏ người trùng đưa bắt được từ 7 lên 8/14, vẫn thấp hơn 10/14 và nhầm bị phủ tăng (10/27), nên vẫn chỉ là tuỳ chọn.
