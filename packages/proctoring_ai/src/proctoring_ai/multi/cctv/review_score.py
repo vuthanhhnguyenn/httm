@@ -38,7 +38,8 @@ class Verdict:
 def load_verdicts(path: Path) -> list[Verdict]:
     payload = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     return [Verdict(str(item["type"]), float(item["t_s"]), tuple((float(h[0]), float(h[1])) for h in item["heads"]),
-                    bool(item["verdict"])) for item in payload.get("verdicts", [])]
+                    bool(item["verdict"])) for item in payload.get("verdicts", [])
+            if item.get("verdict") is not None]  # mục chưa chấm (verdict: null) bỏ qua
 
 
 def _matches(event: dict[str, Any], verdict: Verdict, max_dt_s: float, max_head: float,

@@ -42,3 +42,14 @@ def test_ignored_types_and_missing_head_are_not_alerts_and_red_and_by_type_count
     s = score_alerts(recs, v)
     assert (s["alerts"], s["red"], s["caught"]) == (1, 1, 1)
     assert s["by_type"] == {"LOOK_AT_LAP": {"alerts": 1, "correct": 1}}
+
+
+def test_load_verdicts_skips_unjudged_entries(tmp_path):
+    from proctoring_ai.multi.cctv.review_score import load_verdicts
+
+    path = tmp_path / "judging.yaml"
+    path.write_text("verdicts:\n"
+                    "  - {type: LOOK_AT_LAP, t_s: 1.0, heads: [[0.5, 0.5]], verdict: true}\n"
+                    "  - {type: LOOK_AT_LAP, t_s: 2.0, heads: [[0.5, 0.5]], verdict: null}\n"
+                    "  - {type: PHONE_DETECTED, t_s: 3.0, heads: [[0.1, 0.1]], verdict: false}\n", encoding="utf-8")
+    assert [(v.t_s, v.verdict) for v in load_verdicts(path)] == [(1.0, True), (3.0, False)]

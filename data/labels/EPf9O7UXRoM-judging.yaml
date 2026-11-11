@@ -1,0 +1,13 @@
+# Tờ chấm EPf9O7UXRoM.mp4: ô số N là mục thứ N; verdict true = cảnh báo đúng, false = nhầm, null = chưa chấm.
+video: EPf9O7UXRoM.mp4
+verdicts:
+  - {"type": "LOOK_AT_LAP", "t_s": 3.0, "heads": [[0.431, 0.509]], "verdict": null}  # ô 1
+  - {"type": "LOOK_AT_LAP", "t_s": 3.6, "heads": [[0.779, 0.566]], "verdict": null}  # ô 2
+  - {"type": "LOOK_AT_LAP", "t_s": 4.2, "heads": [[0.753, 0.42]], "verdict": null}  # ô 3
+  - {"type": "PASSING_OBJECT", "t_s": 18.3, "heads": [[0.721, 0.293]], "verdict": null}  # ô 4
+  - {"type": "LOOK_AT_LAP", "t_s": 29.2, "heads": [[0.676, 0.17]], "verdict": null}  # ô 5
+  - {"type": "HEADS_TOGETHER", "t_s": 37.6, "heads": [[0.21, 0.402]], "verdict": null}  # ô 6
+  - {"type": "TURN_AROUND", "t_s": 42.4, "heads": [[0.053, 0.806]], "verdict": null}  # ô 7
+  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 49.0, "heads": [[0.182, 0.137]], "verdict": null}  # ô 8
+  - {"type": "PASSING_OBJECT", "t_s": 61.5, "heads": [[0.488, 0.125]], "verdict": null}  # ô 9
+  - {"type": "HEADS_TOGETHER", "t_s": 67.6, "heads": [[0.694, 0.206]], "verdict": null}  # ô 10

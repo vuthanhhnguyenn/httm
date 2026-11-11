@@ -17,26 +17,38 @@ from proctoring_ai.multi.cctv.review_score import IGNORED, Verdict
 DEFAULT_OPEN_S = 3.0
 
 
-def score_alerts(records: Iterable[dict[str, Any]], verdicts: Sequence[Verdict], *, max_head: float = 0.06,
-                 pad_s: float = 2.0) -> dict[str, Any]:
+def alert_windows(records: Iterable[dict[str, Any]]) -> list[tuple[dict[str, Any], float, float]]:
+    """Mỗi cảnh báo (bản ghi ``opened`` có ``head``, không thuộc ``IGNORED``) cùng khoảng [mở, đóng] tính bằng giây."""
+
     records = list(records)
     ends = {str(r.get("id")): float(r.get("video_offset_ms", 0)) / 1000 for r in records
             if r.get("action") == "closed"}
-    alerts = [r for r in records
-              if r.get("action") == "opened" and r.get("head") and r.get("type") not in IGNORED]
+    out = []
+    for alert in records:
+        if alert.get("action") == "opened" and alert.get("head") and alert.get("type") not in IGNORED:
+            start = float(alert.get("video_offset_ms", 0)) / 1000
+            out.append((alert, start, max(start, ends.get(str(alert.get("id")), start + DEFAULT_OPEN_S))))
+    return out
 
-    def covered(alert: dict[str, Any]) -> set[int]:
-        start = float(alert.get("video_offset_ms", 0)) / 1000
-        end = max(start, ends.get(str(alert.get("id")), start + DEFAULT_OPEN_S))
-        head = (float(alert["head"][0]), float(alert["head"][1]))
-        return {i for i, v in enumerate(verdicts)
-                if start - pad_s <= v.t_s <= end + pad_s and any(math.dist(head, h) <= max_head for h in v.heads)}
 
+def covered_labels(alert: dict[str, Any], start: float, end: float, verdicts: Sequence[Verdict], *,
+                   max_head: float = 0.06, pad_s: float = 2.0) -> set[int]:
+    """Chỉ số các nhãn mà cảnh báo này phủ."""
+
+    head = (float(alert["head"][0]), float(alert["head"][1]))
+    return {i for i, v in enumerate(verdicts)
+            if start - pad_s <= v.t_s <= end + pad_s and any(math.dist(head, h) <= max_head for h in v.heads)}
+
+
+def score_alerts(records: Iterable[dict[str, Any]], verdicts: Sequence[Verdict], *, max_head: float = 0.06,
+                 pad_s: float = 2.0) -> dict[str, Any]:
+    windows = alert_windows(records)
+    alerts = [alert for alert, _, _ in windows]
     hit: set[int] = set()
     correct = judged = 0
     by_type: dict[str, dict[str, int]] = {}
-    for alert in alerts:
-        found = covered(alert)
+    for alert, start, end in windows:
+        found = covered_labels(alert, start, end, verdicts, max_head=max_head, pad_s=pad_s)
         hit |= found
         row = by_type.setdefault(str(alert.get("type")), {"alerts": 0, "correct": 0})
         row["alerts"] += 1

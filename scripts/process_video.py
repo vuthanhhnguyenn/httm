@@ -322,7 +322,8 @@ def process(video: Path, out: Path, *, quality: str = "max", device: str | None 
             device2: str | None = None, detectors: Any = None, fast_runner: FastRunner | None = None,
             batch: int | None = None, ffmpeg: str | None = "ffmpeg", half: bool = True,
             share_iou: float = SHARE_IOU, reuse_fast: bool = False, core: str = "rules",
-            model: Path | None = None, learned: Any = None, all_seats: bool = False) -> dict[str, Any]:
+            model: Path | None = None, learned: Any = None, all_seats: bool = False,
+            keep_blips: bool = False) -> dict[str, Any]:
     """Run the three passes; returns what ``timing.json`` holds. ``detectors`` / ``fast_runner`` replace the
     real models and fast tier (tests). Raises ``ProcessError`` when the video cannot be read.
 
@@ -332,7 +333,7 @@ def process(video: Path, out: Path, *, quality: str = "max", device: str | None 
 
     ``all_seats`` (rules core): the deep tier looks at every seat for the whole video instead of only the fast
     tier's suspect windows; a red alert must last at least 3 s and alerts under 1 s are dropped
-    (``require_sustained``)."""
+    (``require_sustained``); ``keep_blips`` skips that filter (loose run, to pick alerts for the judging sheet)."""
 
     if quality not in QUALITY_IMGSZ:
         raise ProcessError(f"--quality chỉ nhận {', '.join(QUALITY_IMGSZ)}")
@@ -398,7 +399,7 @@ def process(video: Path, out: Path, *, quality: str = "max", device: str | None 
     began = time.perf_counter()
     if core != "learned":
         records = finish_records(per_window, fast_events, load_confidence(ROOT / "configs" / "confidence.yaml"))
-        if all_seats:
+        if all_seats and not keep_blips:
             records = require_sustained(records)
     deep_stats["evidence"] = _evidence(video, out, per_window, records, frames)
     with (out / "events.jsonl").open("w", encoding="utf-8") as handle:
@@ -417,7 +418,7 @@ def process(video: Path, out: Path, *, quality: str = "max", device: str | None 
             "ratio": round(ratio, 3), "over_budget": ratio > BUDGET_RATIO, "devices": devices,
             "device_reasons": reasons, "deep_stats": deep_stats, "encoder": rendered.get("encoder"),
             "config": {"quality": quality, "half": half, "share_iou": share_iou, "core": core, "all_seats": all_seats,
-                       **({"model": model.name} if model is not None else {})}}
+                       **({"keep_blips": True} if keep_blips else {}), **({"model": model.name} if model is not None else {})}}
         if warning:
             timing["domain_warning"] = warning
         if deep_stats.get("note"):
@@ -462,6 +463,8 @@ def main(argv: list[str] | None = None, *, fast_runner: FastRunner | None = None
     parser.add_argument("--model", type=Path, default=None, help="thư mục model của train_core.py (với --core learned)")
     parser.add_argument("--all-seats", action="store_true",
                         help="tầng kỹ xem mọi ghế suốt video (bắt sót ít hơn, chậm gấp ~2); đỏ phải kéo dài >= 3 s")
+    parser.add_argument("--keep-blips", action="store_true",
+                        help="với --all-seats: giữ cả cảnh báo ngắn (không lọc theo độ dài), để chọn ô cho tờ chấm")
     parser.add_argument("--reuse-fast", action="store_true",
                         help="dùng lại tầng nhanh đã có trong --out (so cấu hình tầng kỹ trên cùng đoạn nghi vấn)")
     args = parser.parse_args(argv)
@@ -469,7 +472,7 @@ def main(argv: list[str] | None = None, *, fast_runner: FastRunner | None = None
         process(args.video, args.out, quality=args.quality, device=args.device, device2=args.device2,
                 fast_runner=fast_runner, batch=args.batch, half=not args.fp32, share_iou=args.share_iou,
                 reuse_fast=args.reuse_fast, core=args.core, model=args.model,
-                all_seats=args.all_seats)
+                all_seats=args.all_seats, keep_blips=args.keep_blips)
     except ProcessError as exc:
         print(str(exc), file=sys.stderr)
         return 1

@@ -34,8 +34,8 @@ from proctoring_core.observations import Box  # noqa: E402
 TILE = 360  # long side of one of the six tiles, pixels
 
 
-def _tile(image: Any, region: Box, seat: Box, label: str) -> Any:
-    crop, transform = crop_image(image, region, long_side=TILE)
+def _tile(image: Any, region: Box, seat: Box, label: str, size: int = TILE) -> Any:
+    crop, transform = crop_image(image, region, long_side=size)
     width, height = transform.frame_size
     x0 = int((seat.x * width - transform.x0) * transform.scale)
     y0 = int((seat.y * height - transform.y0) * transform.scale)
@@ -43,8 +43,8 @@ def _tile(image: Any, region: Box, seat: Box, label: str) -> Any:
     y1 = int(((seat.y + seat.height) * height - transform.y0) * transform.scale)
     cv2.rectangle(crop, (x0, y0), (x1, y1), (0, 0, 255), 2)
     cv2.putText(crop, label, (6, 18), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1, cv2.LINE_AA)
-    canvas = np.zeros((TILE, TILE, 3), np.uint8)
-    canvas[:crop.shape[0], :crop.shape[1]] = crop[:TILE, :TILE]
+    canvas = np.zeros((size, size, 3), np.uint8)
+    canvas[:crop.shape[0], :crop.shape[1]] = crop[:size, :size]
     return canvas
 
 

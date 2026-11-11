@@ -1,0 +1,9 @@
+# Tờ chấm LUy81HI7wS0.mp4: ô số N là mục thứ N; verdict true = cảnh báo đúng, false = nhầm, null = chưa chấm.
+video: LUy81HI7wS0.mp4
+verdicts:
+  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 12.0, "heads": [[0.212, 0.416]], "verdict": null}  # ô 1
+  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 17.8, "heads": [[0.314, 0.26]], "verdict": null}  # ô 2
+  - {"type": "HEADS_TOGETHER", "t_s": 22.2, "heads": [[0.53, 0.313]], "verdict": null}  # ô 3
+  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 50.8, "heads": [[0.285, 0.104]], "verdict": null}  # ô 4
+  - {"type": "TURN_AROUND", "t_s": 71.0, "heads": [[0.546, 0.324]], "verdict": null}  # ô 5
+  - {"type": "TURN_AROUND", "t_s": 81.0, "heads": [[0.461, 0.596]], "verdict": null}  # ô 6

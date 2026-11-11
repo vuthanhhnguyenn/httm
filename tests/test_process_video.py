@@ -356,3 +356,22 @@ def test_all_seats_reuse_fast_keeps_the_timeline(tmp_path: Path) -> None:
     again = _SeeingDetectors()
     module.process(video, out, detectors=again, fast_runner=_FastRunner([]), all_seats=True, reuse_fast=True)
     assert again.calls == 0
+
+
+def _blip_records(*_args, **_kwargs):
+    return [{"action": "opened", "id": "blip", "type": "LOOK_AT_LAP", "seat_id": str(SEAT_A), "video_offset_ms": 1000,
+             "head": [0.3, 0.35], "level": "yellow", "stage": "review"},
+            {"action": "closed", "id": "blip", "video_offset_ms": 1500}]
+
+
+def test_keep_blips_skips_require_sustained(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _module()
+    monkeypatch.setattr(module, "finish_records", _blip_records)
+    video = _video(tmp_path / "in.mp4", seconds=4.0)
+    module.process(video, tmp_path / "default", detectors=_SeeingDetectors(), fast_runner=_FastRunner([]),
+                   all_seats=True)
+    assert [e for e in _events(tmp_path / "default") if e["action"] == "opened"] == []
+    timing = module.process(video, tmp_path / "loose", detectors=_SeeingDetectors(), fast_runner=_FastRunner([]),
+                            all_seats=True, keep_blips=True)
+    assert [e["id"] for e in _events(tmp_path / "loose") if e["action"] == "opened"] == ["blip"]
+    assert timing["config"]["keep_blips"] is True
