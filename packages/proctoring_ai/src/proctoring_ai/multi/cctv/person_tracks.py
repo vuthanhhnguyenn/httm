@@ -6,14 +6,17 @@ close compared with their width) is enough; a track survives ``max_gap_ms`` with
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from math import hypot
 from typing import Any
+from uuid import UUID
 
 from proctoring_core.observations import Box
 
-from .head import shoulders
+from .head import Keypoints, shoulders
+from .review_rules import ReviewFrame, assign_poses
 
 MIN_IOU = 0.3
 SHOULDER_REACH = 0.6  # shoulder midpoints closer than this many shoulder widths still match
@@ -86,4 +89,36 @@ def link_people(frames_people: Sequence[Sequence[Mapping[str, Any]]], offsets_ms
             if shoulder is not None:
                 track.mid, track.width = shoulder
         out.append([int(ident) for ident in ids if ident is not None])
+    return out
+
+
+def assign_tracked(frames: Sequence[ReviewFrame], *, window_ms: int = 20000) -> list[ReviewFrame]:
+    """Seat owners from tracks. Each frame's nearest-head choice (the old rule) is a vote for a track; a seat's owner
+    at time t is the track with most votes within ``window_ms`` around t. The seat's pose in a frame is the owner's
+    when the owner was detected there and none otherwise, so a head that only drifts into the box for a moment, or
+    a neighbour taking an empty seat, no longer replaces the real occupant."""
+
+    if not any(frame.people for frame in frames):
+        return list(frames)
+    ordered = sorted(frames, key=lambda frame: frame.offset_ms)
+    ids = link_people([frame.people for frame in ordered], [frame.offset_ms for frame in ordered])
+    votes: list[dict[UUID, int]] = []
+    for frame, track_ids in zip(ordered, ids, strict=True):
+        chosen = assign_poses(frame.seats, frame.people, by_body=False)
+        by_object = {id(person["keypoints"]): ident for person, ident in zip(frame.people, track_ids, strict=True)}
+        votes.append({seat: by_object[id(kps)] for seat, kps in chosen.items() if id(kps) in by_object})
+    out: list[ReviewFrame] = []
+    for frame, track_ids in zip(ordered, ids, strict=True):
+        tally: dict[UUID, Counter[int]] = {}
+        for other, mine in zip(ordered, votes, strict=True):
+            if abs(other.offset_ms - frame.offset_ms) <= window_ms / 2:
+                for seat, ident in mine.items():
+                    tally.setdefault(seat, Counter())[ident] += 1
+        present = {ident: person for person, ident in zip(frame.people, track_ids, strict=True)}
+        poses: dict[UUID, Keypoints] = {}
+        for seat in frame.seats:
+            owner = tally[seat].most_common(1)[0][0] if seat in tally else None
+            if owner is not None and owner in present:
+                poses[seat] = present[owner]["keypoints"]
+        out.append(replace(frame, poses=poses))
     return out

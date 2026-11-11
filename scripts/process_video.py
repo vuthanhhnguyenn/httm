@@ -260,10 +260,14 @@ def _all_seats_pass(video: Path, out: Path, video_s: float, detectors: Any, shar
                                                                       resume=resume, config=config,
                                                                       pose_flip=pose_flip)
     if reassign:
+        from proctoring_ai.multi.cctv.person_tracks import assign_tracked
         from proctoring_ai.multi.cctv.reassign import assigner_named, reassign_frames
 
-        assigner = assigner_named(reassign)
-        frames = {key: reassign_frames(items, assigner) for key, items in frames.items()}
+        if reassign == "tracked":
+            frames = {key: assign_tracked(items) for key, items in frames.items()}
+        else:
+            assigner = assigner_named(reassign)
+            frames = {key: reassign_frames(items, assigner) for key, items in frames.items()}
     began = time.perf_counter()
     per_window = review_records(windows, frames, config=config, sustained_ms=sustained_ms)
     stats.update(windows=len(windows), rules_s=round(time.perf_counter() - began, 3), skipped=0,
@@ -504,7 +508,7 @@ def main(argv: list[str] | None = None, *, fast_runner: FastRunner | None = None
                         help="với --all-seats: giữ cả cảnh báo ngắn (không lọc theo độ dài), để chọn ô cho tờ chấm")
     parser.add_argument("--pose-flip", action="store_true",
                         help="chạy thêm model khung xương trên ảnh cắt lật ngang rồi ghép (chậm hơn, khung xương ổn định hơn)")
-    parser.add_argument("--reassign", choices=["old"], default=None,
+    parser.add_argument("--reassign", choices=["old", "tracked"], default=None,
                         help="với --all-seats: gán lại người vào ghế từ người thô đã lưu trong timeline.json.gz")
     parser.add_argument("--reuse-fast", action="store_true",
                         help="dùng lại tầng nhanh đã có trong --out (so cấu hình tầng kỹ trên cùng đoạn nghi vấn)")
