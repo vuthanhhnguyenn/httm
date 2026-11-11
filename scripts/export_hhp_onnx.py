@@ -1,3 +1,6 @@
+# mypy: ignore-errors
+"""One-off: export HHP-Net's SavedModel to models/pretrained/hhp_net.onnx. Needs tensorflow and tf2onnx (not project
+dependencies); run it in a separate venv. HHP-Net: github.com/cantarinigiorgio/HHP-Net (MIT)."""
 import os
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"]="3"
