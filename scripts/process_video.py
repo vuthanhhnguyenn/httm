@@ -61,7 +61,6 @@ DEFAULT_DEVICE = "cuda"
 CORES = ("rules", "learned")
 
 
-
 def sustained_by_type(turn_hold_ms: int) -> dict[str, int]:
     """Per-type ``require_sustained`` minimum: a deep-tier turn hold shorter than ``SUSTAINED_MS`` must not be
     undone by the blip filter, so head turns then need only that hold."""
@@ -69,7 +68,7 @@ def sustained_by_type(turn_hold_ms: int) -> dict[str, int]:
     return dict.fromkeys(TURN_TYPES, min(SUSTAINED_MS, turn_hold_ms))
 
 
-SUSTAINED_MS_BY_TYPE = sustained_by_type(ReviewRuleConfig().turn_hold_ms)
+REVIEW_CONFIG = ReviewRuleConfig()  # the deep-tier rules ``process`` runs (all-seats pass and its blip filter)
 
 FastRunner = Callable[[Path, Path, Path], None]
 WindowRecords = list[tuple[SuspectWindow, list[dict[str, Any]]]]
@@ -153,9 +152,11 @@ def review_records(windows: Sequence[SuspectWindow], frames: Mapping[CacheKey, l
     gives them, but kept per window (for its evidence picture). A window whose models failed (``errors``),
     whose rules fail, or that got no analysed frame inside its span becomes ``REVIEW_SKIPPED``.
     ``sustained_ms``: drop alerts shorter than that before the deduper, so a blip that ``require_sustained``
-    drops later cannot take a real alert of the same seat and type as its merged repeat."""
+    drops later cannot take a real alert of the same seat and type as its merged repeat; head turns need only
+    ``config.turn_hold_ms`` when that is shorter (``sustained_by_type``)."""
 
     errors = errors or {}
+    by_type = sustained_by_type((config or ReviewRuleConfig()).turn_hold_ms)
     dedupe = ReviewDeduper()
     out: WindowRecords = []
     for index, window in enumerate(windows):
@@ -171,7 +172,7 @@ def review_records(windows: Sequence[SuspectWindow], frames: Mapping[CacheKey, l
                 print(f"Đoạn {window_key(window)}: luật tầng kỹ lỗi ({exc}); chưa kiểm tra kỹ.", file=sys.stderr)
                 found = [skipped_record(window, "error")]
         if sustained_ms is not None:
-            found = require_sustained(found, min_ms=sustained_ms, min_ms_by_type=SUSTAINED_MS_BY_TYPE)
+            found = require_sustained(found, min_ms=sustained_ms, min_ms_by_type=by_type)
         out.append((window, dedupe.admit(found)))
     return out
 
@@ -244,8 +245,8 @@ def _require_pose(detectors: Any) -> None:
 
 
 def _all_seats_pass(video: Path, out: Path, video_s: float, detectors: Any, share_iou: float,
-                    batch: int | None, resume: bool = False,
-                    sustained_ms: int | None = None) -> tuple[WindowRecords, dict[CacheKey, list[ReviewFrame]], dict[str, Any]]:
+                    batch: int | None, resume: bool = False, sustained_ms: int | None = None,
+                    config: ReviewRuleConfig | None = None) -> tuple[WindowRecords, dict[CacheKey, list[ReviewFrame]], dict[str, Any]]:
     """Every seat through the deep tier for the whole video (``build_timeline.timeline_pass``), then the
     hand-written rules per seat. ``resume`` (with ``--reuse-fast``, so the seats are the same) keeps the seats
     an earlier run already wrote to ``timeline.json.gz``. ``sustained_ms``: see ``review_records``."""
@@ -255,7 +256,7 @@ def _all_seats_pass(video: Path, out: Path, video_s: float, detectors: Any, shar
                                                                       share_iou=share_iou, batch=batch,
                                                                       resume=resume)
     began = time.perf_counter()
-    per_window = review_records(windows, frames, sustained_ms=sustained_ms)
+    per_window = review_records(windows, frames, config=config, sustained_ms=sustained_ms)
     stats.update(windows=len(windows), rules_s=round(time.perf_counter() - began, 3), skipped=0,
                  models=dict(getattr(detectors, "status", {}) or {}))
     return per_window, frames, stats
@@ -350,7 +351,7 @@ def process(video: Path, out: Path, *, quality: str = "max", device: str | None 
     the events instead of the hand-written rules.
 
     ``all_seats`` (rules core): the deep tier looks at every seat for the whole video instead of only the fast
-    tier's suspect windows; a red alert must last at least 3 s and alerts under 1 s are dropped
+    tier's suspect windows; a red alert must last at least 2 s and alerts under 1 s are dropped
     (``require_sustained``); ``keep_blips`` skips that filter (loose run, to pick alerts for the judging sheet)."""
 
     if quality not in QUALITY_IMGSZ:
@@ -406,7 +407,8 @@ def process(video: Path, out: Path, *, quality: str = "max", device: str | None 
     elif all_seats:
         per_window, frames, deep_stats = _all_seats_pass(video, out, video_s, detectors, share_iou, batch,
                                                           resume=reuse_fast,
-                                                          sustained_ms=None if keep_blips else SUSTAINED_MS)
+                                                          sustained_ms=None if keep_blips else SUSTAINED_MS,
+                                                          config=REVIEW_CONFIG)
     else:
         per_window, frames, deep_stats = _deep_pass(video, windows, detectors, out / "review_cache.json.gz", batch,
                                                     share_iou)
@@ -419,7 +421,8 @@ def process(video: Path, out: Path, *, quality: str = "max", device: str | None 
     if core != "learned":
         records = finish_records(per_window, fast_events, load_confidence(ROOT / "configs" / "confidence.yaml"))
         if all_seats and not keep_blips:
-            records = require_sustained(records, min_ms=SUSTAINED_MS, min_ms_by_type=SUSTAINED_MS_BY_TYPE)
+            records = require_sustained(records, min_ms=SUSTAINED_MS,
+                                        min_ms_by_type=sustained_by_type(REVIEW_CONFIG.turn_hold_ms))
     deep_stats["evidence"] = _evidence(video, out, per_window, records, frames)
     with (out / "events.jsonl").open("w", encoding="utf-8") as handle:
         handle.writelines(json.dumps(item, ensure_ascii=False, default=str) + "\n" for item in records)

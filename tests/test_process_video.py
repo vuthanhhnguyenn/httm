@@ -411,7 +411,23 @@ def test_short_turn_kept_when_turn_hold_is_short(monkeypatch: pytest.MonkeyPatch
             {"action": "closed", "video_offset_ms": 5800, **base}]
     monkeypatch.setattr(module, "review_window", lambda *_args, **_kwargs: [dict(r) for r in look])
     frames = {module.window_key(window): [module.ReviewFrame(1000, {SEAT_A: BOX_A}, {}, [])]}
-    monkeypatch.setattr(module, "SUSTAINED_MS_BY_TYPE", module.sustained_by_type(1500))
-    assert module.review_records([window], frames, sustained_ms=1000)[0][1] == []
-    monkeypatch.setattr(module, "SUSTAINED_MS_BY_TYPE", module.sustained_by_type(750))
-    assert [r["action"] for r in module.review_records([window], frames, sustained_ms=1000)[0][1]] == ["opened", "closed"]
+    assert module.review_records([window], frames, sustained_ms=1000)[0][1] == []  # default hold 1.5 s
+    short = module.ReviewRuleConfig(turn_hold_ms=750)
+    kept = module.review_records([window], frames, config=short, sustained_ms=1000)[0][1]
+    assert [r["action"] for r in kept] == ["opened", "closed"]
+
+
+def test_final_blip_filter_follows_the_review_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _module()
+    base = {"id": "look", "type": "LOOK_AT_NEIGHBOR", "seat_id": str(SEAT_A), "stage": "review"}
+    look = [{"action": "opened", "video_offset_ms": 1000, "head": [0.3, 0.35], "level": "yellow", **base},
+            {"action": "closed", "video_offset_ms": 1800, **base}]
+    monkeypatch.setattr(module, "finish_records", lambda *_args, **_kwargs: [dict(r) for r in look])
+    video = _video(tmp_path / "in.mp4", seconds=4.0)
+    module.process(video, tmp_path / "default", detectors=_SeeingDetectors(), fast_runner=_FastRunner([]),
+                   all_seats=True)
+    assert [e for e in _events(tmp_path / "default") if e["action"] == "opened"] == []
+    monkeypatch.setattr(module, "REVIEW_CONFIG", module.ReviewRuleConfig(turn_hold_ms=750))
+    module.process(video, tmp_path / "short", detectors=_SeeingDetectors(), fast_runner=_FastRunner([]),
+                   all_seats=True)
+    assert [e["id"] for e in _events(tmp_path / "short") if e["action"] == "opened"] == ["look"]
