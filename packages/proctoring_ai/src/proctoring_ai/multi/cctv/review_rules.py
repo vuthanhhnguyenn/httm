@@ -82,6 +82,11 @@ class ReviewRuleConfig:
     # A wrist inside paper or a book lying on the desk (box centre above the desk line) is writing, even when
     # the wrist sits below the line; paper in the lap does not block.
     lap_paper_blocks: bool = True
+    # A forearm seen whole (wrist and elbow) must hang into the lap: the wrist at least this many shoulder
+    # widths below its elbow. A writer's forearm lies on the desk, about level (clip 1: 0.05-0.23 against
+    # 0.36-0.46 for real laps). The desk line alone cannot tell: the seat box ends at the desk edge, so a
+    # writer's hands sit below its default line and never teach it. None: off.
+    lap_forearm_drop: float | None = 0.25
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,13 +145,19 @@ def _wrists(kps: Keypoints | None, min_conf: float = 0.4) -> list[tuple[float, f
 
 
 def _hands_under_desk(kps: Keypoints, line: float, frame: ReviewFrame, box: Box, cfg: ReviewRuleConfig) -> bool:
-    """No wrist above the desk line or on the seat's paper; a wrist the camera lost needs its elbow below it."""
+    """No wrist above the desk line or on the seat's paper, no forearm level on the desk; a wrist the camera lost
+    needs its elbow below the line."""
 
     for wrist_index, elbow_index in ((LEFT_WRIST, LEFT_ELBOW), (RIGHT_WRIST, RIGHT_ELBOW)):
         wrist = point(kps, wrist_index, 0.4)
         if wrist is not None:
             if wrist[1] <= line or (cfg.lap_paper_blocks and _point_on_paper(wrist, frame, box, line)):
                 return False
+            if cfg.lap_forearm_drop is not None and (pair := shoulders(kps)) is not None \
+                    and (elbow := point(kps, elbow_index, 0.4)) is not None:
+                width = abs(pair[0][0] - pair[1][0]) * frame.frame_aspect
+                if wrist[1] - elbow[1] < cfg.lap_forearm_drop * width:
+                    return False
         elif cfg.lap_hidden_needs_low_elbow:
             elbow = point(kps, elbow_index, 0.4)
             if elbow is None or elbow[1] <= line:

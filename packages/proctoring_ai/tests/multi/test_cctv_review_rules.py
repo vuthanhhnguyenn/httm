@@ -469,6 +469,55 @@ def test_wrist_moving_along_the_line_is_not_lap() -> None:
     assert "LOOK_AT_LAP" not in kinds(records)
 
 
+def _armed(pose_at, elbow_y: float, wrist_y: float, other_wrist_y: float | None = None):
+    """Elbows at ``elbow_y`` under the shoulders, wrists at ``wrist_y`` (right one at ``other_wrist_y``)."""
+
+    def pose(key, ms):
+        kps = pose_at(key, ms)
+        kps[7], kps[8] = [kps[5][0], elbow_y, 0.9], [kps[6][0], elbow_y, 0.9]
+        kps[9] = [kps[5][0] + 0.01, wrist_y, 0.9]
+        kps[10] = [kps[6][0] - 0.01, wrist_y if other_wrist_y is None else other_wrist_y, 0.9]
+        return kps
+
+    return pose
+
+
+# Clip 1 (Task 3b): the seat box ends at the desk edge, so a writer's hands lie below the default desk line
+# (0.8 of the box) and the line never learns from them. The forearm tells: on the desk it is about level
+# (wrist 0.05-0.23 shoulder widths below the elbow), in the lap it hangs (0.36-0.46).
+def test_writer_forearms_level_below_default_line_is_not_lap() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    pose = _armed(_lap(None, None), elbow_y=0.5, wrist_y=0.52)
+    records = review_window(window(seats, a, 0, 4000, ("HEAD_DOWN_HANDS_LOW",)), frames(seats, pose, 0, 4000))
+    assert "LOOK_AT_LAP" not in kinds(records)
+
+
+def test_forearms_hanging_into_the_lap_is_lap() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    pose = _armed(_lap(None, None), elbow_y=0.48, wrist_y=0.53)
+    records = review_window(window(seats, a, 0, 4000, ("HEAD_DOWN_HANDS_LOW",)), frames(seats, pose, 0, 4000))
+    assert "LOOK_AT_LAP" in kinds(records)
+
+
+def test_one_level_forearm_blocks_lap() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    pose = _armed(_lap(None, None), elbow_y=0.48, wrist_y=0.53, other_wrist_y=0.49)
+    records = review_window(window(seats, a, 0, 4000, ("HEAD_DOWN_HANDS_LOW",)), frames(seats, pose, 0, 4000))
+    assert "LOOK_AT_LAP" not in kinds(records)
+
+
+def test_forearm_test_switched_off_keeps_old_lap() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    pose = _armed(_lap(None, None), elbow_y=0.5, wrist_y=0.52)
+    records = review_window(window(seats, a, 0, 4000, ("HEAD_DOWN_HANDS_LOW",)), frames(seats, pose, 0, 4000),
+                            ReviewRuleConfig(lap_forearm_drop=None))
+    assert "LOOK_AT_LAP" in kinds(records)
+
+
 def test_empty_seat_gives_no_lap() -> None:
     a = uuid4()
     seats = {a: box(0.3)}

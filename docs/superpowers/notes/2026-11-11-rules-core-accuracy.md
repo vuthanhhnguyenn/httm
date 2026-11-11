@@ -15,6 +15,7 @@ Cột "Thời gian luật" lấy `deep_stats.rules_s` trong `timing.json` (tần
 | Bước 1: LAP (mặc định, không kiểm tĩnh) | 8/9 | 5/6 | 3/14 | 2 | 20 | 3,0 | Khuỷu tay thấp cho cổ tay khuất; giấy nằm trên bàn chặn LAP. Trùng số gốc (replay: 9/9, golden không đổi). |
 | Bước 1: LAP, `lap_still_widths=0,5` (thử) | 8/9 | 5/6 | 3/14 | 2 | 19 | - | Bớt 1 cảnh báo nhưng replay chỉ còn 8/9 (mất 59.0 và 63.0), nên không chọn. |
 | Bước 3: điện thoại (`phone_paper_fraction=0,6`) | 8/9 | 5/6 | 3/14 | 2 | 20 | - | Số đo không đổi: clip 1 có 2 PHONE_DETECTED trước và sau (cả hai không phủ nhãn đúng nào, không nằm trên giấy); clip 2 có 0 trước và sau, 6 cảnh báo như cũ. Luật chỉ chặn điện thoại nằm trên giấy ở >= 60% số khung; có test, golden replay không đổi (9/9). |
+| Bước 1b: LAP (nguyên nhân gốc) | 7/9 | 4/5 | 2/14 | 2 | 14 | 3,6 | Đường bàn không bao giờ học được (tay viết nằm dưới đáy khung ghế, dưới vạch mặc định 0,8) nên mọi người cúi đầu viết đều thành "tay dưới bàn"; nay cẳng tay phải thõng (cổ tay thấp hơn khuỷu >= 0,25 bề rộng vai, `lap_forearm_drop`). LAP 9 -> 3, mất 4 ca nhầm trên tờ chấm (3.0/3.6/4.2/29.2); mất nhãn đúng 51.2 (lap chỉ đủ 3 s, bị lọc < 1 s). Kèm sửa: cảnh báo chớp nhoáng bị lọc trước bộ gộp, để không nuốt lap 60,0-65,4 s. Clip 2: 6 cảnh báo, đỏ 3, giống trước. |
 
 Clip 2 (`LUy81HI7wS0`, tập giữ lại) đã chạy một lần để có `events.jsonl` cho Task 2: đỏ 3, vàng 3, tổng 11,7 s cho
 video 103,2 s. Chưa có nhãn nên chưa có số chấm.

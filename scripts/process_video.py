@@ -55,6 +55,7 @@ BUDGET_RATIO = 2.0
 REVIEW_FPS = 5.0
 WARMUP_MS = 6000
 SHARE_IOU = 0.7  # crops of one frame overlapping at least this much share one model run; > 1 turns it off
+SUSTAINED_MS = 1000  # all-seats: an alert shorter than this is a blip (require_sustained min_ms)
 DEFAULT_DEVICE = "cuda"
 CORES = ("rules", "learned")
 
@@ -135,10 +136,12 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
 
 def review_records(windows: Sequence[SuspectWindow], frames: Mapping[CacheKey, list[ReviewFrame]], *,
                    errors: Mapping[int, str] | None = None,
-                   config: ReviewRuleConfig | None = None) -> WindowRecords:
+                   config: ReviewRuleConfig | None = None, sustained_ms: int | None = None) -> WindowRecords:
     """The deep-tier rules per window, in window order through one ``ReviewDeduper``, as ``review_offline``
     gives them, but kept per window (for its evidence picture). A window whose models failed (``errors``),
-    whose rules fail, or that got no analysed frame inside its span becomes ``REVIEW_SKIPPED``."""
+    whose rules fail, or that got no analysed frame inside its span becomes ``REVIEW_SKIPPED``.
+    ``sustained_ms``: drop alerts shorter than that before the deduper, so a blip that ``require_sustained``
+    drops later cannot take a real alert of the same seat and type as its merged repeat."""
 
     errors = errors or {}
     dedupe = ReviewDeduper()
@@ -155,6 +158,8 @@ def review_records(windows: Sequence[SuspectWindow], frames: Mapping[CacheKey, l
             except Exception as exc:  # one window's bad data must not cost the others
                 print(f"Đoạn {window_key(window)}: luật tầng kỹ lỗi ({exc}); chưa kiểm tra kỹ.", file=sys.stderr)
                 found = [skipped_record(window, "error")]
+        if sustained_ms is not None:
+            found = require_sustained(found, min_ms=sustained_ms)
         out.append((window, dedupe.admit(found)))
     return out
 
@@ -227,17 +232,18 @@ def _require_pose(detectors: Any) -> None:
 
 
 def _all_seats_pass(video: Path, out: Path, video_s: float, detectors: Any, share_iou: float,
-                    batch: int | None, resume: bool = False) -> tuple[WindowRecords, dict[CacheKey, list[ReviewFrame]], dict[str, Any]]:
+                    batch: int | None, resume: bool = False,
+                    sustained_ms: int | None = None) -> tuple[WindowRecords, dict[CacheKey, list[ReviewFrame]], dict[str, Any]]:
     """Every seat through the deep tier for the whole video (``build_timeline.timeline_pass``), then the
     hand-written rules per seat. ``resume`` (with ``--reuse-fast``, so the seats are the same) keeps the seats
-    an earlier run already wrote to ``timeline.json.gz``."""
+    an earlier run already wrote to ``timeline.json.gz``. ``sustained_ms``: see ``review_records``."""
 
     _require_pose(detectors)
     windows, frames, stats = _sibling("build_timeline").timeline_pass(video, out, video_s, detectors,
                                                                       share_iou=share_iou, batch=batch,
                                                                       resume=resume)
     began = time.perf_counter()
-    per_window = review_records(windows, frames)
+    per_window = review_records(windows, frames, sustained_ms=sustained_ms)
     stats.update(windows=len(windows), rules_s=round(time.perf_counter() - began, 3), skipped=0,
                  models=dict(getattr(detectors, "status", {}) or {}))
     return per_window, frames, stats
@@ -387,7 +393,8 @@ def process(video: Path, out: Path, *, quality: str = "max", device: str | None 
                                                                          share_iou, batch)
     elif all_seats:
         per_window, frames, deep_stats = _all_seats_pass(video, out, video_s, detectors, share_iou, batch,
-                                                          resume=reuse_fast)
+                                                          resume=reuse_fast,
+                                                          sustained_ms=None if keep_blips else SUSTAINED_MS)
     else:
         per_window, frames, deep_stats = _deep_pass(video, windows, detectors, out / "review_cache.json.gz", batch,
                                                     share_iou)
@@ -400,7 +407,7 @@ def process(video: Path, out: Path, *, quality: str = "max", device: str | None 
     if core != "learned":
         records = finish_records(per_window, fast_events, load_confidence(ROOT / "configs" / "confidence.yaml"))
         if all_seats and not keep_blips:
-            records = require_sustained(records)
+            records = require_sustained(records, min_ms=SUSTAINED_MS)
     deep_stats["evidence"] = _evidence(video, out, per_window, records, frames)
     with (out / "events.jsonl").open("w", encoding="utf-8") as handle:
         handle.writelines(json.dumps(item, ensure_ascii=False, default=str) + "\n" for item in records)

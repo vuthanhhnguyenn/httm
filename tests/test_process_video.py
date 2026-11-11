@@ -375,3 +375,22 @@ def test_keep_blips_skips_require_sustained(tmp_path: Path, monkeypatch: pytest.
                             all_seats=True, keep_blips=True)
     assert [e["id"] for e in _events(tmp_path / "loose") if e["action"] == "opened"] == ["blip"]
     assert timing["config"]["keep_blips"] is True
+
+
+def _lap(event_id: str, opened: int, closed: int) -> list[dict]:
+    base = {"id": event_id, "type": "LOOK_AT_LAP", "seat_id": str(SEAT_A), "stage": "review"}
+    return [{"action": "opened", "video_offset_ms": opened, "head": [0.3, 0.35], **base},
+            {"action": "closed", "video_offset_ms": closed, **base}]
+
+
+def test_dropped_blip_does_not_swallow_a_later_alert(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Clip 1 (Task 3b): a 0 ms LOOK_AT_LAP at 52.4 s took the 60.0-65.4 s lap of the same seat as a merged
+    repeat, then require_sustained dropped the blip and its repeat with it. Blips go before the deduper."""
+
+    module = _module()
+    window = SuspectWindow(SEAT_A, None, (), 0, 70000, ("ALL_SEATS",), BOX_A, {SEAT_A: BOX_A})
+    monkeypatch.setattr(module, "review_window",
+                        lambda *_args, **_kwargs: _lap("blip", 52400, 52400) + _lap("lap", 60000, 65400))
+    frames = {module.window_key(window): [module.ReviewFrame(1000, {SEAT_A: BOX_A}, {}, [])]}
+    found = module.review_records([window], frames, sustained_ms=1000)[0][1]
+    assert [(r["action"], r["id"]) for r in found] == [("opened", "lap"), ("closed", "lap")]

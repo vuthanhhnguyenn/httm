@@ -10,23 +10,11 @@
   ],
   [
    "LOOK_AT_LAP",
-   3000
-  ],
-  [
-   "LOOK_AT_LAP",
-   28200
-  ],
-  [
-   "LOOK_AT_LAP",
    43200
   ],
   [
    "LOOK_AT_LAP",
    51200
-  ],
-  [
-   "LOOK_AT_LAP",
-   54400
   ],
   [
    "LOOK_AT_LAP",
@@ -112,14 +100,6 @@
   ],
   [
    "LOOK_AT_LAP",
-   4200
-  ],
-  [
-   "LOOK_AT_LAP",
-   28400
-  ],
-  [
-   "LOOK_AT_LAP",
    43200
   ],
   [
@@ -129,14 +109,6 @@
   [
    "LOOK_AT_LAP",
    61200
-  ],
-  [
-   "LOOK_AT_LAP",
-   64400
-  ],
-  [
-   "LOOK_AT_LAP",
-   67800
   ],
   [
    "LOOK_AT_NEIGHBOR",
@@ -221,6 +193,10 @@
   [
    "UNCLASSIFIED_SUSPECT",
    54000
+  ],
+  [
+   "UNCLASSIFIED_SUSPECT",
+   55200
   ],
   [
    "UNCLASSIFIED_SUSPECT",
