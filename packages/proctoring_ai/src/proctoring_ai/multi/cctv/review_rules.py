@@ -20,6 +20,7 @@ from ..pipeline import FrameTiming, MultiFrameResult
 from ..tracker import Seat, TrackerUpdate
 from .head import Keypoints, distance, head_lift, head_point, point, shoulders
 from .pose_detector import LEFT_ELBOW, LEFT_WRIST, RIGHT_ELBOW, RIGHT_WRIST
+from .pose_smooth import smooth_frames
 from .review_detectors import ReviewObject, _iou
 from .roles import CANDIDATE
 from .rules import CctvRuleConfig, CctvSeatRules
@@ -99,6 +100,10 @@ class ReviewRuleConfig:
     # Seats take people by body overlap and shoulders (assign_poses); False: the old head-inside-the-box rule.
     # Off by default: measured on clip 1 with the timeline rebuilt it catches 5/9 labels against 7/9 (stop rule).
     assign_by_body: bool = False
+    # Keypoints go through a One Euro filter per seat (pose_smooth.smooth_frames) before any rule reads them.
+    # Off by default: on clip 1 it adds no correct alert (7/9 caught either way) and the replay loses true
+    # events (PASSING 25.5 s, the LAP at 63 s merges into an earlier alert), so the regression fails.
+    smooth_poses: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -275,7 +280,7 @@ class _AllCandidates:
 def review_window(window: SuspectWindow, frames: Sequence[ReviewFrame],
                   config: ReviewRuleConfig | None = None) -> list[dict[str, Any]]:
     cfg = config or ReviewRuleConfig()
-    frames = sorted(frames, key=lambda item: item.offset_ms)
+    frames = smooth_frames(frames) if cfg.smooth_poses else sorted(frames, key=lambda item: item.offset_ms)
     # The live deep tier sees ~3 frames a second: a gap between two frames is not a break in what they show.
     spacing = sorted(b.offset_ms - a.offset_ms for a, b in zip(frames, frames[1:], strict=False))
     if spacing and (gap := int(1.5 * spacing[len(spacing) // 2])) > cfg.gap_ms:

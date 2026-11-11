@@ -69,6 +69,7 @@ def test_timing_has_ratio(tmp_path: Path) -> None:
     _module().build(_video(tmp_path / "in.mp4"), out, detectors=_Detectors(), fast_runner=_fast)
     timing = json.loads((out / "timeline_timing.json").read_text(encoding="utf-8"))
     assert timing["seats"] == 2 and timing["ratio"] >= 0  # fake models: a fast runner rounds to 0
+    assert timing["pose_flip"] is False
     for key in ("video_s", "fast_s", "timeline_s", "total_s", "crops", "crops_shared"):
         assert key in timing, key
 
@@ -114,9 +115,11 @@ def test_timeline_pass_forwards_the_review_config(tmp_path: Path, monkeypatch) -
 
     module = _module()
     seen: list[object] = []
+    flips: list[object] = []
 
     def fake_review_offline(video, windows, detectors, **kwargs):
         seen.append(kwargs.get("config"))
+        flips.append(kwargs.get("pose_flip"))
         return SimpleNamespace(stats={})
 
     monkeypatch.setattr(module, "review_offline", fake_review_offline)
@@ -125,4 +128,6 @@ def test_timeline_pass_forwards_the_review_config(tmp_path: Path, monkeypatch) -
     _fast(tmp_path / "in.mp4", out / "fast", out / "tracks.jsonl")
     config = ReviewRuleConfig(assign_by_body=False)
     module.timeline_pass(_video(tmp_path / "in.mp4"), out, 4.0, _Detectors(), share_iou=0.7, config=config)
-    assert seen == [config]
+    assert seen == [config] and flips == [False]
+    module.timeline_pass(_video(tmp_path / "in.mp4"), out, 4.0, _Detectors(), share_iou=0.7, pose_flip=True)
+    assert flips == [False, True]

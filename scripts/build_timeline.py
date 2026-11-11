@@ -67,12 +67,14 @@ def _keep_good_lines(cache_path: Path) -> set[str]:
 
 def timeline_pass(video: Path, out: Path, video_s: float, detectors: Any, *, share_iou: float,
                   batch: int | None = None, chunk_seats: int | None = None,
-                  resume: bool = False, config: Any = None) -> tuple[list[Any], dict[Any, list[Any]], dict[str, Any]]:
+                  resume: bool = False, config: Any = None,
+                  pose_flip: bool = False) -> tuple[list[Any], dict[Any, list[Any]], dict[str, Any]]:
     """All-seat windows from ``out/tracks.jsonl`` through ``review_offline``; the cache goes to
     ``out/timeline.json.gz``. Returns the windows, their analysed frames and the run's stats.
 
     ``chunk_seats``: run that many seats per pass (each pass decodes the video again) so a killed run loses
-    at most one pass. ``resume``: keep the seats an earlier run already wrote and do only the others."""
+    at most one pass. ``resume``: keep the seats an earlier run already wrote and do only the others.
+    ``pose_flip``: test-time flip for pose (``review_offline``)."""
 
     from proctoring_ai.multi.cctv.review_cache import load_cache
 
@@ -96,7 +98,7 @@ def timeline_pass(video: Path, out: Path, video_s: float, detectors: Any, *, sha
 
         result = review_offline(video, chunk, detectors, fps=pv.REVIEW_FPS, warmup_ms=0, share_iou=share_iou,
                                 cache_path=cache_path, parallel=True, batch_size=batch, on_progress=progress,
-                                config=config)
+                                config=config, pose_flip=pose_flip)
         for key, value in result.stats.items():
             if isinstance(value, (int, float)) and not isinstance(value, bool):
                 stats[key] = round(stats.get(key, 0) + value, 3)
@@ -108,7 +110,8 @@ def timeline_pass(video: Path, out: Path, video_s: float, detectors: Any, *, sha
 
 def build(video: Path, out: Path, *, quality: str = "max", device: str | None = None, device2: str | None = None,
           detectors: Any = None, fast_runner: Any = None, reuse_fast: bool = False, half: bool = True,
-          batch: int | None = None, chunk_seats: int | None = None, resume: bool = False) -> dict[str, Any]:
+          batch: int | None = None, chunk_seats: int | None = None, resume: bool = False,
+          pose_flip: bool = False) -> dict[str, Any]:
     pv = _process_video()
     started = time.perf_counter()
     video_s = pv._probe(video)
@@ -124,13 +127,13 @@ def build(video: Path, out: Path, *, quality: str = "max", device: str | None = 
     if detectors is None:
         detectors = pv.build_detectors(quality, device, device2, batch, half=half)
     windows, _frames, stats = timeline_pass(video, out, video_s, detectors, share_iou=pv.SHARE_IOU, batch=batch,
-                                            chunk_seats=chunk_seats, resume=resume)
+                                            chunk_seats=chunk_seats, resume=resume, pose_flip=pose_flip)
     timeline_s = time.perf_counter() - began
     total_s = time.perf_counter() - started
     timing = {"video_s": round(video_s, 2), "fast_s": round(fast_s, 2), "timeline_s": round(timeline_s, 2),
               "total_s": round(total_s, 2), "ratio": round(total_s / video_s, 2) if video_s else 0.0,
               "seats": len(windows), "crops": stats.get("crops", 0), "crops_shared": stats.get("crops_shared", 0),
-              "quality": quality, "half": half, "stats": stats}
+              "quality": quality, "half": half, "pose_flip": pose_flip, "stats": stats}
     (out / TIMING).write_text(json.dumps(timing, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Xong: {len(windows)} ghế, {total_s:.1f} s cho video {video_s:.1f} s (x{timing['ratio']})", flush=True)
     return timing
@@ -148,11 +151,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--fp32", action="store_true")
     parser.add_argument("--chunk-seats", type=int, help="số ghế mỗi lượt (lượt bị dừng chỉ mất lượt đó)")
     parser.add_argument("--resume", action="store_true", help="giữ các ghế đã xong, làm tiếp ghế còn lại")
+    parser.add_argument("--pose-flip", action="store_true",
+                        help="chạy thêm model khung xương trên ảnh cắt lật ngang rồi ghép (chậm hơn)")
     args = parser.parse_args(argv)
     try:
         build(args.video, args.out, quality=args.quality, device=args.device, device2=args.device2,
               reuse_fast=args.reuse_fast or args.resume, half=not args.fp32, batch=args.batch,
-              chunk_seats=args.chunk_seats, resume=args.resume)
+              chunk_seats=args.chunk_seats, resume=args.resume, pose_flip=args.pose_flip)
     except _process_video().ProcessError as exc:
         print(f"Lỗi: {exc}", file=sys.stderr)
         return 1

@@ -22,7 +22,7 @@ from proctoring_core.observations import Box
 from .head import distance, head_lift, head_point, head_yaw_index, point
 from .pose_detector import LEFT_WRIST, RIGHT_WRIST
 from .review_cache import CacheKey, window_key
-from .review_rules import ReviewFrame, review_window
+from .review_rules import ReviewFrame, ReviewRuleConfig, review_window
 from .suspects import CctvSuspectConfig, DeskLine, SuspectWindow
 
 WIN_MS = 3000
@@ -137,7 +137,8 @@ def _baselines(states: dict[UUID, _Seat], raw: dict[UUID, tuple[list[float], lis
 
 
 def _rule_spans(window: SuspectWindow, frames: Sequence[ReviewFrame]) -> dict[str, list[tuple[int, int]]]:
-    records = review_window(window, list(frames))
+    # The learned core was trained on raw keypoints: its features keep them unsmoothed whatever the default.
+    records = review_window(window, list(frames), ReviewRuleConfig(smooth_poses=False))
     opened = {item["id"]: item for item in records if item.get("action") == "opened"
               and item.get("seat_id") == str(window.seat_id)}
     spans: dict[str, list[tuple[int, int]]] = {}

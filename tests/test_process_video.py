@@ -243,7 +243,23 @@ def test_fp32_and_share_iou_reach_the_deep_tier(tmp_path: Path, monkeypatch: pyt
                        fast_runner=_FastRunner([_window()])) == 0
     assert built == {"half": False} and seen == {"share_iou": 1.1}
     saved = json.loads((tmp_path / "o" / "timing.json").read_text(encoding="utf-8"))
-    assert saved["config"] == {"quality": "max", "half": False, "share_iou": 1.1, "core": "rules", "all_seats": False}
+    assert saved["config"] == {"quality": "max", "half": False, "share_iou": 1.1, "core": "rules", "all_seats": False,
+                               "pose_flip": False}
+
+
+def test_pose_flip_reaches_the_deep_tier(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _module()
+    seen: list[bool] = []
+    monkeypatch.setattr(module, "build_detectors", lambda *a, **kw: _Detectors())
+    real = module.review_offline
+    monkeypatch.setattr(module, "review_offline",
+                        lambda *a, **kw: seen.append(kw.get("pose_flip")) or real(*a, **kw))
+    video = _video(tmp_path / "in.mp4")
+    assert module.main([str(video), "--out", str(tmp_path / "o"), "--pose-flip"],
+                       fast_runner=_FastRunner([_window()])) == 0
+    assert seen == [True]
+    saved = json.loads((tmp_path / "o" / "timing.json").read_text(encoding="utf-8"))
+    assert saved["config"]["pose_flip"] is True
 
 
 def test_reuse_fast_skips_the_fast_tier(tmp_path: Path) -> None:
