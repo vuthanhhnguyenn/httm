@@ -1,9 +1,15 @@
-# Tờ chấm LUy81HI7wS0.mp4: ô số N là mục thứ N; verdict true = cảnh báo đúng, false = nhầm, null = chưa chấm.
+# Nguyên chấm 2026-11-12 (4 đúng: ô 1, 4, 7, 12; còn lại nhầm). Tờ chấm LUy81HI7wS0.mp4: ô số N là mục thứ N; verdict true = cảnh báo đúng, false = nhầm, null = chưa chấm.
 video: LUy81HI7wS0.mp4
 verdicts:
-  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 12.0, "heads": [[0.212, 0.416]], "verdict": null}  # ô 1
-  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 17.8, "heads": [[0.314, 0.26]], "verdict": null}  # ô 2
-  - {"type": "HEADS_TOGETHER", "t_s": 22.2, "heads": [[0.53, 0.313]], "verdict": null}  # ô 3
-  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 50.8, "heads": [[0.285, 0.104]], "verdict": null}  # ô 4
-  - {"type": "TURN_AROUND", "t_s": 71.0, "heads": [[0.546, 0.324]], "verdict": null}  # ô 5
-  - {"type": "TURN_AROUND", "t_s": 81.0, "heads": [[0.461, 0.596]], "verdict": null}  # ô 6
+  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 6.0, "heads": [[0.325, 0.265]], "verdict": true}  # ô 1
+  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 11.6, "heads": [[0.211, 0.421]], "verdict": false}  # ô 2
+  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 17.2, "heads": [[0.314, 0.262]], "verdict": false}  # ô 3
+  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 20.2, "heads": [[0.31, 0.275]], "verdict": true}  # ô 4
+  - {"type": "HEADS_TOGETHER", "t_s": 22.2, "heads": [[0.53, 0.313]], "verdict": false}  # ô 5
+  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 35.0, "heads": [[0.3, 0.304]], "verdict": false}  # ô 6
+  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 48.8, "heads": [[0.469, 0.54]], "verdict": true}  # ô 7
+  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 55.0, "heads": [[0.079, 0.428]], "verdict": false}  # ô 8
+  - {"type": "TURN_AROUND", "t_s": 64.2, "heads": [[0.466, 0.595]], "verdict": false}  # ô 9
+  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 75.2, "heads": [[0.388, 0.18]], "verdict": false}  # ô 10
+  - {"type": "TURN_AROUND", "t_s": 80.2, "heads": [[0.461, 0.596]], "verdict": false}  # ô 11
+  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 85.6, "heads": [[0.517, 0.31]], "verdict": true}  # ô 12

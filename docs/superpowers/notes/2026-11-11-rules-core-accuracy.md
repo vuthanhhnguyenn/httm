@@ -72,3 +72,14 @@ Thêm được nhãn LOOK_AT_NEIGHBOR giây 24,0 (quay ngang bị sót trước 
 kết quả nên 30° nằm trong vùng ổn định (đã quét 20/25/30/35). Giữ lâu hơn 1,2 s làm mất lợi ích. ONNX lệch bản
 SavedModel tối đa 0,68° trên 1003 khung (ngưỡng quay 30°, nên chấp nhận). Tham số chọn trên clip 1 (tập dev) nên số
 này lạc quan; chỉ số cuối cùng phải đo trên clip 2.
+
+### Clip 2 (tập giữ lại), Nguyên chấm 2026-11-12
+
+Tờ chấm 12 ô lấy từ các cảnh báo của cấu hình HHP (nên lệch có lợi cho HHP về "bắt được"). Nguyên: 4 đúng (ô 1, 4, 7, 12), 8 nhầm (gồm 2 chụm đầu/quay ra sau và nhiều "nhìn sang bên cạnh").
+
+| Cấu hình | Bắt được | Đúng/đã chấm | Đúng loại | Nhầm bị phủ | Đỏ | Cảnh báo |
+|---|---|---|---|---|---|---|
+| Chỉ số mũi–vai, giữ 1,5 s | 1/4 | 1/5 | 1 | 4/8 | 3 | 6 |
+| HHP 30°, giữ 0,8 s | 4/4 | 5/12 | 5 | 8/8 | 3 | 19 |
+
+HHP bắt đủ 4/4 sự kiện đúng đã chấm nhưng cũng đẩy cảnh báo từ 6 lên 19 và độ đúng chỉ 5/12 (~42%) trên các cảnh báo đã chấm; 7 cảnh báo còn lại chưa chấm. Chụm đầu và quay ra sau: 0 đúng trên cả hai cấu hình. Không đạt mục tiêu 90% đúng.
