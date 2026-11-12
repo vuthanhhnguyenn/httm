@@ -83,3 +83,32 @@ Tờ chấm 12 ô lấy từ các cảnh báo của cấu hình HHP (nên lệch
 | HHP 30°, giữ 0,8 s | 4/4 | 5/12 | 5 | 8/8 | 3 | 19 |
 
 HHP bắt đủ 4/4 sự kiện đúng đã chấm nhưng cũng đẩy cảnh báo từ 6 lên 19 và độ đúng chỉ 5/12 (~42%) trên các cảnh báo đã chấm; 7 cảnh báo còn lại chưa chấm. Chụm đầu và quay ra sau: 0 đúng trên cả hai cấu hình. Không đạt mục tiêu 90% đúng.
+
+## Hướng 80%: ẩn loại thường sai, tự chấm thêm, bộ lọc thứ hai (2026-11-12)
+
+Nguyên bận, nhờ Claude tự quyết và tự chấm. Claude chấm 28 ứng viên chưa có nhãn (9 ở clip 1, 19 ở clip 2) từ dải
+5 khung quanh đầu, ghi riêng trong `data/labels/claude/` (ngoài glob `data/labels/<video>-*.yaml` của nhãn Nguyên), độ tin cậy thấp vì hướng nhìn khó thấy ở độ phân
+giải này. Số chính vẫn chỉ dùng nhãn của Nguyên (cột "N"); cột "N+C" thêm nhãn Claude.
+
+Loại cảnh báo trên mọi cảnh báo đã chấm (bộ lỏng 20°, cả hai clip): TURN_AROUND 0/7, PHONE_DETECTED 0/2,
+PASSING_OBJECT 0/3, HEADS_TOGETHER 2/7, LOOK_AT_NEIGHBOR 10/30. Ẩn TURN_AROUND và PHONE_DETECTED ở lượt mọi ghế
+(`HIDDEN_TYPES`, `--show-all-types` để hiện lại) không mất sự kiện đúng nào. Ẩn thêm HEADS_TOGETHER làm clip 1 tụt
+bắt được 11 → 9 nên theo luật dừng thì giữ.
+
+| Cấu hình (mặc định HHP 30°, giữ 0,8 s) | Clip 1 N | Clip 1 N+C | Clip 2 N | Clip 2 N+C |
+|---|---|---|---|---|
+| Trước (hiện mọi loại) | bắt 11/14, đúng 7/14, 18 cảnh báo | 13/16, 9/18 | 4/4, 5/12, 19 | 4/5, 5/18 |
+| **Ẩn quay ra sau + điện thoại (mặc định mới)** | 11/14, **7/12 (58%)**, 14 | 13/16, 9/14 (64%) | 4/4, **5/10 (50%)**, 16 | 4/5, 5/15 |
+
+Đã quét thêm ngưỡng 20/25° với giữ 1,2/1,6/2,0 s trên cả hai clip: giữ ≥ 1,6 s làm clip 2 tụt bắt được 4 → 1, giữ
+1,2 s không hơn 30°/0,8 s trên clip 1 (chọn trên clip 1 nên giữ 30°/0,8 s). Lọc theo độ dài nhìn sang (≥ 1,6 s) chỉ
+tách tốt ở bộ lỏng 20°, còn ở cấu hình mặc định thì mất sự kiện đúng.
+
+Bộ lọc thứ hai học từ nhãn: **chưa làm**. Chỉ có 29 cảnh báo đã chấm ở cấu hình mặc định và không đặc trưng nào
+(độ dài, độ lệch yaw, hàng ngồi, số cảnh báo cùng ghế, mức đỏ/vàng) tách đúng/nhầm khi kiểm chéo hai clip; học trên
+từng ấy mẫu sẽ chỉ học thuộc. Dấu hiệu duy nhất đáng thử: chụm đầu ở hàng xa (đầu ở nửa trên khung) 0/5 đúng, hàng
+gần 2/2, nhưng đó là vị trí riêng của từng camera nên cần thêm video trước khi biến thành luật.
+
+Kết luận cho báo cáo: luật có nguồn + HHP-Net đạt khoảng 50–60% cảnh báo đúng (clip 2 giữ lại: 50%), bắt đủ sự
+kiện đúng đã chấm. Đích 80% cần thêm nhãn (vài trăm cảnh báo đã chấm trên nhiều camera) để học bộ lọc thứ hai, hoặc
+ảnh độ phân giải cao hơn để thấy hướng nhìn.

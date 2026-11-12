@@ -1,0 +1,13 @@
+# Claude tự chấm 2026-11-12 (Nguyên nhờ tự chấm khi bận). Độ tin cậy THẤP: hướng nhìn khó thấy ở độ phân giải này. Không trộn với nhãn của Nguyên khi báo số chính.
+# Ứng viên từ events-loose (hhp 20°, 600 ms, keep-blips), chỉ các mục chưa có nhãn của Nguyên.
+video: EPf9O7UXRoM.mp4
+verdicts:
+  - {"type": "PASSING_OBJECT", "t_s": 35.6, "heads": [[0.147, 0.59]], "verdict": false}  # ứng viên 6: cúi viết, không thấy trao
+  - {"type": "TURN_AROUND", "t_s": 36.8, "heads": [[0.346, 0.11]], "verdict": false}  # ứng viên 7: đầu sau lưng giám thị đi qua
+  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 37.8, "heads": [[0.18, 0.129]], "verdict": false}  # ứng viên 9: hàng cuối, cúi xuống bài
+  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 43.8, "heads": [[0.415, 0.495]], "verdict": true}  # ứng viên 14: chống cằm, nhìn sang trái ~44 s, cùng ghế lần quay 24 s
+  - {"type": "PHONE_DETECTED", "t_s": 44.0, "heads": [[0.457, 0.387]], "verdict": false}  # ứng viên 15: cúi viết, không thấy điện thoại
+  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 44.4, "heads": [[0.463, 0.261]], "verdict": false}  # ứng viên 17: nhìn thẳng, không rõ nhìn sang
+  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 47.0, "heads": [[0.289, 0.221]], "verdict": false}  # ứng viên 19: hàng cuối, cúi viết
+  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 59.4, "heads": [[0.816, 0.601]], "verdict": true}  # ứng viên 22: quay nhìn tay người bên trái, ngay trước lần trao bài 60-65 s
+  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 70.4, "heads": [[0.277, 0.22]], "verdict": false}  # ứng viên 25: cúi viết, cuối video

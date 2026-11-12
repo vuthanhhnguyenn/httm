@@ -1,0 +1,23 @@
+# Claude tự chấm 2026-11-12 (Nguyên nhờ tự chấm khi bận). Độ tin cậy THẤP: hướng nhìn khó thấy ở độ phân giải này. Không trộn với nhãn của Nguyên khi báo số chính.
+# Ứng viên từ events-loose (hhp 20°, 600 ms, keep-blips), chỉ các mục chưa có nhãn của Nguyên.
+video: LUy81HI7wS0.mp4
+verdicts:
+  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 6.0, "heads": [[0.207, 0.429]], "verdict": false}  # ứng viên 2: không thấy quay sang; nhiều mục rơi vào giấy/chỗ trống khi camera đổi góc
+  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 13.0, "heads": [[0.499, 0.306]], "verdict": false}  # ứng viên 4: không thấy quay sang; nhiều mục rơi vào giấy/chỗ trống khi camera đổi góc
+  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 16.0, "heads": [[0.222, 0.181]], "verdict": false}  # ứng viên 5: không thấy quay sang; nhiều mục rơi vào giấy/chỗ trống khi camera đổi góc
+  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 22.0, "heads": [[0.175, 0.26]], "verdict": false}  # ứng viên 8: không thấy quay sang; nhiều mục rơi vào giấy/chỗ trống khi camera đổi góc
+  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 26.8, "heads": [[0.546, 0.308]], "verdict": false}  # ứng viên 10: không thấy quay sang; nhiều mục rơi vào giấy/chỗ trống khi camera đổi góc
+  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 30.6, "heads": [[0.211, 0.185]], "verdict": false}  # ứng viên 11: không thấy quay sang; nhiều mục rơi vào giấy/chỗ trống khi camera đổi góc
+  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 40.8, "heads": [[0.069, 0.412]], "verdict": false}  # ứng viên 13: không thấy quay sang; nhiều mục rơi vào giấy/chỗ trống khi camera đổi góc
+  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 43.0, "heads": [[0.375, 0.162]], "verdict": true}  # ứng viên 14: áo sọc quay sang ~43 s (yếu)
+  - {"type": "TURN_AROUND", "t_s": 45.6, "heads": [[0.224, 0.17]], "verdict": false}  # ứng viên 15: không thấy quay sang; nhiều mục rơi vào giấy/chỗ trống khi camera đổi góc
+  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 45.6, "heads": [[0.3, 0.284]], "verdict": false}  # ứng viên 16: không thấy quay sang; nhiều mục rơi vào giấy/chỗ trống khi camera đổi góc
+  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 49.8, "heads": [[0.289, 0.101]], "verdict": false}  # ứng viên 18: không thấy quay sang; nhiều mục rơi vào giấy/chỗ trống khi camera đổi góc
+  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 50.4, "heads": [[0.545, 0.313]], "verdict": false}  # ứng viên 19: không thấy quay sang; nhiều mục rơi vào giấy/chỗ trống khi camera đổi góc
+  - {"type": "HEADS_TOGETHER", "t_s": 50.6, "heads": [[0.546, 0.315]], "verdict": false}  # ứng viên 20: không thấy quay sang; nhiều mục rơi vào giấy/chỗ trống khi camera đổi góc
+  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 58.4, "heads": [[0.203, 0.463]], "verdict": false}  # ứng viên 22: không thấy quay sang; nhiều mục rơi vào giấy/chỗ trống khi camera đổi góc
+  - {"type": "TURN_AROUND", "t_s": 66.4, "heads": [[0.543, 0.325]], "verdict": false}  # ứng viên 24: không thấy quay sang; nhiều mục rơi vào giấy/chỗ trống khi camera đổi góc
+  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 83.8, "heads": [[0.221, 0.175]], "verdict": false}  # ứng viên 27: không thấy quay sang; nhiều mục rơi vào giấy/chỗ trống khi camera đổi góc
+  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 84.2, "heads": [[0.306, 0.273]], "verdict": false}  # ứng viên 28: không thấy quay sang; nhiều mục rơi vào giấy/chỗ trống khi camera đổi góc
+  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 87.8, "heads": [[0.168, 0.26]], "verdict": false}  # ứng viên 30: không thấy quay sang; nhiều mục rơi vào giấy/chỗ trống khi camera đổi góc
+  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 100.0, "heads": [[0.208, 0.191]], "verdict": false}  # ứng viên 31: không thấy quay sang; nhiều mục rơi vào giấy/chỗ trống khi camera đổi góc

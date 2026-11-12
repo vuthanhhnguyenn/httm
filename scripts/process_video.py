@@ -57,6 +57,7 @@ REVIEW_FPS = 5.0
 WARMUP_MS = 6000
 SHARE_IOU = 0.7  # crops of one frame overlapping at least this much share one model run; > 1 turns it off
 SUSTAINED_MS = 1000  # all-seats: an alert shorter than this is a blip (require_sustained min_ms)
+HIDDEN_TYPES = ("TURN_AROUND", "PHONE_DETECTED")  # all-seats: never right on clips 1-2 (0/7, 0/2; 2026-11-12)
 TURN_TYPES = ("LOOK_AT_NEIGHBOR", "HEAD_TURN_LEFT", "HEAD_TURN_RIGHT", "TURN_AROUND")
 DEFAULT_DEVICE = "cuda"
 CORES = ("rules", "learned")
@@ -357,7 +358,8 @@ def process(video: Path, out: Path, *, quality: str = "max", device: str | None 
             batch: int | None = None, ffmpeg: str | None = "ffmpeg", half: bool = True,
             share_iou: float = SHARE_IOU, reuse_fast: bool = False, core: str = "rules",
             model: Path | None = None, learned: Any = None, all_seats: bool = False,
-            keep_blips: bool = False, pose_flip: bool = False, reassign: str | None = None) -> dict[str, Any]:
+            keep_blips: bool = False, pose_flip: bool = False, reassign: str | None = None,
+            show_all_types: bool = False) -> dict[str, Any]:
     """Run the three passes; returns what ``timing.json`` holds. ``detectors`` / ``fast_runner`` replace the
     real models and fast tier (tests). Raises ``ProcessError`` when the video cannot be read.
 
@@ -368,6 +370,7 @@ def process(video: Path, out: Path, *, quality: str = "max", device: str | None 
     ``all_seats`` (rules core): the deep tier looks at every seat for the whole video instead of only the fast
     tier's suspect windows; a red alert must last at least 2 s and alerts under 1 s are dropped
     (``require_sustained``); ``keep_blips`` skips that filter (loose run, to pick alerts for the judging sheet).
+    That filter also drops ``HIDDEN_TYPES`` unless ``show_all_types``.
 
     ``pose_flip``: the pose model also runs on every crop mirrored and the two are merged (test-time flip);
     about twice the pose time. Only frames the models see now are affected: seats resumed from an earlier
@@ -441,7 +444,8 @@ def process(video: Path, out: Path, *, quality: str = "max", device: str | None 
         records = finish_records(per_window, fast_events, load_confidence(ROOT / "configs" / "confidence.yaml"))
         if all_seats and not keep_blips:
             records = require_sustained(records, min_ms=SUSTAINED_MS,
-                                        min_ms_by_type=sustained_by_type(REVIEW_CONFIG.turn_hold_ms))
+                                        min_ms_by_type=sustained_by_type(REVIEW_CONFIG.turn_hold_ms),
+                                        hidden=() if show_all_types else HIDDEN_TYPES)
     deep_stats["evidence"] = _evidence(video, out, per_window, records, frames)
     with (out / "events.jsonl").open("w", encoding="utf-8") as handle:
         handle.writelines(json.dumps(item, ensure_ascii=False, default=str) + "\n" for item in records)
@@ -460,7 +464,8 @@ def process(video: Path, out: Path, *, quality: str = "max", device: str | None 
             "device_reasons": reasons, "deep_stats": deep_stats, "encoder": rendered.get("encoder"),
             "config": {"quality": quality, "half": half, "share_iou": share_iou, "core": core, "all_seats": all_seats,
                        "pose_flip": pose_flip,
-                       **({"keep_blips": True} if keep_blips else {}), **({"model": model.name} if model is not None else {})}}
+                       **({"keep_blips": True} if keep_blips else {}),
+                       **({"show_all_types": True} if show_all_types else {}), **({"model": model.name} if model is not None else {})}}
         if warning:
             timing["domain_warning"] = warning
         if deep_stats.get("note"):
@@ -507,6 +512,8 @@ def main(argv: list[str] | None = None, *, fast_runner: FastRunner | None = None
                         help="tầng kỹ xem mọi ghế suốt video (bắt sót ít hơn, chậm gấp ~2); đỏ phải kéo dài >= 3 s")
     parser.add_argument("--keep-blips", action="store_true",
                         help="với --all-seats: giữ cả cảnh báo ngắn (không lọc theo độ dài), để chọn ô cho tờ chấm")
+    parser.add_argument("--show-all-types", action="store_true",
+                        help="với --all-seats: hiện cả loại thường sai (quay ra sau, điện thoại), mặc định ẩn")
     parser.add_argument("--pose-flip", action="store_true",
                         help="chạy thêm model khung xương trên ảnh cắt lật ngang rồi ghép (chậm hơn, khung xương ổn định hơn)")
     parser.add_argument("--reassign", choices=["old", "tracked"], default=None,
@@ -527,7 +534,8 @@ def main(argv: list[str] | None = None, *, fast_runner: FastRunner | None = None
         process(args.video, args.out, quality=args.quality, device=args.device, device2=args.device2,
                 fast_runner=fast_runner, batch=args.batch, half=not args.fp32, share_iou=args.share_iou,
                 reuse_fast=args.reuse_fast, core=args.core, model=args.model,
-                all_seats=args.all_seats, keep_blips=args.keep_blips, pose_flip=args.pose_flip, reassign=args.reassign)
+                all_seats=args.all_seats, keep_blips=args.keep_blips, pose_flip=args.pose_flip, reassign=args.reassign,
+                show_all_types=args.show_all_types)
     except ProcessError as exc:
         print(str(exc), file=sys.stderr)
         return 1

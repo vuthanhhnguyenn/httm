@@ -128,11 +128,13 @@ def assign_levels(review: list[dict[str, Any]], fast: list[dict[str, Any]],
 
 def require_sustained(records: list[dict[str, Any]], *, min_ms: int = 1000, red_ms: int = 2000,
                       keep: Sequence[str] = ("PHONE_DETECTED",),
-                      min_ms_by_type: Mapping[str, int] | None = None) -> list[dict[str, Any]]:
+                      min_ms_by_type: Mapping[str, int] | None = None,
+                      hidden: Sequence[str] = ()) -> list[dict[str, Any]]:
     """For the all-seats deep tier, where every seat is watched and blips add up: an alert shorter than
     ``min_ms`` (or its type's entry in ``min_ms_by_type``) is dropped (with its closed and merged rows) unless its
     type is in ``keep``; a red alert shorter than ``red_ms`` becomes yellow. ``red_ms`` is 2 s by Nguyên's
-    decision (2026-11-11); it was 3.2 s, measured on clip 1 (true reds 3.4 s and 9 s, false ones 3.0 s or less)."""
+    decision (2026-11-11); it was 3.2 s, measured on clip 1 (true reds 3.4 s and 9 s, false ones 3.0 s or less).
+    An alert whose type is in ``hidden`` is dropped whatever its length (types judged nearly always wrong)."""
 
     ends = {str(item.get("id")): int(item.get("video_offset_ms", 0)) for item in records
             if item.get("action") == "closed"}
@@ -143,7 +145,7 @@ def require_sustained(records: list[dict[str, Any]], *, min_ms: int = 1000, red_
             key = str(item.get("id"))
             length = ends.get(key, int(item.get("video_offset_ms", 0))) - int(item.get("video_offset_ms", 0))
             least = (min_ms_by_type or {}).get(str(item.get("type")), min_ms)
-            if length < least and item.get("type") not in keep:
+            if item.get("type") in hidden or (length < least and item.get("type") not in keep):
                 drop.add(key)
                 continue
             if item.get("level") == "red" and length < red_ms:

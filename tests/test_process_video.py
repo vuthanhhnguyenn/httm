@@ -448,3 +448,25 @@ def test_final_blip_filter_follows_the_review_config(tmp_path: Path, monkeypatch
     module.process(video, tmp_path / "short", detectors=_SeeingDetectors(), fast_runner=_FastRunner([]),
                    all_seats=True)
     assert [e["id"] for e in _events(tmp_path / "short") if e["action"] == "opened"] == ["look"]
+
+
+def test_all_seats_hides_types_that_were_nearly_always_wrong(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """2026-11-12: on both clips TURN_AROUND (0/7) and PHONE_DETECTED (0/2) alerts were never right, so the
+    all-seats output leaves them out unless ``show_all_types``; a long LOOK_AT_NEIGHBOR stays."""
+
+    module = _module()
+
+    def alert(event_id: str, kind: str) -> list[dict]:
+        base = {"id": event_id, "type": kind, "seat_id": str(SEAT_A), "stage": "review"}
+        return [{"action": "opened", "video_offset_ms": 500, "head": [0.3, 0.35], "level": "yellow", **base},
+                {"action": "closed", "video_offset_ms": 3500, **base}]
+
+    records = alert("turn", "TURN_AROUND") + alert("phone", "PHONE_DETECTED") + alert("look", "LOOK_AT_NEIGHBOR")
+    monkeypatch.setattr(module, "finish_records", lambda *_args, **_kwargs: [dict(r) for r in records])
+    video = _video(tmp_path / "in.mp4", seconds=4.0)
+    module.process(video, tmp_path / "default", detectors=_SeeingDetectors(), fast_runner=_FastRunner([]),
+                   all_seats=True)
+    assert [e["id"] for e in _events(tmp_path / "default") if e["action"] == "opened"] == ["look"]
+    module.process(video, tmp_path / "all", detectors=_SeeingDetectors(), fast_runner=_FastRunner([]),
+                   all_seats=True, show_all_types=True)
+    assert [e["id"] for e in _events(tmp_path / "all") if e["action"] == "opened"] == ["turn", "phone", "look"]
