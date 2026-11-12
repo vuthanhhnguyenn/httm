@@ -10,7 +10,7 @@ from ...pipeline.single_flight import run_single_flight
 
 # COCO keypoint order used by YOLO-pose.
 NOSE, LEFT_EYE, RIGHT_EYE, LEFT_EAR, RIGHT_EAR = 0, 1, 2, 3, 4
-LEFT_SHOULDER, RIGHT_SHOULDER, LEFT_WRIST, RIGHT_WRIST = 5, 6, 9, 10
+LEFT_SHOULDER, RIGHT_SHOULDER, LEFT_ELBOW, RIGHT_ELBOW, LEFT_WRIST, RIGHT_WRIST = 5, 6, 7, 8, 9, 10
 
 
 def parse_pose_result(result: Any, frame_size: tuple[int, int]) -> list[dict[str, Any]]:

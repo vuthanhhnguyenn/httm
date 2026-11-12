@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import gzip
 import json
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -35,14 +35,22 @@ def _frame_json(frame: ReviewFrame) -> dict[str, Any]:
     return {"t": frame.offset_ms, "aspect": _r(frame.frame_aspect),
             "seats": {str(key): _box(box) for key, box in frame.seats.items()},
             "poses": {str(key): [[_r(v) for v in p] for p in kps] for key, kps in frame.poses.items()},
-            "objects": [[obj.label, _r(obj.confidence), *_box(obj.bbox), obj.source] for obj in frame.objects]}
+            "objects": [[obj.label, _r(obj.confidence), *_box(obj.bbox), obj.source] for obj in frame.objects],
+            "people": [_person_json(person) for person in frame.people]}
+
+
+def _person_json(person: Mapping[str, Any]) -> dict[str, Any]:
+    out: dict[str, Any] = {"keypoints": [[_r(v) for v in p] for p in person["keypoints"]]}
+    if (box := Box.parse(person.get("bbox"))) is not None:
+        out["bbox"] = {key: _r(value) for key, value in box.as_dict().items()}
+    return out
 
 
 def _frame_from(item: dict[str, Any]) -> ReviewFrame:
     return ReviewFrame(int(item["t"]), {UUID(key): Box(*value) for key, value in item["seats"].items()},
                        {UUID(key): [list(p) for p in kps] for key, kps in item["poses"].items()},
                        [ReviewObject(o[0], o[1], Box(o[2], o[3], o[4], o[5]), o[6]) for o in item["objects"]],
-                       float(item["aspect"]))
+                       float(item["aspect"]), list(item.get("people", ())))
 
 
 def window_key(window: SuspectWindow) -> CacheKey:

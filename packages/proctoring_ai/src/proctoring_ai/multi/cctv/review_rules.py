@@ -19,11 +19,17 @@ from proctoring_core.types import EventType
 from ..pipeline import FrameTiming, MultiFrameResult
 from ..tracker import Seat, TrackerUpdate
 from .head import Keypoints, distance, head_lift, head_point, point, shoulders
-from .pose_detector import LEFT_WRIST, RIGHT_WRIST
+from .pose_detector import LEFT_ELBOW, LEFT_WRIST, RIGHT_ELBOW, RIGHT_WRIST
+from .pose_smooth import smooth_frames
 from .review_detectors import ReviewObject, _iou
 from .roles import CANDIDATE
 from .rules import CctvRuleConfig, CctvSeatRules
 from .suspects import CctvSuspectConfig, DeskLine, SuspectWindow
+
+# assign_poses: a person fills a seat only with this share of their body box inside it, and not with the
+# head higher than this many seat heights above the seat's top.
+ASSIGN_MIN_OVERLAP = 0.5
+BACK_ROW_HEIGHTS = 0.1
 
 _TIMING = FrameTiming(0.0, 0.0, 0.0, {}, 0.0, 0.0, 0, 0, False)
 
@@ -57,21 +63,51 @@ class ReviewRuleConfig:
     object_track_iou: float = 0.3  # same object in consecutive sightings
     object_wrist_widths: float = 0.6  # "in the hand": centre this close to a wrist, in seat widths
     object_move_widths: float = 0.5  # or it travelled this far, in its own widths
-    calculator_on_paper: bool = False  # a "phone" on the seat's own paper is a calculator (set if 31.6 stays)
+    # A "phone" lying on the seat's own paper in at least this share of the frames it is seen in is a
+    # calculator, not a phone. Above 1 switches the rule off.
+    phone_paper_fraction: float = 0.6
     # Hands meeting is judged against the people's size, not the frame: far rows are tiny and their
     # keypoints jitter by more than a hand's width.
     passing_wrist_heights: float = 0.2  # wrists closer than this x the smaller seat box height (25.5 s: 0.13-0.2)
     passing_wrist_conf: float = 0.5
-    far_row_height: float = 0.12  # seat boxes lower than this (frame heights) are far rows
-    far_row_inside_frames: int = 2  # far rows also need a wrist inside the other seat this often
+    # Hands alone (nothing seen between them) also need a wrist inside the other seat in this many frames of
+    # the meeting: two neighbours writing at the shared desk edge keep their hands close but each on their own side.
+    passing_inside_frames: int = 2
     # Two people's wrists on the very same spot is one arm the pose model gave to both, not two hands.
     same_arm_heights: float = 0.03
     # A handover takes about a second; hands side by side for longer, with nothing between them, are two
     # neighbours resting on a shared desk edge.
     passing_max_ms: int = 3000
-    # LOOK_AT_LAP: no hand of the candidate on the desk. A writer always has one hand on the paper; a hand
-    # the camera cannot see is under the desk, so hidden hands count as low (phase 1 lap rule needed one seen).
-    lap_needs_both_wrists: bool = True
+    # LOOK_AT_LAP: no hand of the candidate on the desk. A writer always has one hand on the paper, but a
+    # writer's hand is often hidden by the arm or the desk too, so a hidden wrist counts as under the desk
+    # only when the same-side elbow is seen below the desk line.
+    lap_hidden_needs_low_elbow: bool = True
+    # A run is kept only if every visible wrist moved at most this many seat widths (a hand sliding along the
+    # desk edge is writing, not resting in the lap).
+    # None: off (pose jitter of a real lap is as large as a writer's slide).
+    lap_still_widths: float | None = None
+    # A wrist inside paper or a book lying on the desk (box centre above the desk line) is writing, even when
+    # the wrist sits below the line; paper in the lap does not block.
+    lap_paper_blocks: bool = True
+    # A forearm seen whole (wrist and elbow) must hang into the lap: the wrist at least this many shoulder
+    # widths below its elbow. A writer's forearm lies on the desk, about level (clip 1: 0.05-0.23 against
+    # 0.36-0.46 for real laps). The desk line alone cannot tell: the seat box ends at the desk edge, so a
+    # writer's hands sit below its default line and never teach it. None: off.
+    lap_forearm_drop: float | None = 0.25
+    # Hold of the head-turn rules (LOOK_AT_NEIGHBOR, HEAD_TURN_*, TURN_AROUND) in the deep tier only; the fast
+    # tier keeps CctvRuleConfig's own default.
+    turn_hold_ms: int = 1500
+    # Head direction source for the turn rules: ``index`` (default) or ``hhp`` (head_pose.hhp_yaw_pitch), with
+    # ``yaw_threshold_deg`` degrees away from the seat's own median.
+    yaw_source: str = "index"
+    yaw_threshold_deg: float = 25.0
+    # Seats take people by body overlap and shoulders (assign_poses); False: the old head-inside-the-box rule.
+    # Off by default: measured on clip 1 with the timeline rebuilt it catches 5/9 labels against 7/9 (stop rule).
+    assign_by_body: bool = False
+    # Keypoints go through a One Euro filter per seat (pose_smooth.smooth_frames) before any rule reads them.
+    # Off by default: on clip 1 it adds no correct alert (7/9 caught either way) and the replay loses true
+    # events (PASSING 25.5 s, the LAP at 63 s merges into an earlier alert), so the regression fails.
+    smooth_poses: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,6 +117,9 @@ class ReviewFrame:
     poses: Mapping[UUID, Keypoints]
     objects: Sequence[ReviewObject]
     frame_aspect: float = 16 / 9
+    # Every person the pose model found in the crop (``bbox`` and ``keypoints``), kept so seat assignment can be
+    # replayed without running the models again. Empty in caches written before this field existed.
+    people: Sequence[Mapping[str, Any]] = ()
 
 
 def _person_head(item: Mapping[str, Any]) -> tuple[float, float] | None:
@@ -98,8 +137,8 @@ def _person_head(item: Mapping[str, Any]) -> tuple[float, float] | None:
     return None
 
 
-def assign_poses(seats: Mapping[UUID, Box], people: Sequence[Mapping[str, Any]]) -> dict[UUID, Keypoints]:
-    """Each seat takes the person whose head is inside its box and nearest its usual head place."""
+def _assign_by_head(seats: Mapping[UUID, Box], people: Sequence[Mapping[str, Any]]) -> dict[UUID, Keypoints]:
+    """The old rule: each seat takes the person whose head is inside its box and nearest its usual head place."""
 
     out: dict[UUID, Keypoints] = {}
     taken: set[int] = set()
@@ -121,12 +160,101 @@ def assign_poses(seats: Mapping[UUID, Box], people: Sequence[Mapping[str, Any]])
     return out
 
 
+def _overlap_share(person: Box, seat: Box) -> float:
+    """Share of the person's box that lies inside the seat box. Only the part of the person down to the seat's
+    bottom counts: seat boxes are about as tall as head and shoulders, while a seated person's box runs on
+    down behind the desk (clip 1: 0.27 against a 0.16 seat), and that must not count against them."""
+
+    bottom = min(person.y + person.height, seat.y + seat.height)
+    width = min(person.x + person.width, seat.x + seat.width) - max(person.x, seat.x)
+    height = bottom - max(person.y, seat.y)
+    area = person.width * (bottom - person.y)
+    return width * height / area if width > 0 and height > 0 and area > 0 else 0.0
+
+
+def _seat_score(box: Box, item: Mapping[str, Any]) -> float | None:
+    """How well a person fits a seat, or None when they cannot be its occupant."""
+
+    head = _person_head(item)
+    if head is None or head[1] < box.y - BACK_ROW_HEIGHTS * box.height:
+        return None  # a head above the seat is somebody in the row behind
+    body = Box.parse(item.get("bbox"))
+    if body is None:  # no body box: the head must be inside the seat
+        if not (box.x <= head[0] <= box.x + box.width and box.y <= head[1] <= box.y + box.height):
+            return None
+        share = 1.0
+    else:
+        share = _overlap_share(body, box)
+        if share < ASSIGN_MIN_OVERLAP:
+            return None
+    score = share - distance(head, (box.x + box.width / 2, box.y + 0.25 * box.height)) / box.height
+    if (pair := shoulders(item["keypoints"])) is not None:
+        mid_y = (pair[0][1] + pair[1][1]) / 2
+        if box.y <= mid_y <= box.y + box.height / 2:
+            score += 1.0
+    return score
+
+
+def assign_poses(seats: Mapping[UUID, Box], people: Sequence[Mapping[str, Any]], *,
+                 by_body: bool = True) -> dict[UUID, Keypoints]:
+    """Each seat gets one person and each person one seat, best score first (greedy over every pair).
+
+    The score rewards body-box overlap with the seat and shoulders in its upper half, and penalises the
+    head's distance from the usual head place, so a back-row head poking into a seat box does not take it.
+    ``by_body=False`` is the old nearest-head rule."""
+
+    if not by_body:
+        return _assign_by_head(seats, people)
+    pairs = [(score, seat_id, index) for seat_id, box in seats.items() for index, item in enumerate(people)
+             if (score := _seat_score(box, item)) is not None]
+    pairs.sort(key=lambda pair: -pair[0])
+    out: dict[UUID, Keypoints] = {}
+    taken: set[int] = set()
+    for _, seat_id, index in pairs:
+        if seat_id not in out and index not in taken:
+            out[seat_id] = people[index]["keypoints"]
+            taken.add(index)
+    return out
+
+
 def _inside(p: tuple[float, float], box: Box) -> bool:
     return box.x <= p[0] <= box.x + box.width and box.y <= p[1] <= box.y + box.height
 
 
 def _wrists(kps: Keypoints | None, min_conf: float = 0.4) -> list[tuple[float, float]]:
     return [p for index in (LEFT_WRIST, RIGHT_WRIST) if (p := point(kps, index, min_conf))]
+
+
+def _hands_under_desk(kps: Keypoints, line: float, frame: ReviewFrame, box: Box, cfg: ReviewRuleConfig) -> bool:
+    """No wrist above the desk line or on the seat's paper, no forearm level on the desk; a wrist the camera lost
+    needs its elbow below the line."""
+
+    for wrist_index, elbow_index in ((LEFT_WRIST, LEFT_ELBOW), (RIGHT_WRIST, RIGHT_ELBOW)):
+        wrist = point(kps, wrist_index, 0.4)
+        if wrist is not None:
+            if wrist[1] <= line or (cfg.lap_paper_blocks and _point_on_paper(wrist, frame, box, line)):
+                return False
+            if cfg.lap_forearm_drop is not None and (pair := shoulders(kps)) is not None \
+                    and (elbow := point(kps, elbow_index, 0.4)) is not None:
+                width = abs(pair[0][0] - pair[1][0]) * frame.frame_aspect
+                if wrist[1] - elbow[1] < cfg.lap_forearm_drop * width:
+                    return False
+        elif cfg.lap_hidden_needs_low_elbow:
+            elbow = point(kps, elbow_index, 0.4)
+            if elbow is None or elbow[1] <= line:
+                return False
+    return True
+
+
+def _lap_still(frames: Sequence[ReviewFrame], seat: UUID, since: int, last: int, limit: float) -> bool:
+    """Every wrist seen in [since, last] stayed within ``limit`` of its own other positions."""
+
+    for index in (LEFT_WRIST, RIGHT_WRIST):
+        seen = [p for frame in frames if since <= frame.offset_ms <= last
+                and (p := point(frame.poses.get(seat), index, 0.4)) is not None]
+        if any(distance(a, b) > limit for n, a in enumerate(seen) for b in seen[n + 1:]):
+            return False
+    return True
 
 
 def _runs(samples: Sequence[tuple[int, bool]], hold_ms: int, gap_ms: int) -> list[tuple[int, int, int]]:
@@ -159,7 +287,7 @@ class _AllCandidates:
 def review_window(window: SuspectWindow, frames: Sequence[ReviewFrame],
                   config: ReviewRuleConfig | None = None) -> list[dict[str, Any]]:
     cfg = config or ReviewRuleConfig()
-    frames = sorted(frames, key=lambda item: item.offset_ms)
+    frames = smooth_frames(frames) if cfg.smooth_poses else sorted(frames, key=lambda item: item.offset_ms)
     # The live deep tier sees ~3 frames a second: a gap between two frames is not a break in what they show.
     spacing = sorted(b.offset_ms - a.offset_ms for a, b in zip(frames, frames[1:], strict=False))
     if spacing and (gap := int(1.5 * spacing[len(spacing) // 2])) > cfg.gap_ms:
@@ -211,11 +339,11 @@ def review_window(window: SuspectWindow, frames: Sequence[ReviewFrame],
 
     box = seats[main]
     width = box.width
-    alive = _alive(frames, main, box, cfg)
+    alive = _alive(frames, main, box, cfg) - _calculators(frames, box, cfg)
 
     # (a) phone close to a wrist or below the desk, in enough frames within a second.
     hits = []
-    phone_facts: list[tuple[int, bool, float]] = []  # per qualifying frame: (offset, raised, best confidence)
+    phone_facts: list[tuple[int, bool, float, float]] = []  # per qualifying frame: (offset, raised, conf, aspect)
     for i, frame in enumerate(frames):
         wrists = _wrists(frame.poses.get(main))
         # The desk top is where the exam paper lies. A high camera sees the desk at the bottom of the seat
@@ -227,14 +355,14 @@ def review_window(window: SuspectWindow, frames: Sequence[ReviewFrame],
         found = [obj for obj in frame.objects
                  if obj.label == "phone" and id(obj) in alive and obj.confidence >= cfg.phone_min_conf
                  and _inside(obj.bbox.center, box)
-                 and not (cfg.calculator_on_paper and _on_paper(obj, frame, box))
                  and (own_head is None or obj.bbox.center[1] > own_head[1])
                  and any(distance(obj.bbox.center, p) < cfg.phone_wrist_widths * width for p in wrists)
                  and obj.bbox.center[1] < desk_top - cfg.phone_raise_heights * box.height]
         hits.append((frame.offset_ms, bool(found)))
         if found:
             raised = any(obj.bbox.center[1] < desk_top - cfg.phone_raised_heights * box.height for obj in found)
-            phone_facts.append((frame.offset_ms, raised, max(obj.confidence for obj in found)))
+            phone_facts.append((frame.offset_ms, raised, max(obj.confidence for obj in found),
+                                max(obj.bbox.height / max(obj.bbox.width, 1e-6) for obj in found)))
 
     def needed(t: int) -> int:  # with sparse frames a second may hold fewer than phone_frames frames
         return max(1, min(cfg.phone_frames, sum(1 for s, _ in hits if t - cfg.phone_span_ms < s <= t)))
@@ -243,7 +371,8 @@ def review_window(window: SuspectWindow, frames: Sequence[ReviewFrame],
     for since, opened, last in _runs(dense, 0, cfg.gap_ms):
         facts = [item for item in phone_facts if since - cfg.phone_span_ms < item[0] <= last]
         emit(EventType.PHONE_DETECTED, main, opened, last, raised=any(item[1] for item in facts),
-             confidence=max((item[2] for item in facts), default=0.0))
+             confidence=max((item[2] for item in facts), default=0.0),
+             aspect=round(max((item[3] for item in facts), default=0.0), 2))
 
     # (b) passing: wrists of two seats meet, or an object moves from one seat to the other.
     for other in seats:
@@ -254,7 +383,8 @@ def review_window(window: SuspectWindow, frames: Sequence[ReviewFrame],
                  for run in _runs(meet, cfg.passing_hold_ms, cfg.gap_ms)]
         # (run, evidence): an object seen between the hands, hands alone, or an object changing seats.
         runs = [(run, "object_between" if between else "hands_only") for run, between in meets
-                if run[2] - run[0] <= cfg.passing_max_ms or between]
+                if between or (run[2] - run[0] <= cfg.passing_max_ms
+                               and _crossed_frames(frames, main, other, seats, run, cfg) >= cfg.passing_inside_frames)]
         if not runs:
             runs = [(run, "transfer") for run in _transfers(frames, main, other, seats, cfg, window.start_ms)]
         for (_since, opened, last), evidence in runs:
@@ -279,14 +409,15 @@ def review_window(window: SuspectWindow, frames: Sequence[ReviewFrame],
         document.append((frame.offset_ms, ok))
     flag(EventType.DOCUMENT_DETECTED, main, document, cfg.document_hold_ms)
 
-    # (d) head down with the visible hands below the desk for a long time.
+    # (d) head down with the hands under the desk for a long time.
     lap = []
     for i, frame in enumerate(frames):
-        wrists = _wrists(frame.poses.get(main))
-        low = all(p[1] > lines[main][i] for p in wrists)
-        seen = bool(wrists) or cfg.lap_needs_both_wrists
-        lap.append((frame.offset_ms, down[main][i] and seen and low))
-    flag(EventType.LOOK_AT_LAP, main, lap, cfg.lap_hold_ms)
+        kps = frame.poses.get(main)
+        lap.append((frame.offset_ms, down[main][i] and kps is not None and _hands_under_desk(
+            kps, lines[main][i], frame, box, cfg)))
+    for _since, opened, last in _runs(lap, cfg.lap_hold_ms, cfg.gap_ms):
+        if cfg.lap_still_widths is None or _lap_still(frames, main, _since, last, width * cfg.lap_still_widths):
+            emit(EventType.LOOK_AT_LAP, main, opened, last)
 
     # (c) head turns: the fast tier's own rules on the big model's keypoints.
     records += _head_rules(window, frames, seats, cfg)
@@ -306,22 +437,19 @@ def _hands_meet(frames: Sequence[ReviewFrame], a: UUID, b: UUID, seats: Mapping[
                 cfg: ReviewRuleConfig) -> list[tuple[int, bool]]:
     height = min(seats[a].height, seats[b].height)
     reach = cfg.passing_wrist_heights * height
-    far = height < cfg.far_row_height
-    inside = sum(1 for f in frames
-                 if any(_inside(p, seats[b]) for p in _wrists(f.poses.get(a), cfg.passing_wrist_conf))
-                 or any(_inside(q, seats[a]) for q in _wrists(f.poses.get(b), cfg.passing_wrist_conf)))
-    out: list[tuple[int, bool]] = []
     same_arm = cfg.same_arm_heights * height
-    for f in frames:
-        pairs = [(p, q) for p in _wrists(f.poses.get(a), cfg.passing_wrist_conf)
-                 for q in _wrists(f.poses.get(b), cfg.passing_wrist_conf) if same_arm <= distance(p, q) < reach]
-        ok = bool(pairs)
-        if ok and far:
-            between = any(distance(obj.bbox.center, ((p[0] + q[0]) / 2, (p[1] + q[1]) / 2)) < reach
-                          for p, q in pairs for obj in f.objects)
-            ok = between or inside >= cfg.far_row_inside_frames
-        out.append((f.offset_ms, ok))
-    return out
+    return [(f.offset_ms, any(same_arm <= distance(p, q) < reach
+                              for p in _wrists(f.poses.get(a), cfg.passing_wrist_conf)
+                              for q in _wrists(f.poses.get(b), cfg.passing_wrist_conf))) for f in frames]
+
+
+def _crossed_frames(frames: Sequence[ReviewFrame], a: UUID, b: UUID, seats: Mapping[UUID, Box],
+                    run: tuple[int, int, int], cfg: ReviewRuleConfig) -> int:
+    """Frames of the run in which a wrist of one seat is inside the other seat's box."""
+
+    return sum(1 for f in frames if run[0] <= f.offset_ms <= run[2]
+               and (any(_inside(p, seats[b]) for p in _wrists(f.poses.get(a), cfg.passing_wrist_conf))
+                    or any(_inside(q, seats[a]) for q in _wrists(f.poses.get(b), cfg.passing_wrist_conf))))
 
 
 def _object_between(frames: Sequence[ReviewFrame], a: UUID, b: UUID, run: tuple[int, int, int],
@@ -368,13 +496,38 @@ def _alive(frames: Sequence[ReviewFrame], main: UUID, box: Box, cfg: ReviewRuleC
     return out
 
 
+def _calculators(frames: Sequence[ReviewFrame], box: Box, cfg: ReviewRuleConfig) -> set[int]:
+    """``id()`` of the "phone" objects that lie on the seat's paper in ``phone_paper_fraction`` of the frames
+    they are seen in (linked frame to frame by IoU, as in ``_alive``): a calculator, not a phone."""
+
+    tracks: list[list[tuple[ReviewObject, bool]]] = []
+    for frame in frames:
+        for obj in frame.objects:
+            if obj.label != "phone" or not _inside(obj.bbox.center, box):
+                continue
+            item = (obj, _on_paper(obj, frame, box))
+            match = next((t for t in tracks if _iou(t[-1][0].bbox, obj.bbox) > cfg.object_track_iou), None)
+            if match is None:
+                tracks.append([item])
+            else:
+                match.append(item)
+    return {id(obj) for track in tracks if sum(on for _, on in track) / len(track) >= cfg.phone_paper_fraction
+            for obj, _ in track}
+
+
 def _on_paper(obj: ReviewObject, frame: ReviewFrame, box: Box) -> bool:
+    return _point_on_paper(obj.bbox.center, frame, box)
+
+
+def _point_on_paper(p: tuple[float, float], frame: ReviewFrame, box: Box, line: float | None = None) -> bool:
     for paper in frame.objects:
         if paper.label not in ("book", "paper") or not _inside(paper.bbox.center, box):
             continue
+        if line is not None and paper.bbox.center[1] > line:
+            continue
         b = paper.bbox
         grown = Box(b.x - 0.1 * b.width, b.y - 0.1 * b.height, 1.2 * b.width, 1.2 * b.height)
-        if _inside(obj.bbox.center, grown):
+        if _inside(p, grown):
             return True
     return False
 
@@ -431,7 +584,9 @@ def _transfers(frames: Sequence[ReviewFrame], a: UUID, b: UUID, seats: Mapping[U
 
 def _head_rules(window: SuspectWindow, frames: Sequence[ReviewFrame], seats: Mapping[UUID, Box],
                 cfg: ReviewRuleConfig) -> list[dict[str, Any]]:
-    rules = CctvSeatRules(config=replace(CctvRuleConfig(), home_min_ms=cfg.home_min_ms), roles=_AllCandidates())
+    rules = CctvSeatRules(config=replace(CctvRuleConfig(), home_min_ms=cfg.home_min_ms, turn_hold_ms=cfg.turn_hold_ms,
+                                         yaw_source=cfg.yaw_source, yaw_threshold_deg=cfg.yaw_threshold_deg),
+                          roles=_AllCandidates())
     keep = {EventType.LOOK_AT_NEIGHBOR.value, EventType.HEAD_TURN_LEFT.value, EventType.HEAD_TURN_RIGHT.value,
             EventType.TURN_AROUND.value, EventType.HEADS_TOGETHER.value}
     seat_objs = [Seat(seat_id, (window.runtime_track_id or 0) if seat_id == window.seat_id else 0, box, box.center, 1.0,
@@ -450,7 +605,7 @@ def _head_rules_loop(window: SuspectWindow, frames: Sequence[ReviewFrame], rules
     for frame in frames:
         update = TrackerUpdate(seat_objs, [], [], [], 0, 0)
         result = MultiFrameResult(frame.offset_ms // 100, frame.offset_ms, update, {}, {}, {}, [], _TIMING,
-                                  {key: list(map(list, kps)) for key, kps in frame.poses.items()})
+                                  {key: list(map(list, kps)) for key, kps in frame.poses.items() if kps is not None})
         size = (round(1000 * frame.frame_aspect), 1000)
         if frame.offset_ms >= window.start_ms and warm:
             for key, item in warm.items():  # still open when the window starts

@@ -19,6 +19,7 @@ from proctoring_core.types import EventType
 from ..pipeline import MultiFrameResult
 from ..tracker import Seat
 from .head import RollingBaseline, distance, facing, head_lift, head_point, head_yaw_index, point
+from .head_pose import hhp_yaw_pitch
 from .pose_detector import LEFT_WRIST, RIGHT_WRIST
 from .roles import CANDIDATE, SeatRoleClassifier
 
@@ -26,6 +27,10 @@ from .roles import CANDIDATE, SeatRoleClassifier
 @dataclass(frozen=True, slots=True)
 class CctvRuleConfig:
     yaw_threshold: float = 0.35
+    # Where the head direction comes from: ``index`` (nose against the shoulders, in shoulder widths, threshold
+    # ``yaw_threshold``) or ``hhp`` (HHP-Net yaw in degrees from the face points, threshold ``yaw_threshold_deg``).
+    yaw_source: str = "index"
+    yaw_threshold_deg: float = 25.0
     turn_hold_ms: int = 1_500
     together_ratio: float = 0.7
     together_hold_ms: int = 1_500
@@ -200,11 +205,16 @@ class CctvSeatRules:
             view = facing(kps)
             if view == "front":
                 self._seen_face.add(seat_id)
-            yaw = head_yaw_index(kps)
+            if cfg.yaw_source == "hhp":
+                found = hhp_yaw_pitch(kps)
+                yaw = None if found is None else found[0]
+            else:
+                yaw = head_yaw_index(kps)
             baseline = self._yaw.setdefault(seat_id, RollingBaseline())
             reference = baseline.value(ms)
             # A writer's head swings across the page all the time: the threshold grows with that seat's own jitter.
-            threshold = max(cfg.yaw_threshold, cfg.yaw_spread_factor * baseline.spread(ms))
+            threshold = max(cfg.yaw_threshold_deg if cfg.yaw_source == "hhp" else cfg.yaw_threshold,
+                            cfg.yaw_spread_factor * baseline.spread(ms))
             if yaw is not None:
                 baseline.add(yaw, ms)
             lift = head_lift(kps, aspect)

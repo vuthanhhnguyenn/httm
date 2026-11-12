@@ -304,3 +304,22 @@ def test_window_past_the_end_has_no_frames_and_is_dismissed(tmp_path: Path) -> N
     result = review_offline(video, [window], _PixelDetectors(), fps=5.0, warmup_ms=0)
     assert result.frames[window_key(window)] == []
     assert [item["action"] for item in result.records] == ["dismissed"]
+
+
+def test_review_offline_pose_flip_calls_pose_twice(tmp_path: Path) -> None:
+    video = _video(tmp_path / "clip.avi")
+    windows = [_window(SEATS[0], 0, 3050)]
+    plain, flipped = _PixelDetectors(), _PixelDetectors()
+    one = review_offline(video, windows, plain, fps=5.0, warmup_ms=0, batch_size=4)
+    two = review_offline(video, windows, flipped, fps=5.0, warmup_ms=0, batch_size=4, pose_flip=True)
+    pose_one = [n for kind, n, _ in plain.calls if kind == "pose"]
+    pose_two = [n for kind, n, _ in flipped.calls if kind == "pose"]
+    assert len(pose_two) == 2 * len(pose_one) and sum(pose_two) == 2 * sum(pose_one)
+    assert sum(n for kind, n, _ in flipped.calls if kind == "objects") == sum(pose_one)  # objects run once
+    assert one.stats["pose_flip"] is False and two.stats["pose_flip"] is True
+    # The fake's people have no box, so nothing pairs: each seat still gets its own person back in place.
+    key = window_key(windows[0])
+    for a, b in zip(one.frames[key], two.frames[key], strict=True):
+        assert set(a.poses) == set(b.poses)
+        for seat in a.poses:
+            assert np.allclose(np.asarray(a.poses[seat])[:, :2], np.asarray(b.poses[seat])[:, :2], atol=0.02)

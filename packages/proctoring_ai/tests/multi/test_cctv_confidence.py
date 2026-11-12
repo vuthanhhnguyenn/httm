@@ -122,3 +122,32 @@ def test_bad_config_raises(text):
         load_confidence_text(text)
 
 
+
+
+def _pair(kind: str, start: int, end: int, level: str = "red") -> list[dict]:
+    return [{"action": "opened", "id": f"{kind}{start}", "type": kind, "video_offset_ms": start, "level": level,
+             "level_reason": "x"},
+            {"action": "closed", "id": f"{kind}{start}", "type": kind, "video_offset_ms": end}]
+
+
+def test_require_sustained_drops_blips_and_demotes_short_reds() -> None:
+    from proctoring_ai.multi.cctv.confidence import require_sustained
+
+    records = (_pair("HEADS_TOGETHER", 0, 1800) + _pair("LOOK_AT_NEIGHBOR", 5000, 7000)
+               + _pair("LOOK_AT_LAP", 20000, 20400, "yellow") + _pair("PHONE_DETECTED", 30000, 30000, "yellow")
+               + [{"action": "merged", "id": "m", "merged_into": "LOOK_AT_LAP20000", "video_offset_ms": 21000}])
+    out = require_sustained(records)
+    opened = {r["type"]: r["level"] for r in out if r["action"] == "opened"}
+    assert opened == {"HEADS_TOGETHER": "yellow", "LOOK_AT_NEIGHBOR": "red", "PHONE_DETECTED": "yellow"}
+    assert not any(r.get("id") == "LOOK_AT_LAP20000" or r.get("merged_into") == "LOOK_AT_LAP20000" for r in out)
+    demoted = next(r for r in out if r["type"] == "HEADS_TOGETHER" and r["action"] == "opened")
+    assert "2 giây" in demoted["level_reason"] and "1.8 s" in demoted["level_reason"]
+
+
+def test_require_sustained_minimum_per_type() -> None:
+    from proctoring_ai.multi.cctv.confidence import require_sustained
+
+    records = (_pair("LOOK_AT_NEIGHBOR", 0, 800, "yellow") + _pair("TURN_AROUND", 2000, 2600, "yellow")
+               + _pair("HEADS_TOGETHER", 5000, 5800, "yellow"))
+    out = require_sustained(records, min_ms_by_type={"LOOK_AT_NEIGHBOR": 750, "TURN_AROUND": 750})
+    assert sorted(r["type"] for r in out if r["action"] == "opened") == ["LOOK_AT_NEIGHBOR"]

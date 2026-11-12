@@ -113,3 +113,15 @@ def test_factory_phone_device_falls_back_with_reason(monkeypatch, tmp_path):
     asyncio.run(factory._initialize_detector())
     assert calls["device"] == "cpu" and calls.get("load_path") is None
     assert factory._status["object_detector"] == ("ready", "cpu: không có card Intel cho OpenVINO")
+
+
+def test_intel_cpu_uses_openvino_on_the_cpu(monkeypatch, model):
+    _openvino(monkeypatch, ["CPU"])
+    openvino_dir(model).mkdir()
+    assert resolve_device("intel:cpu", model) == ("intel:cpu", openvino_dir(model), "")
+
+
+def test_intel_cpu_no_export_falls_back(monkeypatch, model):
+    _openvino(monkeypatch, ["CPU"])
+    device, path, reason = resolve_device("intel:cpu", model)
+    assert (device, path) == ("cpu", model) and "--export-openvino" in reason

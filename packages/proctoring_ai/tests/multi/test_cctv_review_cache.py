@@ -34,6 +34,26 @@ def test_cache_roundtrip(tmp_path):
     assert abs(got[0].frame_aspect - 16 / 9) < 1e-3
 
 
+def test_cache_keeps_every_person_and_reads_old_lines(tmp_path):
+    import gzip
+    import json
+
+    seat = uuid4()
+    box = Box(0.1, 0.2, 0.1, 0.2)
+    people = [{"bbox": {"x": 0.11, "y": 0.2, "width": 0.05, "height": 0.1}, "keypoints": [[0.123456, 0.2, 0.9]] * 17}]
+    frame = ReviewFrame(1000, {seat: box}, {}, [], 16 / 9, people)
+    path = tmp_path / "cache.json.gz"
+    save_window(path, _window(seat, 1000, 2000), [frame])
+    got = load_cache(path)[(str(seat), 1000, 2000)][0]
+    assert got.people[0]["keypoints"][0] == [0.1235, 0.2, 0.9]
+    assert got.people[0]["bbox"] == {"x": 0.11, "y": 0.2, "width": 0.05, "height": 0.1}
+    old = tmp_path / "old.json.gz"
+    with gzip.open(old, "wt") as handle:
+        handle.write(json.dumps({"key": [str(seat), 1, 2], "frames": [
+            {"t": 1, "aspect": 1.7778, "seats": {str(seat): [0.1, 0.2, 0.1, 0.2]}, "poses": {}, "objects": []}]}) + "\n")
+    assert len(load_cache(old)[(str(seat), 1, 2)][0].people) == 0
+
+
 def _opened(kind, ms, head, action="opened"):
     return {"action": action, "type": kind, "video_offset_ms": ms, "head": list(head)}
 
@@ -80,3 +100,18 @@ def test_score_review_counts_red_events():
                {**_opened("PHONE_DETECTED", 30000, (0.7, 0.4)), "level": "yellow"}]
     score = score_review(records, verdicts)
     assert score["true_red"] == 1 and score["false_red"] == 1
+
+
+def test_reassign_frames_replays_the_old_rule_and_keeps_frames_without_people():
+    from proctoring_ai.multi.cctv.reassign import assigner_named, reassign_frames
+
+    seat = uuid4()
+    box = Box(0.3, 0.3, 0.2, 0.3)
+    face = [[0.4, 0.38, 0.9]] * 5 + [[0.4, 0.5, 0.9]] * 12
+    person = {"bbox": {"x": 0.33, "y": 0.34, "width": 0.14, "height": 0.3}, "keypoints": face}
+    marker = [[0.9, 0.9, 0.9]] * 17
+    with_people = ReviewFrame(1000, {seat: box}, {}, [], 16 / 9, [person])
+    without = ReviewFrame(1100, {seat: box}, {seat: marker}, [], 16 / 9)
+    got = reassign_frames([with_people, without], assigner_named("old"))
+    assert got[0].poses[seat] == face
+    assert got[1].poses[seat] == marker

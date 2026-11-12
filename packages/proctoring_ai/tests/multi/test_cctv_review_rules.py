@@ -4,7 +4,12 @@ from uuid import uuid4
 
 from cctv_kps import person
 from proctoring_ai.multi.cctv.review_detectors import ReviewObject
-from proctoring_ai.multi.cctv.review_rules import ReviewFrame, assign_poses, review_window
+from proctoring_ai.multi.cctv.review_rules import (
+    ReviewFrame,
+    ReviewRuleConfig,
+    assign_poses,
+    review_window,
+)
 from proctoring_ai.multi.cctv.suspects import SuspectWindow
 from proctoring_core.observations import Box
 
@@ -60,12 +65,12 @@ def test_phone_two_frames_only_dismissed() -> None:
 
 def test_passing_by_wrists_reports_only_the_window_seat_when_nobody_reaches_over() -> None:
     a, b = uuid4(), uuid4()
-    seats = {a: box(0.3), b: box(0.42)}
+    seats = {a: box(0.3), b: box(0.38)}  # overlapping seat boxes, midline x = 0.34
 
-    def pose(key, ms):
+    def pose(key, ms):  # each wrist is inside the other's box but short of the midline
         if key == a:
-            return wristed(person(cx=0.3, top=0.3), left=(0.36, 0.42))
-        return wristed(person(cx=0.42, top=0.3), left=(0.375, 0.42))
+            return wristed(person(cx=0.3, top=0.3), left=(0.335, 0.42))
+        return wristed(person(cx=0.38, top=0.3), left=(0.35, 0.42))
 
     records = review_window(window(seats, a, 0, 500, ("HANDS_MEET",)), frames(seats, pose, 0, 500))
     passing = [item for item in records if item["action"] == "opened" and item["type"] == "PASSING_OBJECT"]
@@ -168,6 +173,65 @@ def test_faceless_neighbour_does_not_take_the_seat() -> None:
               {"keypoints": own, "bbox": {"x": 0.25, "y": 0.26, "width": 0.1, "height": 0.2}}]
     assigned = assign_poses(seats, people)
     assert assigned[a] is own and assigned[b] is neighbour
+
+
+def _bbox(x: float, y: float, w: float, h: float) -> dict:
+    return {"x": x, "y": y, "width": w, "height": h}
+
+
+def test_back_row_head_inside_seat_does_not_take_it() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}  # x 0.25-0.35, y 0.3-0.5
+    back = {"keypoints": person(cx=0.3, top=0.3), "bbox": _bbox(0.25, 0.2, 0.1, 0.18)}  # head pokes in, body above
+    own = {"keypoints": person(cx=0.3, top=0.36), "bbox": _bbox(0.25, 0.32, 0.1, 0.18)}
+    assert assign_poses(seats, [back, own])[a] is own["keypoints"]
+    assert a not in assign_poses(seats, [back])
+    assert assign_poses(seats, [back, own], by_body=False)[a] is back["keypoints"]  # the old rule
+
+
+def test_two_overlapping_people_get_two_seats() -> None:
+    a, b = uuid4(), uuid4()
+    seats = {a: box(0.3), b: box(0.38)}  # boxes overlap by 0.02
+    left = {"keypoints": person(cx=0.3, top=0.3), "bbox": _bbox(0.23, 0.3, 0.14, 0.2)}
+    right = {"keypoints": person(cx=0.38, top=0.3), "bbox": _bbox(0.31, 0.3, 0.14, 0.2)}
+    assigned = assign_poses(seats, [right, left])
+    assert assigned[a] is left["keypoints"] and assigned[b] is right["keypoints"]
+
+
+def test_person_without_bbox_falls_back_to_head_inside() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    inside = {"keypoints": person(cx=0.3, top=0.3)}
+    outside = {"keypoints": person(cx=0.6, top=0.3)}
+    assert assign_poses(seats, [outside, inside])[a] is inside["keypoints"]
+    assert a not in assign_poses(seats, [outside])
+
+
+def test_shoulders_in_upper_half_break_a_tie() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}  # y 0.3-0.5, upper half ends at 0.4
+    # Same head place and body box; the first person's shoulders sit at 0.38 (upper half), the second's at 0.44.
+    high = {"keypoints": person(cx=0.3, top=0.3), "bbox": _bbox(0.25, 0.3, 0.1, 0.2)}
+    low_kps = person(cx=0.3, top=0.3)
+    low_kps[5][1] = low_kps[6][1] = 0.44
+    low = {"keypoints": low_kps, "bbox": _bbox(0.25, 0.3, 0.1, 0.2)}
+    assert assign_poses(seats, [low, high])[a] is high["keypoints"]
+
+
+def test_body_mostly_outside_the_seat_is_rejected() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    # Head inside the seat, but the body box lies mostly beside it (30% of its width inside).
+    mostly_out = {"keypoints": person(cx=0.3, top=0.3), "bbox": _bbox(0.32, 0.3, 0.1, 0.2)}
+    assert a not in assign_poses(seats, [mostly_out])
+    assert a in assign_poses(seats, [mostly_out], by_body=False)
+
+
+def test_body_running_down_behind_the_desk_still_takes_the_seat() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}  # y 0.3-0.5
+    tall = {"keypoints": person(cx=0.3, top=0.3), "bbox": _bbox(0.25, 0.32, 0.1, 0.5)}  # runs far below the seat
+    assert assign_poses(seats, [tall])[a] is tall["keypoints"]
 
 
 def test_paper_flicker_between_desks_is_not_passing() -> None:
@@ -373,7 +437,7 @@ def test_far_row_wrist_inside_other_seat_reported() -> None:
 
 def test_near_row_hands_meet_reported() -> None:
     a, b, seats = _pair(0.25)
-    pose = _meeting(a, (0.35, 0.42), (0.36, 0.42))
+    pose = _meeting(a, (0.37, 0.42), (0.38, 0.42))  # touching across the border: a's hand is in b's seat
     records = review_window(window(seats, a, 0, 1000, ("HANDS_MEET",)), frames(seats, pose, 0, 1000))
     assert "PASSING_OBJECT" in kinds(records)
 
@@ -405,12 +469,120 @@ def test_both_hands_below_desk_is_lap() -> None:
     assert "LOOK_AT_LAP" in kinds(records)
 
 
-def test_hands_hidden_is_lap() -> None:
+def _elbowed(pose_at, y: float = 0.55, conf: float = 0.9):
+    """Both elbows at height ``y`` (COCO 7 and 8) on top of ``pose_at``'s keypoints."""
+
+    def pose(key, ms):
+        kps = pose_at(key, ms)
+        if kps is not None:
+            kps[7] = [kps[5][0], y, conf]
+            kps[8] = [kps[6][0], y, conf]
+        return kps
+
+    return pose
+
+
+def test_hands_hidden_with_low_elbows_is_lap() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    records = review_window(window(seats, a, 0, 4000, ("HEAD_DOWN_HANDS_LOW",)),
+                            frames(seats, _elbowed(_lap(None, None)), 0, 4000))
+    assert "LOOK_AT_LAP" in kinds(records)
+
+
+def test_hands_hidden_without_elbows_is_not_lap() -> None:
     a = uuid4()
     seats = {a: box(0.3)}
     records = review_window(window(seats, a, 0, 4000, ("HEAD_DOWN_HANDS_LOW",)),
                             frames(seats, _lap(None, None), 0, 4000))
+    assert "LOOK_AT_LAP" not in kinds(records)
+
+
+def test_wrist_on_exam_paper_below_line_is_not_lap() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    paper = ReviewObject("paper", 0.6, Box(0.25, 0.33, 0.1, 0.16), "yolo11x")  # lies on the desk, centre above the line
+    records = review_window(window(seats, a, 0, 4000, ("HEAD_DOWN_HANDS_LOW",)),
+                            frames(seats, _lap((0.28, 0.5), (0.32, 0.5)), 0, 4000, lambda ms: [paper]))
+    assert "LOOK_AT_LAP" not in kinds(records)
+
+
+def test_paper_in_lap_does_not_block_lap() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    paper = ReviewObject("paper", 0.6, Box(0.25, 0.42, 0.1, 0.09), "yolo11x")  # centre below the line
+    records = review_window(window(seats, a, 0, 4000, ("HEAD_DOWN_HANDS_LOW",)),
+                            frames(seats, _lap((0.28, 0.5), (0.32, 0.5)), 0, 4000, lambda ms: [paper]))
     assert "LOOK_AT_LAP" in kinds(records)
+
+
+def test_wrist_moving_along_the_line_is_not_lap() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+
+    def pose(_key, ms):
+        return wristed(person(cx=0.3, top=0.3, bent=True), left=(0.26 + 0.08 * ms / 4000, 0.55), right=(0.32, 0.55))
+
+    records = review_window(window(seats, a, 0, 4000, ("HEAD_DOWN_HANDS_LOW",)), frames(seats, pose, 0, 4000),
+                            ReviewRuleConfig(lap_still_widths=0.15))
+    assert "LOOK_AT_LAP" not in kinds(records)
+
+
+def _armed(pose_at, elbow_y: float, wrist_y: float, other_wrist_y: float | None = None):
+    """Elbows at ``elbow_y`` under the shoulders, wrists at ``wrist_y`` (right one at ``other_wrist_y``)."""
+
+    def pose(key, ms):
+        kps = pose_at(key, ms)
+        kps[7], kps[8] = [kps[5][0], elbow_y, 0.9], [kps[6][0], elbow_y, 0.9]
+        kps[9] = [kps[5][0] + 0.01, wrist_y, 0.9]
+        kps[10] = [kps[6][0] - 0.01, wrist_y if other_wrist_y is None else other_wrist_y, 0.9]
+        return kps
+
+    return pose
+
+
+# Clip 1 (Task 3b): the seat box ends at the desk edge, so a writer's hands lie below the default desk line
+# (0.8 of the box) and the line never learns from them. The forearm tells: on the desk it is about level
+# (wrist 0.05-0.23 shoulder widths below the elbow), in the lap it hangs (0.36-0.46).
+def test_writer_forearms_level_below_default_line_is_not_lap() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    pose = _armed(_lap(None, None), elbow_y=0.5, wrist_y=0.52)
+    records = review_window(window(seats, a, 0, 4000, ("HEAD_DOWN_HANDS_LOW",)), frames(seats, pose, 0, 4000))
+    assert "LOOK_AT_LAP" not in kinds(records)
+
+
+def test_forearms_hanging_into_the_lap_is_lap() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    pose = _armed(_lap(None, None), elbow_y=0.48, wrist_y=0.53)
+    records = review_window(window(seats, a, 0, 4000, ("HEAD_DOWN_HANDS_LOW",)), frames(seats, pose, 0, 4000))
+    assert "LOOK_AT_LAP" in kinds(records)
+
+
+def test_one_level_forearm_blocks_lap() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    pose = _armed(_lap(None, None), elbow_y=0.48, wrist_y=0.53, other_wrist_y=0.49)
+    records = review_window(window(seats, a, 0, 4000, ("HEAD_DOWN_HANDS_LOW",)), frames(seats, pose, 0, 4000))
+    assert "LOOK_AT_LAP" not in kinds(records)
+
+
+def test_forearm_test_switched_off_keeps_old_lap() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    pose = _armed(_lap(None, None), elbow_y=0.5, wrist_y=0.52)
+    records = review_window(window(seats, a, 0, 4000, ("HEAD_DOWN_HANDS_LOW",)), frames(seats, pose, 0, 4000),
+                            ReviewRuleConfig(lap_forearm_drop=None))
+    assert "LOOK_AT_LAP" in kinds(records)
+
+
+def test_empty_seat_gives_no_lap() -> None:
+    a = uuid4()
+    seats = {a: box(0.3)}
+    records = review_window(window(seats, a, 0, 4000, ("HEAD_DOWN_HANDS_LOW",)),
+                            frames(seats, lambda key, ms: None, 0, 4000))
+    assert "LOOK_AT_LAP" not in kinds(records)
 
 
 def test_passing_ignores_one_arm_given_to_both_people() -> None:
@@ -456,7 +628,7 @@ def test_document_below_desk_needs_a_hand_on_it() -> None:
 def test_near_row_hands_a_fifth_of_a_seat_apart_reported() -> None:
     # Clip 1 at 25.5 s (true): the handover wrists stayed 0.13-0.2 seat heights apart.
     a, b, seats = _pair(0.25)
-    pose = _meeting(a, (0.35, 0.42), (0.395, 0.42))  # 0.045 = 0.18 seat heights
+    pose = _meeting(a, (0.375, 0.42), (0.42, 0.42))  # 0.045 = 0.18 seat heights, a's hand in b's seat
     records = review_window(window(seats, a, 0, 1000, ("HANDS_MEET",)), frames(seats, pose, 0, 1000))
     assert "PASSING_OBJECT" in kinds(records)
 
@@ -471,8 +643,8 @@ def test_passing_hands_only_evidence() -> None:
 
     def pose(key, ms):
         if key == a:
-            return wristed(person(cx=0.3, top=0.3), left=(0.36, 0.42))
-        return wristed(person(cx=0.42, top=0.3), left=(0.375, 0.42))
+            return wristed(person(cx=0.3, top=0.3), left=(0.33, 0.42))
+        return wristed(person(cx=0.42, top=0.3), left=(0.345, 0.42))  # b's hand is in a's seat
 
     records = review_window(window(seats, a, 0, 500, ("HANDS_MEET",)), frames(seats, pose, 0, 500))
     assert [item["evidence_kind"] for item in _opened(records, "PASSING_OBJECT")] == ["hands_only"]
@@ -553,3 +725,76 @@ def test_head_rules_use_one_event_loop_per_window(monkeypatch) -> None:
     records = review_window(window(seats, a, 7000, 10_000, ("HEAD_AWAY",)), frames(seats, pose, 0, 10_000))
     assert kinds(records) == ["LOOK_AT_NEIGHBOR"]
     assert len(made) <= 1
+
+
+def _phone_over_paper(on_paper_ms, cfg: ReviewRuleConfig | None = None, sightings=(100, 300, 500, 700, 900)):
+    """A phone held at the wrist in every sighting; the seat's paper is under it only at ``on_paper_ms``.
+    The paper is tall, so its grown top edge sits just above the phone and the desk-top gate still lets it through."""
+
+    a = uuid4()
+    seats = {a: box(0.3)}
+    pose = lambda key, ms: wristed(person(cx=0.3, top=0.3), left=(0.3, 0.337))  # noqa: E731
+    paper = ReviewObject("paper", 0.8, Box(0.25, 0.36, 0.1, 0.26), "yolo11x")
+
+    def objects(ms):
+        if ms not in sightings:
+            return []
+        return [phone(0.3, 0.337), *([paper] if ms in on_paper_ms else [])]
+
+    records = review_window(window(seats, a, 0, 1000), frames(seats, pose, 0, 1000, objects), cfg)
+    return _opened(records, "PHONE_DETECTED")
+
+
+def test_phone_on_paper_most_of_the_time_is_calculator() -> None:
+    assert _phone_over_paper({100, 300, 500, 700}) == []
+
+
+def test_phone_lifted_off_paper_is_phone() -> None:
+    (item,) = _phone_over_paper({100})
+    assert item["aspect"] == 1.0
+
+
+def test_single_sighting_on_paper_does_not_crash() -> None:
+    assert _phone_over_paper({500}, sightings=(500,)) == []
+
+
+def test_phone_paper_fraction_above_one_switches_the_rule_off() -> None:
+    assert len(_phone_over_paper({100, 300, 500, 700}, ReviewRuleConfig(phone_paper_fraction=1.01))) == 1
+
+
+def test_near_row_hands_meet_without_crossing_is_not_passing() -> None:
+    # Two neighbours writing at the shared desk edge: wrists close, each in their own seat.
+    a, b, seats = _pair(0.25)
+    pose = _meeting(a, (0.345, 0.42), (0.365, 0.42))
+    records = review_window(window(seats, a, 0, 1000, ("HANDS_MEET",)), frames(seats, pose, 0, 1000))
+    assert "PASSING_OBJECT" not in kinds(records)
+
+
+def test_near_row_wrist_inside_neighbour_seat_is_passing() -> None:
+    a, b, seats = _pair(0.25)
+    pose = _meeting(a, (0.345, 0.42), (0.365, 0.42))
+    crossed = _meeting(a, (0.375, 0.42), (0.385, 0.42))
+
+    def reach(key, ms):  # a's hand goes into b's seat for two frames of the meeting
+        return crossed(key, ms) if ms in (400, 500) else pose(key, ms)
+
+    records = review_window(window(seats, a, 0, 1000, ("HANDS_MEET",)), frames(seats, reach, 0, 1000))
+    assert "PASSING_OBJECT" in kinds(records)
+
+
+def _short_turn(cfg: ReviewRuleConfig | None = None):
+    a, b = uuid4(), uuid4()
+    seats = {a: box(0.3), b: box(0.45)}
+
+    def pose(key, ms):  # a looks at b for 1.2 s
+        return person(cx=seats[key].center[0], top=0.3, nose_dx=0.6 if key == a and 8000 <= ms < 9200 else 0.0)
+
+    return review_window(window(seats, a, 7000, 10_000, ("HEAD_AWAY",)), frames(seats, pose, 0, 10_000), cfg)
+
+
+def test_turn_shorter_than_review_turn_hold_is_ignored() -> None:
+    assert "LOOK_AT_NEIGHBOR" not in kinds(_short_turn())
+
+
+def test_review_turn_hold_reaches_head_rules() -> None:
+    assert "LOOK_AT_NEIGHBOR" in kinds(_short_turn(ReviewRuleConfig(turn_hold_ms=1000)))

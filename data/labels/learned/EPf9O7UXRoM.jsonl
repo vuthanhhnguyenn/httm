@@ -1,0 +1,198 @@
+{"video": "EPf9O7UXRoM", "seat_box": [0.2109, 0.2606, 0.0806, 0.1326], "start_ms": 2000, "end_ms": 7400, "label": "NORMAL", "labeler": "nguyen-verdict", "note": "LOOK_AT_LAP 3.0s"}
+{"video": "EPf9O7UXRoM", "seat_box": [0.3987, 0.3093, 0.1008, 0.1747], "start_ms": 18000, "end_ms": 22000, "label": "NORMAL", "labeler": "nguyen-verdict", "note": "PHONE_DETECTED 19.0s"}
+{"video": "EPf9O7UXRoM", "seat_box": [0.4625, 0.2208, 0.0481, 0.1401], "start_ms": 9000, "end_ms": 13000, "label": "NORMAL", "labeler": "nguyen-verdict", "note": "DOCUMENT_DETECTED 10.0s"}
+{"video": "EPf9O7UXRoM", "seat_box": [0.2583, 0.1864, 0.078, 0.1708], "start_ms": 19100, "end_ms": 23100, "label": "NORMAL", "labeler": "nguyen-verdict", "note": "PASSING_OBJECT 20.1s"}
+{"video": "EPf9O7UXRoM", "seat_box": [0.2583, 0.1864, 0.078, 0.1708], "start_ms": 21100, "end_ms": 25100, "label": "NORMAL", "labeler": "nguyen-verdict", "note": "PASSING_OBJECT 22.1s"}
+{"video": "EPf9O7UXRoM", "seat_box": [0.2583, 0.1864, 0.078, 0.1708], "start_ms": 16200, "end_ms": 20200, "label": "NORMAL", "labeler": "nguyen-verdict", "note": "PASSING_OBJECT 17.2s"}
+{"video": "EPf9O7UXRoM", "seat_box": [0.1574, 0.3825, 0.1042, 0.1637], "start_ms": 30300, "end_ms": 34300, "label": "NORMAL", "labeler": "nguyen-verdict", "note": "PASSING_OBJECT 31.3s"}
+{"video": "EPf9O7UXRoM", "seat_box": [0.1574, 0.3825, 0.1042, 0.1637], "start_ms": 24500, "end_ms": 28500, "label": "PASSING_OBJECT", "labeler": "nguyen-verdict", "note": "PASSING_OBJECT 25.5s"}
+{"video": "EPf9O7UXRoM", "seat_box": [0.2109, 0.2606, 0.0806, 0.1326], "start_ms": 24500, "end_ms": 28500, "label": "PASSING_OBJECT", "labeler": "nguyen-verdict", "note": "PASSING_OBJECT 25.5s"}
+{"video": "EPf9O7UXRoM", "seat_box": [0.1574, 0.3825, 0.1042, 0.1637], "start_ms": 44800, "end_ms": 48800, "label": "DOCUMENT_DETECTED", "labeler": "nguyen-verdict", "note": "DOCUMENT_DETECTED 45.8s"}
+{"video": "EPf9O7UXRoM", "seat_box": [0.1574, 0.3825, 0.1042, 0.1637], "start_ms": 53400, "end_ms": 57400, "label": "NORMAL", "labeler": "nguyen-verdict", "note": "LOOK_AT_LAP 54.4s"}
+{"video": "EPf9O7UXRoM", "seat_box": [0.1574, 0.3825, 0.1042, 0.1637], "start_ms": 26200, "end_ms": 30600, "label": "LOOK_AT_NEIGHBOR", "labeler": "nguyen-verdict", "note": "LOOK_AT_NEIGHBOR 27.2s"}
+{"video": "EPf9O7UXRoM", "seat_box": [0.1574, 0.3825, 0.1042, 0.1637], "start_ms": 57800, "end_ms": 61800, "label": "NORMAL", "labeler": "nguyen-verdict", "note": "TURN_AROUND 58.8s"}
+{"video": "EPf9O7UXRoM", "seat_box": [0.6989, 0.4667, 0.1174, 0.1602], "start_ms": 27200, "end_ms": 31600, "label": "NORMAL", "labeler": "nguyen-verdict", "note": "LOOK_AT_LAP 28.2s"}
+{"video": "EPf9O7UXRoM", "seat_box": [0.39095, 0.6668, 0.13385, 0.2387], "start_ms": 30600, "end_ms": 40600, "label": "NORMAL", "labeler": "nguyen-verdict", "note": "PHONE_DETECTED 31.6s"}
+{"video": "EPf9O7UXRoM", "seat_box": [0.39095, 0.6668, 0.13385, 0.2387], "start_ms": 31000, "end_ms": 35000, "label": "NORMAL", "labeler": "nguyen-verdict", "note": "DOCUMENT_DETECTED 32.0s"}
+{"video": "EPf9O7UXRoM", "seat_box": [0.7795, 0.55905, 0.11855, 0.33565], "start_ms": 42200, "end_ms": 46200, "label": "LOOK_AT_LAP", "labeler": "nguyen-verdict", "note": "LOOK_AT_LAP 43.2s"}
+{"video": "EPf9O7UXRoM", "seat_box": [0.7795, 0.55905, 0.11855, 0.33565], "start_ms": 46000, "end_ms": 54400, "label": "LOOK_AT_NEIGHBOR", "labeler": "nguyen-verdict", "note": "LOOK_AT_NEIGHBOR 47.0s"}
+{"video": "EPf9O7UXRoM", "seat_box": [0.7795, 0.55905, 0.11855, 0.33565], "start_ms": 46400, "end_ms": 51200, "label": "HEADS_TOGETHER", "labeler": "nguyen-verdict", "note": "HEADS_TOGETHER 47.4s"}
+{"video": "EPf9O7UXRoM", "seat_box": [0.3987, 0.3093, 0.1008, 0.1747], "start_ms": 55800, "end_ms": 59800, "label": "NORMAL", "labeler": "nguyen-verdict", "note": "PHONE_DETECTED 56.8s"}
+{"video": "EPf9O7UXRoM", "seat_box": [0.3987, 0.3093, 0.1008, 0.1747], "start_ms": 59800, "end_ms": 63800, "label": "NORMAL", "labeler": "nguyen-verdict", "note": "PHONE_DETECTED 60.8s"}
+{"video": "EPf9O7UXRoM", "seat_box": [0.6989, 0.4667, 0.1174, 0.1602], "start_ms": 50200, "end_ms": 56400, "label": "LOOK_AT_LAP", "labeler": "nguyen-verdict", "note": "LOOK_AT_LAP 51.2s"}
+{"video": "EPf9O7UXRoM", "seat_box": [0.6989, 0.4667, 0.1174, 0.1602], "start_ms": 58000, "end_ms": 62000, "label": "LOOK_AT_LAP", "labeler": "nguyen-verdict", "note": "LOOK_AT_LAP 59.0s"}
+{"video": "EPf9O7UXRoM", "seat_box": [0.6989, 0.4667, 0.1174, 0.1602], "start_ms": 62000, "end_ms": 70000, "label": "LOOK_AT_LAP", "labeler": "nguyen-verdict", "note": "LOOK_AT_LAP 63.0s"}
+{"video": "EPf9O7UXRoM", "seat_box": [0.3987, 0.3093, 0.1008, 0.1747], "start_ms": 51000, "end_ms": 54000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.1307, 0.15935, 0.0718, 0.09215], "start_ms": 60000, "end_ms": 63000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.084, 0.51715, 0.1341, 0.2358], "start_ms": 66000, "end_ms": 69000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.1574, 0.3825, 0.1042, 0.1637], "start_ms": 9000, "end_ms": 12000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.39095, 0.6668, 0.13385, 0.2387], "start_ms": 1000, "end_ms": 4000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.6295, 0.1292, 0.0648, 0.092], "start_ms": 23000, "end_ms": 26000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.2109, 0.2606, 0.0806, 0.1326], "start_ms": 5000, "end_ms": 8000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.072, 0.20815, 0.0605, 0.1208], "start_ms": 34000, "end_ms": 37000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.3859, 0.4422, 0.10325, 0.1559], "start_ms": 36000, "end_ms": 39000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.6562, 0.1927, 0.0761, 0.11], "start_ms": 40000, "end_ms": 43000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.3987, 0.3093, 0.1008, 0.1747], "start_ms": 33000, "end_ms": 36000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.02095, 0.72635, 0.1748, 0.2321], "start_ms": 22000, "end_ms": 25000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.072, 0.20815, 0.0605, 0.1208], "start_ms": 25000, "end_ms": 28000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.1307, 0.15935, 0.0718, 0.09215], "start_ms": 2000, "end_ms": 5000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.4625, 0.0885, 0.0594, 0.118], "start_ms": 63000, "end_ms": 66000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.4625, 0.2208, 0.0481, 0.1401], "start_ms": 31000, "end_ms": 34000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.072, 0.20815, 0.0605, 0.1208], "start_ms": 63000, "end_ms": 66000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.2583, 0.1864, 0.078, 0.1708], "start_ms": 44000, "end_ms": 47000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.6295, 0.1292, 0.0648, 0.092], "start_ms": 65000, "end_ms": 68000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.2583, 0.1864, 0.078, 0.1708], "start_ms": 45000, "end_ms": 48000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.084, 0.51715, 0.1341, 0.2358], "start_ms": 60000, "end_ms": 63000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.39095, 0.6668, 0.13385, 0.2387], "start_ms": 65000, "end_ms": 68000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.5444, 0.3375, 0.113, 0.1693], "start_ms": 40000, "end_ms": 43000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.6562, 0.1927, 0.0761, 0.11], "start_ms": 59000, "end_ms": 62000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.6295, 0.1292, 0.0648, 0.092], "start_ms": 10000, "end_ms": 13000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.2109, 0.2606, 0.0806, 0.1326], "start_ms": 34000, "end_ms": 37000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.675, 0.359, 0.09795, 0.1425], "start_ms": 67000, "end_ms": 70000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.3987, 0.3093, 0.1008, 0.1747], "start_ms": 10000, "end_ms": 13000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.5444, 0.3375, 0.113, 0.1693], "start_ms": 17000, "end_ms": 20000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.2583, 0.1864, 0.078, 0.1708], "start_ms": 57000, "end_ms": 60000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.02095, 0.72635, 0.1748, 0.2321], "start_ms": 32000, "end_ms": 35000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.2583, 0.1864, 0.078, 0.1708], "start_ms": 0, "end_ms": 3000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.084, 0.51715, 0.1341, 0.2358], "start_ms": 26000, "end_ms": 29000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.39095, 0.6668, 0.13385, 0.2387], "start_ms": 39000, "end_ms": 42000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.675, 0.359, 0.09795, 0.1425], "start_ms": 39000, "end_ms": 42000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.4625, 0.1574, 0.04515, 0.1201], "start_ms": 8000, "end_ms": 11000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.072, 0.20815, 0.0605, 0.1208], "start_ms": 17000, "end_ms": 20000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.2109, 0.2606, 0.0806, 0.1326], "start_ms": 68000, "end_ms": 71000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.2583, 0.1864, 0.078, 0.1708], "start_ms": 2000, "end_ms": 5000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.4625, 0.1574, 0.04515, 0.1201], "start_ms": 62000, "end_ms": 65000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.1574, 0.3825, 0.1042, 0.1637], "start_ms": 32000, "end_ms": 35000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.02095, 0.72635, 0.1748, 0.2321], "start_ms": 38000, "end_ms": 41000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.5444, 0.3375, 0.113, 0.1693], "start_ms": 29000, "end_ms": 32000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.5444, 0.3375, 0.113, 0.1693], "start_ms": 62000, "end_ms": 65000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.4625, 0.2208, 0.0481, 0.1401], "start_ms": 17000, "end_ms": 20000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.2109, 0.2606, 0.0806, 0.1326], "start_ms": 60000, "end_ms": 63000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.3987, 0.3093, 0.1008, 0.1747], "start_ms": 45000, "end_ms": 48000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.1574, 0.3825, 0.1042, 0.1637], "start_ms": 53000, "end_ms": 56000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.2109, 0.2606, 0.0806, 0.1326], "start_ms": 15000, "end_ms": 18000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.6295, 0.1292, 0.0648, 0.092], "start_ms": 24000, "end_ms": 27000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.39095, 0.6668, 0.13385, 0.2387], "start_ms": 23000, "end_ms": 26000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.2109, 0.2606, 0.0806, 0.1326], "start_ms": 56000, "end_ms": 59000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.3077, 0.0848, 0.0655, 0.1041], "start_ms": 40000, "end_ms": 43000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.39095, 0.6668, 0.13385, 0.2387], "start_ms": 63000, "end_ms": 66000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.084, 0.51715, 0.1341, 0.2358], "start_ms": 15000, "end_ms": 18000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.3859, 0.4422, 0.10325, 0.1559], "start_ms": 30000, "end_ms": 33000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.084, 0.51715, 0.1341, 0.2358], "start_ms": 3000, "end_ms": 6000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.6562, 0.1927, 0.0761, 0.11], "start_ms": 41000, "end_ms": 44000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.6573, 0.2399, 0.0832, 0.1424], "start_ms": 41000, "end_ms": 44000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.5444, 0.3375, 0.113, 0.1693], "start_ms": 47000, "end_ms": 50000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.3077, 0.0848, 0.0655, 0.1041], "start_ms": 1000, "end_ms": 4000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.5444, 0.3375, 0.113, 0.1693], "start_ms": 30000, "end_ms": 33000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.072, 0.20815, 0.0605, 0.1208], "start_ms": 49000, "end_ms": 52000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.4625, 0.1574, 0.04515, 0.1201], "start_ms": 13000, "end_ms": 16000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.6295, 0.1292, 0.0648, 0.092], "start_ms": 3000, "end_ms": 6000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.3987, 0.3093, 0.1008, 0.1747], "start_ms": 19000, "end_ms": 22000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.02095, 0.72635, 0.1748, 0.2321], "start_ms": 60000, "end_ms": 63000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.675, 0.359, 0.09795, 0.1425], "start_ms": 62000, "end_ms": 65000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.39095, 0.6668, 0.13385, 0.2387], "start_ms": 24000, "end_ms": 27000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.4625, 0.2208, 0.0481, 0.1401], "start_ms": 3000, "end_ms": 6000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.4625, 0.0885, 0.0594, 0.118], "start_ms": 29000, "end_ms": 32000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.4625, 0.2208, 0.0481, 0.1401], "start_ms": 56000, "end_ms": 59000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.7795, 0.55905, 0.11855, 0.33565], "start_ms": 14000, "end_ms": 17000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.2583, 0.1864, 0.078, 0.1708], "start_ms": 47000, "end_ms": 50000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.2109, 0.2606, 0.0806, 0.1326], "start_ms": 51000, "end_ms": 54000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.1574, 0.3825, 0.1042, 0.1637], "start_ms": 58000, "end_ms": 61000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.39095, 0.6668, 0.13385, 0.2387], "start_ms": 61000, "end_ms": 64000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.39095, 0.6668, 0.13385, 0.2387], "start_ms": 46000, "end_ms": 49000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.02095, 0.72635, 0.1748, 0.2321], "start_ms": 54000, "end_ms": 57000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.072, 0.20815, 0.0605, 0.1208], "start_ms": 67000, "end_ms": 70000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.072, 0.20815, 0.0605, 0.1208], "start_ms": 38000, "end_ms": 41000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.2583, 0.1864, 0.078, 0.1708], "start_ms": 10000, "end_ms": 13000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.02095, 0.72635, 0.1748, 0.2321], "start_ms": 20000, "end_ms": 23000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.2109, 0.2606, 0.0806, 0.1326], "start_ms": 59000, "end_ms": 62000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.02095, 0.72635, 0.1748, 0.2321], "start_ms": 7000, "end_ms": 10000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.675, 0.359, 0.09795, 0.1425], "start_ms": 68000, "end_ms": 71000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.2583, 0.1864, 0.078, 0.1708], "start_ms": 26000, "end_ms": 29000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.2109, 0.2606, 0.0806, 0.1326], "start_ms": 55000, "end_ms": 58000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.4625, 0.1574, 0.04515, 0.1201], "start_ms": 10000, "end_ms": 13000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.2109, 0.2606, 0.0806, 0.1326], "start_ms": 48000, "end_ms": 51000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.4625, 0.2208, 0.0481, 0.1401], "start_ms": 16000, "end_ms": 19000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.5444, 0.3375, 0.113, 0.1693], "start_ms": 21000, "end_ms": 24000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.6562, 0.1927, 0.0761, 0.11], "start_ms": 11000, "end_ms": 14000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.5444, 0.3375, 0.113, 0.1693], "start_ms": 2000, "end_ms": 5000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.02095, 0.72635, 0.1748, 0.2321], "start_ms": 3000, "end_ms": 6000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.1574, 0.3825, 0.1042, 0.1637], "start_ms": 55000, "end_ms": 58000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.6562, 0.1927, 0.0761, 0.11], "start_ms": 32000, "end_ms": 35000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.5444, 0.3375, 0.113, 0.1693], "start_ms": 11000, "end_ms": 14000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.3987, 0.3093, 0.1008, 0.1747], "start_ms": 67000, "end_ms": 70000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.02095, 0.72635, 0.1748, 0.2321], "start_ms": 39000, "end_ms": 42000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.4625, 0.0885, 0.0594, 0.118], "start_ms": 46000, "end_ms": 49000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.6295, 0.1292, 0.0648, 0.092], "start_ms": 1000, "end_ms": 4000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.02095, 0.72635, 0.1748, 0.2321], "start_ms": 6000, "end_ms": 9000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.1594, 0.1022, 0.0477, 0.0951], "start_ms": 58000, "end_ms": 61000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.4625, 0.2208, 0.0481, 0.1401], "start_ms": 1000, "end_ms": 4000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.1594, 0.1022, 0.0477, 0.0951], "start_ms": 68000, "end_ms": 71000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.3077, 0.0848, 0.0655, 0.1041], "start_ms": 62000, "end_ms": 65000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.5444, 0.3375, 0.113, 0.1693], "start_ms": 31000, "end_ms": 34000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.6573, 0.2399, 0.0832, 0.1424], "start_ms": 21000, "end_ms": 24000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.6562, 0.1927, 0.0761, 0.11], "start_ms": 62000, "end_ms": 65000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.072, 0.20815, 0.0605, 0.1208], "start_ms": 24000, "end_ms": 27000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.39095, 0.6668, 0.13385, 0.2387], "start_ms": 34000, "end_ms": 37000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.39095, 0.6668, 0.13385, 0.2387], "start_ms": 55000, "end_ms": 58000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.6573, 0.2399, 0.0832, 0.1424], "start_ms": 68000, "end_ms": 71000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.2583, 0.1864, 0.078, 0.1708], "start_ms": 32000, "end_ms": 35000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.2583, 0.1864, 0.078, 0.1708], "start_ms": 60000, "end_ms": 63000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.3077, 0.0848, 0.0655, 0.1041], "start_ms": 68000, "end_ms": 71000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.6562, 0.1927, 0.0761, 0.11], "start_ms": 31000, "end_ms": 34000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.675, 0.359, 0.09795, 0.1425], "start_ms": 55000, "end_ms": 58000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.6562, 0.1927, 0.0761, 0.11], "start_ms": 9000, "end_ms": 12000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.675, 0.359, 0.09795, 0.1425], "start_ms": 38000, "end_ms": 41000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.1307, 0.15935, 0.0718, 0.09215], "start_ms": 66000, "end_ms": 69000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.3987, 0.3093, 0.1008, 0.1747], "start_ms": 28000, "end_ms": 31000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.2109, 0.2606, 0.0806, 0.1326], "start_ms": 19000, "end_ms": 22000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.6295, 0.1292, 0.0648, 0.092], "start_ms": 52000, "end_ms": 55000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.2109, 0.2606, 0.0806, 0.1326], "start_ms": 16000, "end_ms": 19000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.7795, 0.55905, 0.11855, 0.33565], "start_ms": 1000, "end_ms": 4000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.4625, 0.2208, 0.0481, 0.1401], "start_ms": 28000, "end_ms": 31000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.084, 0.51715, 0.1341, 0.2358], "start_ms": 36000, "end_ms": 39000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.5444, 0.3375, 0.113, 0.1693], "start_ms": 4000, "end_ms": 7000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.1574, 0.3825, 0.1042, 0.1637], "start_ms": 8000, "end_ms": 11000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.4625, 0.0885, 0.0594, 0.118], "start_ms": 50000, "end_ms": 53000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.6295, 0.1292, 0.0648, 0.092], "start_ms": 51000, "end_ms": 54000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.1574, 0.3825, 0.1042, 0.1637], "start_ms": 61000, "end_ms": 64000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.072, 0.20815, 0.0605, 0.1208], "start_ms": 48000, "end_ms": 51000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.6573, 0.2399, 0.0832, 0.1424], "start_ms": 25000, "end_ms": 28000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.5444, 0.3375, 0.113, 0.1693], "start_ms": 63000, "end_ms": 66000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.675, 0.359, 0.09795, 0.1425], "start_ms": 59000, "end_ms": 62000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.4625, 0.1574, 0.04515, 0.1201], "start_ms": 65000, "end_ms": 68000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.39095, 0.6668, 0.13385, 0.2387], "start_ms": 48000, "end_ms": 51000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.02095, 0.72635, 0.1748, 0.2321], "start_ms": 59000, "end_ms": 62000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.084, 0.51715, 0.1341, 0.2358], "start_ms": 45000, "end_ms": 48000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.2583, 0.1864, 0.078, 0.1708], "start_ms": 17000, "end_ms": 20000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.072, 0.20815, 0.0605, 0.1208], "start_ms": 35000, "end_ms": 38000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.084, 0.51715, 0.1341, 0.2358], "start_ms": 67000, "end_ms": 70000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.5444, 0.3375, 0.113, 0.1693], "start_ms": 52000, "end_ms": 55000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.4625, 0.1574, 0.04515, 0.1201], "start_ms": 15000, "end_ms": 18000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.4625, 0.2208, 0.0481, 0.1401], "start_ms": 2000, "end_ms": 5000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.6295, 0.1292, 0.0648, 0.092], "start_ms": 2000, "end_ms": 5000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.3077, 0.0848, 0.0655, 0.1041], "start_ms": 42000, "end_ms": 45000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.6295, 0.1292, 0.0648, 0.092], "start_ms": 44000, "end_ms": 47000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.2583, 0.1864, 0.078, 0.1708], "start_ms": 18000, "end_ms": 21000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.4625, 0.2208, 0.0481, 0.1401], "start_ms": 33000, "end_ms": 36000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.1307, 0.15935, 0.0718, 0.09215], "start_ms": 39000, "end_ms": 42000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.1594, 0.1022, 0.0477, 0.0951], "start_ms": 35000, "end_ms": 38000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.6562, 0.1927, 0.0761, 0.11], "start_ms": 10000, "end_ms": 13000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.1574, 0.3825, 0.1042, 0.1637], "start_ms": 15000, "end_ms": 18000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.6562, 0.1927, 0.0761, 0.11], "start_ms": 61000, "end_ms": 64000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.3987, 0.3093, 0.1008, 0.1747], "start_ms": 13000, "end_ms": 16000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.2583, 0.1864, 0.078, 0.1708], "start_ms": 56000, "end_ms": 59000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.4625, 0.2208, 0.0481, 0.1401], "start_ms": 32000, "end_ms": 35000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.39095, 0.6668, 0.13385, 0.2387], "start_ms": 6000, "end_ms": 9000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.4625, 0.0885, 0.0594, 0.118], "start_ms": 41000, "end_ms": 44000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.5444, 0.3375, 0.113, 0.1693], "start_ms": 56000, "end_ms": 59000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.2109, 0.2606, 0.0806, 0.1326], "start_ms": 36000, "end_ms": 39000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.3987, 0.3093, 0.1008, 0.1747], "start_ms": 23000, "end_ms": 26000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.675, 0.359, 0.09795, 0.1425], "start_ms": 1000, "end_ms": 4000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.3987, 0.3093, 0.1008, 0.1747], "start_ms": 18000, "end_ms": 21000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.3077, 0.0848, 0.0655, 0.1041], "start_ms": 56000, "end_ms": 59000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.6562, 0.1927, 0.0761, 0.11], "start_ms": 12000, "end_ms": 15000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.5444, 0.3375, 0.113, 0.1693], "start_ms": 57000, "end_ms": 60000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.084, 0.51715, 0.1341, 0.2358], "start_ms": 48000, "end_ms": 51000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.5444, 0.3375, 0.113, 0.1693], "start_ms": 24000, "end_ms": 27000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}
+{"video": "EPf9O7UXRoM", "seat_box": [0.084, 0.51715, 0.1341, 0.2358], "start_ms": 57000, "end_ms": 60000, "label": "NORMAL", "labeler": "claude-quiet", "note": ""}

@@ -1,0 +1,14 @@
+# Tờ chấm EPf9O7UXRoM.mp4: ô số N là mục thứ N; verdict true = cảnh báo đúng, false = nhầm, null = chưa chấm.
+# Nguyên chấm 2026-11-11: chỉ ô 6 đúng (nhìn sang chỗ khác); ô 4 và 10 là hai người hàng trên/dưới bị tính nhầm; ô 7 do góc camera, thực ra cúi chéo làm bài.
+video: EPf9O7UXRoM.mp4
+verdicts:
+  - {"type": "LOOK_AT_LAP", "t_s": 3.0, "heads": [[0.431, 0.509]], "verdict": false}  # ô 1
+  - {"type": "LOOK_AT_LAP", "t_s": 3.6, "heads": [[0.779, 0.566]], "verdict": false}  # ô 2
+  - {"type": "LOOK_AT_LAP", "t_s": 4.2, "heads": [[0.753, 0.42]], "verdict": false}  # ô 3
+  - {"type": "PASSING_OBJECT", "t_s": 18.3, "heads": [[0.721, 0.293]], "verdict": false}  # ô 4
+  - {"type": "LOOK_AT_LAP", "t_s": 29.2, "heads": [[0.676, 0.17]], "verdict": false}  # ô 5
+  - {"type": "HEADS_TOGETHER", "t_s": 37.6, "heads": [[0.21, 0.402]], "verdict": true}  # ô 6
+  - {"type": "TURN_AROUND", "t_s": 42.4, "heads": [[0.053, 0.806]], "verdict": false}  # ô 7
+  - {"type": "LOOK_AT_NEIGHBOR", "t_s": 49.0, "heads": [[0.182, 0.137]], "verdict": false}  # ô 8
+  - {"type": "PASSING_OBJECT", "t_s": 61.5, "heads": [[0.488, 0.125]], "verdict": false}  # ô 9
+  - {"type": "HEADS_TOGETHER", "t_s": 67.6, "heads": [[0.694, 0.206]], "verdict": false}  # ô 10

@@ -27,6 +27,7 @@ from proctoring_core.observations import Box
 
 from ..tracker import iou
 from .crops import CropTransform, crop_image, crop_region
+from .pose_smooth import merge_flipped
 from .review_cache import CacheKey, save_window, window_key
 from .review_core import review_seats
 from .review_dedupe import ReviewDeduper
@@ -87,8 +88,9 @@ def _two_devices(detectors: Any) -> bool:
 
 
 class _Models:
-    def __init__(self, detectors: Any, parallel: bool) -> None:
+    def __init__(self, detectors: Any, parallel: bool, pose_flip: bool = False) -> None:
         self.detectors = detectors
+        self.pose_flip = pose_flip
         self.parallel = parallel and _two_devices(detectors)
         self._pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="review") if self.parallel else None
         self.pose_s = self.objects_s = 0.0
@@ -96,7 +98,13 @@ class _Models:
     def _pose(self, crops: list[Any], transforms: list[CropTransform]) -> list[list[dict[str, Any]]]:
         began = time.perf_counter()
         try:
-            return list(self.detectors.pose_many(crops, transforms))
+            people = list(self.detectors.pose_many(crops, transforms))
+            if not self.pose_flip:
+                return people
+            # Test-time flip: the same crops mirrored, each person mirrored back around the crop's centre line.
+            flipped = list(self.detectors.pose_many([cv2.flip(crop, 1) for crop in crops], transforms))
+            return [merge_flipped(list(found), list(mirror), transform.to_frame(crop.shape[1] / 2, 0)[0])
+                    for found, mirror, crop, transform in zip(people, flipped, crops, transforms, strict=True)]
         finally:
             self.pose_s += time.perf_counter() - began
 
@@ -161,14 +169,16 @@ def _group(wanted: Sequence[int], regions: Sequence[Box], share_iou: float) -> l
 def review_offline(video: Path, windows: list[SuspectWindow], detectors: Any, *, fps: float = 5.0,
                    warmup_ms: int = 6000, share_iou: float = 0.7, cache_path: Path | None = None,
                    parallel: bool = False, on_progress: Callable[[int, int], None] | None = None,
-                   batch_size: int | None = None, config: ReviewRuleConfig | None = None) -> OfflineResult:
+                   batch_size: int | None = None, config: ReviewRuleConfig | None = None,
+                   pose_flip: bool = False) -> OfflineResult:
     """Every window of ``windows`` reviewed over one sequential read of ``video``.
 
     ``records`` come out in the order of ``windows`` through one ``ReviewDeduper``, as the per-window path
     gives them (no ``label_vi``/evidence: the caller adds those). ``cache_path`` gets one ``save_window`` line
     per window (appended, like ``review_suspects``). ``batch_size`` (default: the detectors' own, else 16) is
     how many crops queue up before the models run; ``on_progress(done, total)`` is called about once per
-    second of video read, and once at the end with ``done == total``."""
+    second of video read, and once at the end with ``done == total``. ``pose_flip``: the pose model also runs
+    on every crop mirrored, and the two results are merged (``merge_flipped``); about twice the pose time."""
 
     capture = cv2.VideoCapture(str(video))
     if not capture.isOpened():
@@ -182,7 +192,8 @@ def review_offline(video: Path, windows: list[SuspectWindow], detectors: Any, *,
     cursors = [FrameCursor(window.start_ms - warmup_ms, _end_ms(window, duration_ms), fps) for window in windows]
     frames: list[list[ReviewFrame]] = [[] for _ in windows]
     limit = max(1, int(batch_size or getattr(detectors, "batch_size", 0) or DEFAULT_BATCH))
-    models = _Models(detectors, parallel)
+    by_body = (config or ReviewRuleConfig()).assign_by_body
+    models = _Models(detectors, parallel, pose_flip)
     queue: list[_Crop] = []
     stats: dict[str, Any] = {"crops": 0, "crops_shared": 0, "frames": 0, "decode_s": 0.0}
 
@@ -197,8 +208,10 @@ def review_offline(video: Path, windows: list[SuspectWindow], detectors: Any, *,
                 own = regions[index]
                 mine_objects = list(objects) if item.region == own else \
                     [obj for obj in objects if _inside(obj.bbox.center, own)]
-                frames[index].append(ReviewFrame(item.offset_ms, seats[index], assign_poses(seats[index], found),
-                                                 mine_objects, item.aspect))
+                frames[index].append(ReviewFrame(item.offset_ms, seats[index], assign_poses(seats[index], found, by_body=by_body),
+                                                 mine_objects, item.aspect,
+                                                 [person for person in found if (body := Box.parse(person.get("bbox")))
+                                                  is not None and _inside(body.center, own)]))
         queue.clear()
 
     pending = [index for index, cursor in enumerate(cursors) if not cursor.done]
@@ -246,7 +259,7 @@ def review_offline(video: Path, windows: list[SuspectWindow], detectors: Any, *,
             save_window(cache_path, window, analysed)
         records += dedupe.admit(review_window(window, analysed, config))
     stats.update(pose_s=models.pose_s, objects_s=models.objects_s, rules_s=time.perf_counter() - began,
-                 parallel=models.parallel)
+                 parallel=models.parallel, pose_flip=pose_flip)
     for name in ("decode_s", "pose_s", "objects_s", "rules_s"):
         stats[name] = round(stats[name], 3)
     return OfflineResult(records, {window_key(window): analysed for window, analysed in zip(windows, frames, strict=True)},
